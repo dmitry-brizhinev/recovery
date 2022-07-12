@@ -4,6 +4,7 @@ import { User, getCurrentUserOrNull, loginPopup } from './auth'
 
 export interface AppState {
   user: User | null;
+  pending: boolean;
 }
 
 export default class App extends React.Component<object, AppState> {
@@ -13,16 +14,17 @@ export default class App extends React.Component<object, AppState> {
 
     this.onClickLogin = this.onClickLogin.bind(this);
 
-    this.state = {user: getCurrentUserOrNull()};
+    this.state = {user: getCurrentUserOrNull(), pending: false};
   }
 
-  async onClickLogin(event: React.FormEvent<HTMLButtonElement>) {
+  async onClickLogin() {
+    this.setState({pending: true});
     const user = await loginPopup();
         /*}).catch((error) => {
       const errorCode = error.code;
       const errorMessage = error.message;
     });*/
-    this.setState({user: user});
+    this.setState({user: user, pending: false});
   }
 
   render() {
@@ -30,9 +32,7 @@ export default class App extends React.Component<object, AppState> {
       return (
         <main>
         <h2>Recovery</h2>
-        <button onClick={this.onClickLogin}>
-          Login
-        </button>
+        <Login pending={this.state.pending} onClick={this.onClickLogin} />
         <hr/>
         </main>
       );
@@ -56,16 +56,8 @@ export default class App extends React.Component<object, AppState> {
   }
 }
 
-const WIDTH = 100;
-const HEIGHT = 100;
-const SCALE = 4;
-
 export interface ArtProps {
   seed: number;
-}
-
-function getX(t: number): number {
-  return Math.sin(t * Math.PI);
 }
 
 export class Art extends React.Component<ArtProps, object> {
@@ -77,17 +69,6 @@ export class Art extends React.Component<ArtProps, object> {
     this.lastKey = 0;
   }
 
-  MakeCircle(x: number, y:number, r:number, w:number): CircleProps {
-    this.lastKey += 1;
-    return {
-        x: x,
-        y: y,
-        r: r,
-        w: w,
-        key: this.lastKey,
-    };
-  }
-
   render() {
     return (
       <Page label="thoughts here"/>
@@ -95,21 +76,19 @@ export class Art extends React.Component<ArtProps, object> {
   }
 }
 
-interface CircleProps {
-  x: number;
-  y: number;
-  r: number;
-  w: number;
-  key: number;
+interface LoginProps {
+  onClick: () => void;
+  user?: User;
+  pending: boolean;
 }
 
-class Circle extends React.PureComponent<CircleProps, object> {
-  constructor(props: CircleProps) {
-    super(props);
-  }
-
+class Login extends React.PureComponent<LoginProps, object> {
   render() {
-    return <circle cx={this.props.x} cy={this.props.y} r={this.props.r} strokeWidth={this.props.w} className={'golden'}/>;
+    if (this.props.user != null) {
+      return `User: ${this.props.user.name}`;
+    } else {
+      return <button disabled={this.props.pending} onClick={this.props.onClick}>Login</button>;
+    }
   }
 }
 
@@ -130,7 +109,7 @@ class Page extends React.Component<PageProps, PageState> {
   }
 
   handleChange(event: React.FormEvent<HTMLTextAreaElement>) {
-    this.setState({text: event.target.value});
+    this.setState({text: (event.target as HTMLTextAreaElement).value});
   }
 
   render() {
