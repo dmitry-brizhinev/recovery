@@ -74,52 +74,83 @@ interface PageProps {
   id: string;
 }
 
+const enum PageStatus {
+  Loading,
+  Saved,
+  Saving,
+  Cooling,
+}
+
 interface PageState {
   text: string;
-  loading: boolean;
-  saving: boolean;
+  status: PageStatus;
+  modified: boolean;
 }
 
 class Page extends React.Component<PageProps, PageState> {
   constructor(props: PageProps) {
     super(props);
-    this.state = {text: 'Loading...', loading: true, saving: false};
+    this.state = {text: 'Loading...', status: PageStatus.Loading, modified: false};
 
     this.handleChange = this.handleChange.bind(this);
 
     getPage(this.props.id).then(
       (data: string) => {
-        this.setState({text: data, loading: false});
+        this.setState({text: data, status: PageStatus.Saved});
       }
     );
   }
 
   handleChange(event: React.FormEvent<HTMLTextAreaElement>) {
-    if (this.state.loading) {
+    if (this.state.status === PageStatus.Loading) {
       this.setState({text: 'Loading...'});
       return;
     }
     const text = (event.target as HTMLTextAreaElement).value;
 
-    if (this.state.saving) {
-      this.setState({text: text});
-    } else {
-      this.setState({text: text, saving: true});
-      savePage(this.props.id, text).then(
-        () => {
-          this.setState({saving: false});
-        }
-      );
+    this.setState({text: text, modified: true});
+    if (this.state.status === PageStatus.Saved) {
+      this.definitelySave(text);
+    }
+  }
+
+  async definitelySave(text: string) {
+    do {
+      this.setState({status: PageStatus.Saving, modified: false});
+      await savePage(this.props.id, text);
+      this.setState({status: PageStatus.Cooling});
+      await delay(5000);
+      text = this.state.text;
+    } while (this.state.modified);
+    this.setState({status: PageStatus.Saved});
+  }
+
+  statusText(): string {
+    if (this.state.modified) {
+      return ' [Unsaved..]';
+    }
+    switch (this.state.status) {
+      case PageStatus.Loading:
+        return ' [Loading..]';
+      case PageStatus.Saving:
+        return ' [Saving...]';
+      case PageStatus.Saved:
+      case PageStatus.Cooling:
+        return ' [  Saved  ]';
     }
   }
 
   render() {
     return (
       <label>
-        {this.props.label}<br/>
-        <textarea value={this.state.text} onChange={this.handleChange} />
+        {this.props.label}{this.statusText()}<br/>
+        <textarea value={this.state.text} onChange={this.handleChange} disabled={this.state.status === PageStatus.Loading}/>
         <hr/>
       </label>
     );
   }
+}
+
+function delay(milliseconds : number) {
+  return new Promise(resolve => setTimeout( resolve, milliseconds));
 }

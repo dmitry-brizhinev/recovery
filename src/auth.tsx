@@ -56,10 +56,6 @@ export async function getPage(id: string): Promise<string> {
   return text;
 }
 
-function delay(milliseconds : number) {
-  return new Promise(resolve => setTimeout( resolve, milliseconds));
-}
-
 export async function savePage(id: string, text: string) {
   const user = getCurrentUserOrNull();
   if (user == null) {
@@ -67,5 +63,4 @@ export async function savePage(id: string, text: string) {
   }
   const uid = user.id;
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
-  await delay(5000);
 }
