@@ -1,6 +1,6 @@
 import * as React from 'react'
 import './App.css'
-import { MyUser, getSavedUserWithTimeout, loginPopup, getPage, savePage } from './auth'
+import { MyUser, MyData, PageId, getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
 
 export interface AppState {
   user: MyUser | null;
@@ -57,13 +57,21 @@ interface LoggedInAppProps {
   user: MyUser;
 }
 
-class LoggedInApp extends React.Component<LoggedInAppProps, object> {
+interface LoggedInAppState {
+  data: MyData | null;
+}
+
+class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   constructor(props: any) {
     super(props);
 
     this.onClickRefresh = this.onClickRefresh.bind(this);
 
-    this.state = {pending: false};
+    this.state = {data: null};
+  }
+
+  componentDidMount() {
+    getData().then((data) => this.setState({data: data}));
   }
 
   onClickRefresh() {
@@ -71,39 +79,44 @@ class LoggedInApp extends React.Component<LoggedInAppProps, object> {
   }
 
   render() {
-    return (
-      <div>
+    return <div>
       User: {this.props.user.name}
       <hr/>
-      <LoadedApp />
-      </div>
-    );
+      {this.state.data ? <LoadedApp data={this.state.data}/> : 'Loading...'}
+    </div>;
   }
 }
 
-interface LoadedAppProps {
+const PAGE_IDS = {
+  'plan': 'To figure out a plan for:',
+  'todo': 'To do:',
+  'psych': 'To discuss with psych:',
+  'eggy': 'To discuss with Eggy:',
+  'other': 'Other:',
+};
 
+interface LoadedAppProps {
+  data: MyData;
 }
 
 class LoadedApp extends React.Component<LoadedAppProps, object> {
   render() {
     return <div>
-      <Page label="To figure out a plan for:" id="plan"/>
-      <Page label="To do:" id="todo"/>
-      <Page label="To discuss with psych:" id="psych"/>
-      <Page label="To discuss with Eggy:" id="eggy"/>
-      <Page label="Other:" id="other"/>
+      <Page id={PageId.plan} data={this.props.data}/>
+      <Page id={PageId.todo} data={this.props.data}/>
+      <Page id={PageId.psych} data={this.props.data}/>
+      <Page id={PageId.eggy} data={this.props.data}/>
+      <Page id={PageId.other} data={this.props.data}/>
     </div>;
   }
 }
 
 interface PageProps {
-  label: string;
-  id: string;
+  id: PageId;
+  data: MyData;
 }
 
 const enum PageStatus {
-  Loading,
   Saved,
   Saving,
   Cooling,
@@ -118,22 +131,13 @@ interface PageState {
 class Page extends React.Component<PageProps, PageState> {
   constructor(props: PageProps) {
     super(props);
-    this.state = {text: 'Loading...', status: PageStatus.Loading, modified: false};
+    this.state = {text: this.props.data.pages.get(this.props.id) || 'MISSING ENTRY', status: PageStatus.Saved, modified: false};
 
     this.handleChange = this.handleChange.bind(this);
-
-    getPage(this.props.id).then(
-      (data: string) => {
-        this.setState({text: data, status: PageStatus.Saved});
-      }
-    );
   }
 
   handleChange(event: React.FormEvent<HTMLTextAreaElement>) {
-    if (this.state.status === PageStatus.Loading) {
-      this.setState({text: 'Loading...'});
-      return;
-    }
+
     const text = (event.target as HTMLTextAreaElement).value;
 
     this.setState({text: text, modified: true});
@@ -158,8 +162,6 @@ class Page extends React.Component<PageProps, PageState> {
       return ' [Unsaved..]';
     }
     switch (this.state.status) {
-      case PageStatus.Loading:
-        return ' [Loading..]';
       case PageStatus.Saving:
         return ' [Saving...]';
       case PageStatus.Saved:
@@ -171,8 +173,8 @@ class Page extends React.Component<PageProps, PageState> {
   render() {
     return (
       <label>
-        {this.props.label}{this.statusText()}<br/>
-        <textarea value={this.state.text} onChange={this.handleChange} disabled={this.state.status === PageStatus.Loading}/>
+        {PAGE_IDS[this.props.id]}{this.statusText()}<br/>
+        <textarea value={this.state.text} onChange={this.handleChange}/>
         <hr/>
       </label>
     );

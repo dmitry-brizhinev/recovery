@@ -50,23 +50,41 @@ export async function loginPopup(): Promise<MyUser> {
   return {name: user.email, id: user.uid};
 }
 
-export async function getPage(id: string): Promise<string> {
+export interface MyData {
+  pages: Map<PageId, string>;
+}
+
+export enum PageId {
+  plan = 'plan',
+  todo = 'todo',
+  psych = 'psych',
+  eggy = 'eggy',
+  other = 'other',
+}
+
+export async function getData(): Promise<MyData> {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
-    return 'NO USER';
+    throw new Error('No logged-in user');
   }
   const data = (await getDoc(doc(db, 'users', uid))).data();
+  const pages = new Map();
   if (data == null) {
-    return 'NEW DOCUMENT';
+    return {pages: pages};
   }
-  const text = data[id];
-  if (text == null) {
-    return 'NO DATA';
+  for (const id of Object.values(PageId)) {
+    const text = data[id];
+    if (text == null) {
+      pages.set(id, 'NO DATA');
+    }
+    else if (typeof text !== 'string') {
+      pages.set(id, `WRONG TYPE ${typeof text}`);
+    } else {
+      pages.set(id, text);
+    }
   }
-  if (typeof text !== 'string') {
-    return `WRONG TYPE ${typeof text}`;
-  }
-  return text;
+
+  return {pages: pages};
 }
 
 export async function savePage(id: string, text: string) {
