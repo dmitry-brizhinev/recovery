@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -16,20 +16,34 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-export interface User {
+export interface MyUser {
   name: string | null;
   id: string;
 }
 
-export function getCurrentUserOrNull(): User | null {
-  const user = auth.currentUser;
+const firstUser : Promise<User> = new Promise((resolve) => onAuthStateChanged(auth, (user) => user && resolve(user)));
+
+function delay(millis : number) : Promise<null> {
+  return new Promise(resolve => setTimeout(() => resolve(null), millis));
+}
+
+export async function getSavedUserWithTimeout(millis: number): Promise<MyUser | null> {
+  const user = await Promise.race([delay(millis), firstUser]);
   if (user == null) {
     return null;
   }
   return {name: user.email, id: user.uid};
 }
 
-export async function loginPopup(): Promise<User> {
+function getCurrentUidOrNull(): string | null {
+  const user = auth.currentUser;
+  if (user == null) {
+    return null;
+  }
+  return user.uid;
+}
+
+export async function loginPopup(): Promise<MyUser> {
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
@@ -37,11 +51,10 @@ export async function loginPopup(): Promise<User> {
 }
 
 export async function getPage(id: string): Promise<string> {
-  const user = getCurrentUserOrNull();
-  if (user == null) {
+  const uid = getCurrentUidOrNull();
+  if (uid == null) {
     return 'NO USER';
   }
-  const uid = user.id;
   const data = (await getDoc(doc(db, 'users', uid))).data();
   if (data == null) {
     return 'NEW DOCUMENT';
@@ -57,10 +70,9 @@ export async function getPage(id: string): Promise<string> {
 }
 
 export async function savePage(id: string, text: string) {
-  const user = getCurrentUserOrNull();
-  if (user == null) {
+  const uid = getCurrentUidOrNull();
+  if (uid == null) {
     return;
   }
-  const uid = user.id;
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
 }

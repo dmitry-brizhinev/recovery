@@ -1,10 +1,11 @@
 import * as React from 'react'
 import './App.css'
-import { User, getCurrentUserOrNull, loginPopup, getPage, savePage } from './auth'
+import { MyUser, getSavedUserWithTimeout, loginPopup, getPage, savePage } from './auth'
 
 export interface AppState {
-  user: User | null;
-  pending: boolean;
+  user: MyUser | null;
+  awaitingSaved: boolean;
+  awaitingLogin: boolean;
 }
 
 export default class App extends React.Component<object, AppState> {
@@ -14,58 +15,85 @@ export default class App extends React.Component<object, AppState> {
 
     this.onClickLogin = this.onClickLogin.bind(this);
 
-    this.state = {user: getCurrentUserOrNull(), pending: false};
+    this.state = {user: null, awaitingSaved: true, awaitingLogin: false};
+  }
+
+  componentDidMount() {
+    getSavedUserWithTimeout(1000).then((user) => {
+      this.setState({user: user, awaitingSaved: false});
+    });
   }
 
   async onClickLogin() {
-    this.setState({pending: true});
+    this.setState({awaitingLogin: true});
     const user = await loginPopup();
         /*}).catch((error) => {
       const errorCode = error.code;
       const errorMessage = error.message;
     });*/
-    this.setState({user: user, pending: false});
+    this.setState({user: user, awaitingLogin: false});
   }
 
   render() {
-    if (this.state.user == null) {
-      return (
-        <main>
-        <h2>Recovery</h2>
-        <Login pending={this.state.pending} onClick={this.onClickLogin} />
-        <hr/>
-        </main>
-      );
+    let upper;
+    if (this.state.awaitingSaved) {
+      upper = 'Loading...';
+    } else if (this.state.awaitingLogin) {
+      upper = <button disabled={true}>Login</button>;
+    } else if (this.state.user == null) {
+      upper = <button onClick={this.onClickLogin}>Login</button>;
     } else {
-      return (
-        <main>
-        <h2>Recovery</h2>
-        User: {this.state.user.name}
-        <hr/>
-        <Page label="To figure out a plan for:" id="plan"/>
-        <Page label="To do:" id="todo"/>
-        <Page label="To discuss with psych:" id="psych"/>
-        <Page label="To discuss with Eggy:" id="eggy"/>
-        <Page label="Other:" id="other"/>
-        </main>
-      );
+      upper = <></>;
     }
+    return <main>
+      <h2>Recovery</h2>
+      {upper}
+      {this.state.user ? <LoggedInApp user={this.state.user}/> : <hr/>}
+    </main>;
   }
 }
 
-interface LoginProps {
-  onClick: () => void;
-  user?: User;
-  pending: boolean;
+interface LoggedInAppProps {
+  user: MyUser;
 }
 
-class Login extends React.PureComponent<LoginProps, object> {
+class LoggedInApp extends React.Component<LoggedInAppProps, object> {
+  constructor(props: any) {
+    super(props);
+
+    this.onClickRefresh = this.onClickRefresh.bind(this);
+
+    this.state = {pending: false};
+  }
+
+  onClickRefresh() {
+
+  }
+
   render() {
-    if (this.props.user != null) {
-      return `User: ${this.props.user.name}`;
-    } else {
-      return <button disabled={this.props.pending} onClick={this.props.onClick}>Login</button>;
-    }
+    return (
+      <div>
+      User: {this.props.user.name}
+      <hr/>
+      <LoadedApp />
+      </div>
+    );
+  }
+}
+
+interface LoadedAppProps {
+
+}
+
+class LoadedApp extends React.Component<LoadedAppProps, object> {
+  render() {
+    return <div>
+      <Page label="To figure out a plan for:" id="plan"/>
+      <Page label="To do:" id="todo"/>
+      <Page label="To discuss with psych:" id="psych"/>
+      <Page label="To discuss with Eggy:" id="eggy"/>
+      <Page label="Other:" id="other"/>
+    </div>;
   }
 }
 
@@ -151,6 +179,6 @@ class Page extends React.Component<PageProps, PageState> {
   }
 }
 
-function delay(milliseconds : number) {
-  return new Promise(resolve => setTimeout( resolve, milliseconds));
+function delay(millis : number) {
+  return new Promise(resolve => setTimeout(resolve, millis));
 }
