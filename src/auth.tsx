@@ -87,7 +87,7 @@ export async function getData(): Promise<MyData> {
   return {pages: pages};
 }
 
-export async function savePage(id: string, text: string) {
+export async function savePage(id: PageId, text: string) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;

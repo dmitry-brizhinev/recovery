@@ -9,7 +9,6 @@ export interface AppState {
 }
 
 export default class App extends React.Component<object, AppState> {
-
   constructor(props: any) {
     super(props);
 
@@ -62,7 +61,7 @@ interface LoggedInAppState {
 }
 
 class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
-  constructor(props: any) {
+  constructor(props: LoggedInAppProps) {
     super(props);
 
     this.onClickRefresh = this.onClickRefresh.bind(this);
@@ -80,9 +79,8 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
 
   render() {
     return <div>
-      User: {this.props.user.name}
-      <hr/>
-      {this.state.data ? <LoadedApp data={this.state.data}/> : 'Loading...'}
+      {this.props.user.name} --- {new Date().toLocaleString()}
+      {this.state.data ? <LoadedApp data={this.state.data}/> : <><hr/>Loading...</>}
     </div>;
   }
 }
@@ -100,8 +98,16 @@ interface LoadedAppProps {
 }
 
 class LoadedApp extends React.Component<LoadedAppProps, object> {
+  backup: string;
+
+  constructor(props: LoadedAppProps) {
+    super(props)
+
+    this.backup = JSON.stringify(Array.from(this.props.data.pages.entries()));
+  }
+
   render() {
-    return <div>
+    return <div><input type="text" readOnly={true} value={this.backup}/><hr/>
       <Page id={PageId.plan} data={this.props.data}/>
       <Page id={PageId.todo} data={this.props.data}/>
       <Page id={PageId.psych} data={this.props.data}/>
