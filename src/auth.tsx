@@ -50,8 +50,13 @@ export async function loginPopup(): Promise<MyUser> {
   return {name: user.email, id: user.uid};
 }
 
+export interface CalendarData {
+  heh?: string;
+}
+
 export interface MyData {
   pages: Map<PageId, string>;
+  calendar: CalendarData;
 }
 
 export enum PageId {
@@ -70,7 +75,7 @@ export async function getData(): Promise<MyData> {
   const data = (await getDoc(doc(db, 'users', uid))).data();
   const pages = new Map();
   if (data == null) {
-    return {pages: pages};
+    return {pages: pages, calendar: {}};
   }
   for (const id of Object.values(PageId)) {
     const text = data[id];
@@ -84,7 +89,7 @@ export async function getData(): Promise<MyData> {
     }
   }
 
-  return {pages: pages};
+  return {pages: pages, calendar: {}};
 }
 
 export async function savePage(id: PageId, text: string) {
@@ -93,4 +98,13 @@ export async function savePage(id: PageId, text: string) {
     return;
   }
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
+}
+
+export async function saveCalendar(data: CalendarData) {
+  const uid = getCurrentUidOrNull();
+  if (uid == null) {
+    return;
+  }
+  await delay(500);
+  // await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
 }

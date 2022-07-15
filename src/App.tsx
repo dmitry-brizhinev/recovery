@@ -1,6 +1,9 @@
 import * as React from 'react'
 import './App.css'
 import { MyUser, MyData, PageId, getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
+import { Calendar } from './Calendar'
+import { Saver } from './Saver'
+import ErrorBoundary from './ErrorBoundary'
 
 export interface AppState {
   user: MyUser | null;
@@ -45,9 +48,10 @@ export default class App extends React.Component<object, AppState> {
       upper = <></>;
     }
     return <main>
-      <h2>Recovery</h2>
+      <h2>Recovery</h2><ErrorBoundary>
       {upper}
       {this.state.user ? <LoggedInApp user={this.state.user}/> : <hr/>}
+      </ErrorBoundary>
     </main>;
   }
 }
@@ -78,10 +82,10 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   }
 
   render() {
-    return <div>
+    return <ErrorBoundary>
       {this.props.user.name} --- {new Date().toLocaleString()}
       {this.state.data ? <LoadedApp data={this.state.data}/> : <><hr/>Loading...</>}
-    </div>;
+    </ErrorBoundary>;
   }
 }
 
@@ -107,13 +111,14 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   }
 
   render() {
-    return <div><input type="text" readOnly={true} value={this.backup}/><hr/>
+    return <ErrorBoundary><input type="text" readOnly={true} value={this.backup}/><hr/>
+      <Calendar data={this.props.data.calendar}/>
       <Page id={PageId.plan} data={this.props.data}/>
       <Page id={PageId.todo} data={this.props.data}/>
       <Page id={PageId.psych} data={this.props.data}/>
       <Page id={PageId.eggy} data={this.props.data}/>
       <Page id={PageId.other} data={this.props.data}/>
-    </div>;
+    </ErrorBoundary>;
   }
 }
 
@@ -122,71 +127,20 @@ interface PageProps {
   data: MyData;
 }
 
-const enum PageStatus {
-  Saved,
-  Saving,
-  Cooling,
-}
-
-interface PageState {
-  text: string;
-  status: PageStatus;
-  modified: boolean;
-}
-
-class Page extends React.Component<PageProps, PageState> {
-  constructor(props: PageProps) {
-    super(props);
-    this.state = {text: this.props.data.pages.get(this.props.id) || 'MISSING ENTRY', status: PageStatus.Saved, modified: false};
-
-    this.handleChange = this.handleChange.bind(this);
-  }
-
-  handleChange(event: React.FormEvent<HTMLTextAreaElement>) {
-
-    const text = (event.target as HTMLTextAreaElement).value;
-
-    this.setState({text: text, modified: true});
-    if (this.state.status === PageStatus.Saved) {
-      this.definitelySave(text);
+function Page(props: PageProps) : JSX.Element {
+  function renderPage(text: string, status: string, onChange: (text: string) => void) : JSX.Element {
+    function onChangeOuter(event: React.FormEvent<HTMLTextAreaElement>) {
+      onChange((event.target as HTMLTextAreaElement).value);
     }
+    return <label>
+      {PAGE_IDS[props.id]}{status}
+      <textarea value={text} onChange={onChangeOuter}/>
+      <hr/>
+    </label>
   }
-
-  async definitelySave(text: string) {
-    do {
-      this.setState({status: PageStatus.Saving, modified: false});
-      await savePage(this.props.id, text);
-      this.setState({status: PageStatus.Cooling});
-      await delay(5000);
-      text = this.state.text;
-    } while (this.state.modified);
-    this.setState({status: PageStatus.Saved});
+  async function saverCallback(text: string) {
+    await savePage(props.id, text);
   }
-
-  statusText(): string {
-    if (this.state.modified) {
-      return ' [Unsaved..]';
-    }
-    switch (this.state.status) {
-      case PageStatus.Saving:
-        return ' [Saving...]';
-      case PageStatus.Saved:
-      case PageStatus.Cooling:
-        return ' [  Saved  ]';
-    }
-  }
-
-  render() {
-    return (
-      <label>
-        {PAGE_IDS[this.props.id]}{this.statusText()}<br/>
-        <textarea value={this.state.text} onChange={this.handleChange}/>
-        <hr/>
-      </label>
-    );
-  }
-}
-
-function delay(millis : number) {
-  return new Promise(resolve => setTimeout(resolve, millis));
+  const text = props.data.pages.get(props.id) || 'MISSING ENTRY';
+  return <ErrorBoundary><Saver<string> data={text} saver={saverCallback} render={renderPage}/></ErrorBoundary>;
 }
