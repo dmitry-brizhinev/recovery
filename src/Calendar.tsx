@@ -62,8 +62,9 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
   }
 
   render() {
+    const classname = this.props.status === ' [Saving...]' ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
     return <ErrorBoundary><div className="calendar-wrapper">
-      <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={this.tileClassName} next2Label={null} prev2Label={null}/>
+      <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
         {this.props.id.substring(1)}: {this.props.status}
         <CalendarPage data={this.props.data.get(this.props.id) || ''} onChange={this.onChange}/>
     </div><hr/></ErrorBoundary>
