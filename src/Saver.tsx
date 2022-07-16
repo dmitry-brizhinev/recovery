@@ -4,7 +4,7 @@ interface SaverProps<SavedData,Id> {
   data: SavedData;
   id: Id;
   saver: (id: Id, data: SavedData) => Promise<void>;
-  render: (id: Id, data: SavedData, status: string, onChange: (id: Id, data: SavedData) => void) => JSX.Element;
+  render: (id: Id, data: SavedData, status: string, onChange: (id: Id, data: SavedData, opts?: {force?: boolean}) => void) => JSX.Element;
   delay: number;
 }
 
@@ -19,6 +19,17 @@ interface SaverState<SavedData,Id> {
   id: Id;
   status: SaverStatus;
   modified: boolean;
+  force: boolean;
+}
+
+class Alarm {
+  trigger: () => void;
+  triggered: Promise<void>;
+
+  constructor() {
+    this.trigger = () => {};
+    this.triggered = new Promise(resolve => this.trigger = resolve);
+  }
 }
 
 export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id>, SaverState<SavedData,Id>> {
@@ -26,15 +37,26 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
     delay: 5000
   }
 
+  alarm = new Alarm();
+
   constructor(props: SaverProps<SavedData,Id>) {
     super(props);
-    this.state = {data: this.props.data, id: this.props.id, status: SaverStatus.Saved, modified: false};
+    this.state = {
+      data: this.props.data,
+      id: this.props.id,
+      status: SaverStatus.Saved,
+      modified: false,
+      force: false,
+    };
 
     this.onChange = this.onChange.bind(this);
   }
 
-  onChange(id: Id, data: SavedData) {
+  onChange(id: Id, data: SavedData, opts?: {force?: boolean}) {
     this.setState({id: id, data: data, modified: true});
+    if (opts && opts.force) {
+      this.setState({force: true});
+    }
     if (this.state.status === SaverStatus.Saved) {
       this.definitelySave(id, data);
     }
@@ -42,10 +64,11 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
 
   async definitelySave(id: Id, data: SavedData) {
     do {
-      this.setState({status: SaverStatus.Saving, modified: false});
+      this.setState({status: SaverStatus.Saving, modified: false, force: false});
+      this.alarm = new Alarm();
       await this.props.saver(id, data);
       this.setState({status: SaverStatus.Cooling});
-      await delay(this.props.delay);
+      await Promise.race([delay(this.props.delay), this.alarm.triggered]);
       data = this.state.data;
       id = this.state.id;
     } while (this.state.modified);
@@ -66,6 +89,9 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
   }
 
   render() {
+    if (this.state.force) {
+      this.alarm.trigger();
+    }
     return this.props.render(this.state.id, this.state.data, this.statusText(), this.onChange);
   }
 }
