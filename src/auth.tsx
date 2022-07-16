@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
-import { getFirestore, setDoc, doc, getDoc } from "firebase/firestore";
+import { getFirestore, setDoc, doc, getDoc, deleteField } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDpeFI1YoAh9n1ibsczs60jU9MG3LbaIPE",
@@ -50,13 +50,17 @@ export async function loginPopup(): Promise<MyUser> {
   return {name: user.email, id: user.uid};
 }
 
-export interface CalendarData {
-  heh?: string;
-}
+export type CalendarPageData = string;
+export type CalendarId = string;
+export type CalendarData = Map<CalendarId, CalendarPageData>;
 
 export interface MyData {
   pages: Map<PageId, string>;
   calendar: CalendarData;
+}
+
+export function dateToId(date: Date): CalendarId {
+  return `C${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
 }
 
 export enum PageId {
@@ -73,10 +77,12 @@ export async function getData(): Promise<MyData> {
     throw new Error('No logged-in user');
   }
   const data = (await getDoc(doc(db, 'users', uid))).data();
-  const pages = new Map();
+  const pages: Map<PageId, string> = new Map();
+  const days: Map<CalendarId, CalendarPageData> = new Map();
   if (data == null) {
-    return {pages: pages, calendar: {}};
+    return {pages: pages, calendar: days};
   }
+
   for (const id of Object.values(PageId)) {
     const text = data[id];
     if (text == null) {
@@ -89,7 +95,20 @@ export async function getData(): Promise<MyData> {
     }
   }
 
-  return {pages: pages, calendar: {}};
+  for (const [key, value] of Object.entries(data)) {
+    if (key.length !== 11 || !key.startsWith('C20') || value === '') {
+      continue;
+    }
+    const year = Number.parseInt(key.substring(1, 5));
+    const month = Number.parseInt(key.substring(6, 8));
+    const day = Number.parseInt(key.substring(9, 11));
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      continue;
+    }
+    days.set(key, typeof value === 'string' ? value : `WRONG TYPE ${typeof value}`);
+  }
+
+  return {pages: pages, calendar: days};
 }
 
 export async function savePage(id: PageId, text: string) {
@@ -100,11 +119,11 @@ export async function savePage(id: PageId, text: string) {
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
 }
 
-export async function saveCalendar(data: CalendarData) {
+export async function saveCalendar(id: CalendarId, data: CalendarData) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;
   }
-  await delay(500);
-  // await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
+  const page = data.get(id) || deleteField();
+  await setDoc(doc(db, 'users', uid), {[id]: page}, {merge: true});
 }

@@ -1,4 +1,10 @@
-textarea {
-    width:95%;
-    height:5cm;
+textarea.calendar {
+    width:350px;
+    height:272px;
+    resize:horizontal;
+}
+
+div.calendar-wrapper {
+    display: flex;
+    margin-left:10px;
 }

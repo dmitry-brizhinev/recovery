@@ -1,39 +1,83 @@
 import * as React from 'react'
 import './Calendar.css'
+import 'react-calendar/dist/Calendar.css';
 
-import { CalendarData, saveCalendar } from './auth'
+import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendar } from './auth'
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
+
+import { default as ReactCalendar } from 'react-calendar';
 
 
 interface CalendarProps {
   data: CalendarData;
 }
 
-interface CalendarState {
+interface CalendarInnerProps {
+  id: CalendarId;
+  data: CalendarData;
+  status: string;
+  onChange: (id: CalendarId, data: CalendarData) => void;
+}
+
+interface CalendarInnerState {
 
 }
 
-export function Calendar(props: CalendarProps) {
-    return <ErrorBoundary><Saver<CalendarData> data={props.data} saver={saveCalendar} render={(data: CalendarData, status: string, onChange) => {
-        return <label>
-        {status}
-        <textarea value={data.heh || 'HAH'} onChange={(event) => onChange({heh: (event.target as HTMLTextAreaElement).value})}/>
-        <hr/>
-      </label>;
-    }}/></ErrorBoundary>;
+export class Calendar extends React.Component<CalendarProps, object> {
+  render() {
+    return <ErrorBoundary>
+      <Saver<CalendarData,CalendarId> data={this.props.data} id={dateToId(new Date())} saver={saveCalendar} render={(id, data, status, onChange) => {
+      return <CalendarInner id={id} data={data} status={status} onChange={onChange}/>;
+    }}/>
+    </ErrorBoundary>;
+  }
 }
 
-class CalendarInner extends React.Component<CalendarProps, CalendarState> {
-  constructor(props: CalendarProps) {
+class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerState> {
+  constructor(props: CalendarInnerProps) {
     super(props);
-    this.state = {data: this.props.data};
+    this.onClickDay = this.onClickDay.bind(this);
+    this.onChange = this.onChange.bind(this)
+  }
+
+  onClickDay(value: Date) {
+    this.props.onChange(dateToId(value), this.props.data);
+  }
+
+  onChange(data: CalendarPageData) {
+    const modified = new Map(this.props.data);
+    modified.set(this.props.id, data);
+    this.props.onChange(this.props.id, modified);
   }
 
   render() {
-    return (
-      <label>ss
-      </label>
-    );
+    return <ErrorBoundary><div className="calendar-wrapper">
+      <ReactCalendar minDetail="month" onClickDay={this.onClickDay} next2Label={null} prev2Label={null}/>
+        {this.props.id.substring(1)}: {this.props.status}
+        <CalendarPage data={this.props.data.get(this.props.id) || ''} onChange={this.onChange}/>
+    </div><hr/></ErrorBoundary>
+  }
+}
+
+interface CalendarPageProps {
+  data: CalendarPageData;
+  onChange: (data: CalendarPageData) => void;
+}
+
+class CalendarPage extends React.PureComponent<CalendarPageProps, object> {
+  constructor(props: CalendarPageProps) {
+    super(props);
+
+    this.onChange = this.onChange.bind(this);
+  }
+
+  onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
+    this.props.onChange((event.target as HTMLTextAreaElement).value);
+  }
+
+
+  render() {
+    return <textarea className="calendar" value={this.props.data} onChange={this.onChange}/>;
   }
 }

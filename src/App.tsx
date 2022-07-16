@@ -107,7 +107,7 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   constructor(props: LoadedAppProps) {
     super(props)
 
-    this.backup = JSON.stringify(Array.from(this.props.data.pages.entries()));
+    this.backup = JSON.stringify(Array.from(this.props.data.pages.entries())) + JSON.stringify(Array.from(this.props.data.calendar.entries()));
   }
 
   render() {
@@ -128,19 +128,16 @@ interface PageProps {
 }
 
 function Page(props: PageProps) : JSX.Element {
-  function renderPage(text: string, status: string, onChange: (text: string) => void) : JSX.Element {
+  function renderPage(id: PageId, text: string, status: string, onChange: (id: PageId, text: string) => void) : JSX.Element {
     function onChangeOuter(event: React.FormEvent<HTMLTextAreaElement>) {
-      onChange((event.target as HTMLTextAreaElement).value);
+      onChange(id, (event.target as HTMLTextAreaElement).value);
     }
     return <label>
-      {PAGE_IDS[props.id]}{status}
+      {PAGE_IDS[id]}{status}
       <textarea value={text} onChange={onChangeOuter}/>
       <hr/>
     </label>
   }
-  async function saverCallback(text: string) {
-    await savePage(props.id, text);
-  }
   const text = props.data.pages.get(props.id) || 'MISSING ENTRY';
-  return <ErrorBoundary><Saver<string> data={text} saver={saverCallback} render={renderPage}/></ErrorBoundary>;
+  return <ErrorBoundary><Saver<string,PageId> id={props.id} data={text} saver={savePage} render={renderPage}/></ErrorBoundary>;
 }

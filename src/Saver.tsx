@@ -1,9 +1,10 @@
 import * as React from 'react'
 
-interface SaverProps<SavedData> {
+interface SaverProps<SavedData,Id> {
   data: SavedData;
-  saver: (data: SavedData) => Promise<void>;
-  render: (data: SavedData, status: string, onChange: (data: SavedData) => void) => JSX.Element;
+  id: Id;
+  saver: (id: Id, data: SavedData) => Promise<void>;
+  render: (id: Id, data: SavedData, status: string, onChange: (id: Id, data: SavedData) => void) => JSX.Element;
   delay: number;
 }
 
@@ -13,38 +14,40 @@ const enum SaverStatus {
   Cooling,
 }
 
-interface SaverState<SavedData> {
+interface SaverState<SavedData,Id> {
   data: SavedData;
+  id: Id;
   status: SaverStatus;
   modified: boolean;
 }
 
-export class Saver<SavedData> extends React.Component<SaverProps<SavedData>, SaverState<SavedData>> {
+export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id>, SaverState<SavedData,Id>> {
   static defaultProps = {
     delay: 5000
   }
 
-  constructor(props: SaverProps<SavedData>) {
+  constructor(props: SaverProps<SavedData,Id>) {
     super(props);
-    this.state = {data: this.props.data, status: SaverStatus.Saved, modified: false};
+    this.state = {data: this.props.data, id: this.props.id, status: SaverStatus.Saved, modified: false};
 
-    this.handleChange = this.handleChange.bind(this);
+    this.onChange = this.onChange.bind(this);
   }
 
-  handleChange(data: SavedData) {
-    this.setState({data: data, modified: true});
+  onChange(id: Id, data: SavedData) {
+    this.setState({id: id, data: data, modified: true});
     if (this.state.status === SaverStatus.Saved) {
-      this.definitelySave(data);
+      this.definitelySave(id, data);
     }
   }
 
-  async definitelySave(data: SavedData) {
+  async definitelySave(id: Id, data: SavedData) {
     do {
       this.setState({status: SaverStatus.Saving, modified: false});
-      await this.props.saver(data);
+      await this.props.saver(id, data);
       this.setState({status: SaverStatus.Cooling});
       await delay(this.props.delay);
       data = this.state.data;
+      id = this.state.id;
     } while (this.state.modified);
     this.setState({status: SaverStatus.Saved});
   }
@@ -63,7 +66,7 @@ export class Saver<SavedData> extends React.Component<SaverProps<SavedData>, Sav
   }
 
   render() {
-    return this.props.render(this.state.data, this.statusText(), this.handleChange);
+    return this.props.render(this.state.id, this.state.data, this.statusText(), this.onChange);
   }
 }
 
