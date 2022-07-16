@@ -6,7 +6,7 @@ import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendar } fr
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
-import { default as ReactCalendar } from 'react-calendar';
+import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
 
 
 interface CalendarProps {
@@ -38,7 +38,8 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
   constructor(props: CalendarInnerProps) {
     super(props);
     this.onClickDay = this.onClickDay.bind(this);
-    this.onChange = this.onChange.bind(this)
+    this.onChange = this.onChange.bind(this);
+    this.tileClassName = this.tileClassName.bind(this);
   }
 
   onClickDay(value: Date) {
@@ -51,9 +52,18 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
     this.props.onChange(this.props.id, modified);
   }
 
+  tileClassName(props: CalendarTileProperties) : string {
+    const id = dateToId(props.date);
+    if (this.props.data.get(id)) {
+      return id === dateToId(new Date()) ? 'busy-today' : 'busy-day';
+    } else {
+      return 'normal-day';
+    }
+  }
+
   render() {
     return <ErrorBoundary><div className="calendar-wrapper">
-      <ReactCalendar minDetail="month" onClickDay={this.onClickDay} next2Label={null} prev2Label={null}/>
+      <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={this.tileClassName} next2Label={null} prev2Label={null}/>
         {this.props.id.substring(1)}: {this.props.status}
         <CalendarPage data={this.props.data.get(this.props.id) || ''} onChange={this.onChange}/>
     </div><hr/></ErrorBoundary>

@@ -5,6 +5,18 @@ textarea.calendar {
 }
 
 div.calendar-wrapper {
-    display: flex;
+    display:flex;
     margin-left:10px;
+}
+
+.normal-day {
+    background:none;
+}
+
+button.busy-day {
+    background:purple;
+}
+
+button.busy-today {
+    background:orange;
 }
