@@ -2,7 +2,7 @@ import * as React from 'react'
 import './App.css'
 import { MyUser, MyData, PageId, getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
 import { Calendar } from './Calendar'
-import { Saver } from './Saver'
+import { Saver, SaverStatusString } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 export interface AppState {
@@ -128,7 +128,7 @@ interface PageProps {
 }
 
 function Page(props: PageProps) : JSX.Element {
-  function renderPage(id: PageId, text: string, status: string, onChange: (id: PageId, text: string) => void) : JSX.Element {
+  function renderPage(id: PageId, text: string, status: SaverStatusString, onChange: (id: PageId, text: string) => void) : JSX.Element {
     function onChangeOuter(event: React.FormEvent<HTMLTextAreaElement>) {
       onChange(id, (event.target as HTMLTextAreaElement).value);
     }

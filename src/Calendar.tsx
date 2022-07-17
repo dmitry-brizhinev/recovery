@@ -3,7 +3,7 @@ import './Calendar.css'
 import 'react-calendar/dist/Calendar.css';
 
 import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendar } from './auth'
-import { Saver } from './Saver'
+import { Saver, SaverStatusString } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
@@ -16,7 +16,7 @@ interface CalendarProps {
 interface CalendarInnerProps {
   id: CalendarId;
   data: CalendarData;
-  status: string;
+  status: SaverStatusString;
   onChange: (id: CalendarId, data: CalendarData, opts?: {force?: boolean}) => void;
 }
 
@@ -43,7 +43,8 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
   }
 
   onClickDay(value: Date) {
-    this.props.onChange(dateToId(value), this.props.data, {force: true});
+    this.props.onChange(this.props.id, this.props.data, {force: true});
+    this.props.onChange(dateToId(value), this.props.data);
   }
 
   onChange(data: CalendarPageData) {
@@ -62,7 +63,7 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
   }
 
   render() {
-    const classname = this.props.status === ' [Saving...]' ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
+    const classname = this.props.status === SaverStatusString.Saving ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
     return <ErrorBoundary><div className="calendar-wrapper">
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
         {this.props.id.substring(1)}: {this.props.status}
