@@ -44,7 +44,7 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
 
   onClickDay(value: Date) {
     this.props.onChange(this.props.id, this.props.data, {force: true});
-    this.props.onChange(dateToId(value), this.props.data);
+    this.props.onChange(dateToId(value), this.props.data, {force: true});
   }
 
   onChange(data: CalendarPageData) {

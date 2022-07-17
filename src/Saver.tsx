@@ -41,20 +41,21 @@ class InnerSaver<SavedData,Id> {
   force = new Alarm();
   status = SaverStatus.Saved;
   modified: boolean = false;
-  recent: {id: Id, data: SavedData};
-  onStatusUpdate: (status: SaverStatusString) => void;
+  id: Id;
+  data: SavedData;
+  onStatusUpdate: (id: Id, status: SaverStatusString) => void;
   saver: (id: Id, data: SavedData) => Promise<void>;
 
-  constructor(id: Id, data: SavedData, delay: number, saver: (id: Id, data: SavedData) => Promise<void>, onStatusUpdate: (status: SaverStatusString) => void) {
+  constructor(id: Id, data: SavedData, delay: number, saver: (id: Id, data: SavedData) => Promise<void>, onStatusUpdate: (id: Id, status: SaverStatusString) => void) {
     this.delay = delay;
-    this.recent = {id: id, data: data};
+    this.id = id;
+    this.data = data;
     this.saver = saver;
     this.onStatusUpdate = onStatusUpdate;
   }
 
-  onChange(id: Id, data: SavedData, opts?: {force?: boolean}) {
-    this.recent.id = id;
-    this.recent.data = data;
+  onChange(data: SavedData, opts?: {force?: boolean}) {
+    this.data = data;
     if (opts && opts.force) {
       this.force.trigger();
     }
@@ -74,7 +75,7 @@ class InnerSaver<SavedData,Id> {
       this.modified = false;
       this.force = new Alarm();
       this.setStatus();
-      await this.saver(this.recent.id, this.recent.data);
+      await this.saver(this.id, this.data);
     } while (this.modified);
     this.status = SaverStatus.Saved;
     this.setStatus();
@@ -94,7 +95,7 @@ class InnerSaver<SavedData,Id> {
   }
 
   setStatus() {
-    this.onStatusUpdate(this.statusText());
+    this.onStatusUpdate(this.id, this.statusText());
   }
 }
 
@@ -103,7 +104,8 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
     delay: 5000
   }
 
-  inner: InnerSaver<SavedData,Id>;
+  inner: Map<Id, InnerSaver<SavedData,Id>>;
+  currentId: Id;
 
   constructor(props: SaverProps<SavedData,Id>) {
     super(props);
@@ -115,16 +117,27 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
     this.onChange = this.onChange.bind(this);
     this.onStatusUpdate = this.onStatusUpdate.bind(this);
 
-    this.inner = new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate);
+    this.currentId = this.props.id;
+    this.inner = new Map();
+    this.inner.set(this.props.id, new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate));
   }
 
   onChange(id: Id, data: SavedData, opts?: {force?: boolean}) {
     this.setState({id: id, data: data});
-    this.inner.onChange(id, data, opts);
+    this.currentId = id;
+
+    let saver = this.inner.get(id);
+    if (!saver) {
+      saver = new InnerSaver(id, data, this.props.delay, this.props.saver, this.onStatusUpdate);
+      this.inner.set(id, saver);
+    }
+    saver.onChange(data, opts);
   }
 
-  onStatusUpdate(status: SaverStatusString) {
-    this.setState({status: status});
+  onStatusUpdate(id: Id, status: SaverStatusString) {
+    if (id === this.currentId) {
+      this.setState({status: status});
+    }
   }
 
   render() {
