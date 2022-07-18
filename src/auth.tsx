@@ -64,8 +64,13 @@ export function dateToId(date: Date): CalendarId {
 }
 
 export enum PageId {
-  plan = 'plan',
   todo = 'todo',
+  plan = 'plan',
+  oneoff = 'oneoff',
+  exerc = 'exerc',
+  resea = 'resea',
+  buy = 'buy',
+  think = 'think',
   psych = 'psych',
   eggy = 'eggy',
   other = 'other',

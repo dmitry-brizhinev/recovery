@@ -90,11 +90,16 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
 }
 
 const PAGE_IDS = {
-  'plan': 'To figure out a plan for:',
-  'todo': 'To do:',
-  'psych': 'To discuss with psych:',
-  'eggy': 'To discuss with Eggy:',
-  'other': 'Other:',
+  [PageId.todo]: 'One-offs todo:',
+  [PageId.plan]: 'Concrete plans to schedule:',
+  [PageId.oneoff]: 'Ideas for one-offs:',
+  [PageId.exerc]: 'Ideas for plans/recurring/exercises to try:',
+  [PageId.resea]: 'To research:',
+  [PageId.buy]: 'To buy:',
+  [PageId.think]: 'To think about:',
+  [PageId.psych]: 'To discuss with psych:',
+  [PageId.eggy]: 'To discuss with Eggy:',
+  [PageId.other]: 'Other:',
 };
 
 interface LoadedAppProps {
@@ -113,11 +118,7 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   render() {
     return <ErrorBoundary><input type="text" readOnly={true} value={this.backup}/><hr/>
       <Calendar data={this.props.data.calendar}/>
-      <Page id={PageId.plan} data={this.props.data}/>
-      <Page id={PageId.todo} data={this.props.data}/>
-      <Page id={PageId.psych} data={this.props.data}/>
-      <Page id={PageId.eggy} data={this.props.data}/>
-      <Page id={PageId.other} data={this.props.data}/>
+      {Object.values(PageId).map(id => <Page id={id} data={this.props.data}/>)}
     </ErrorBoundary>;
   }
 }
