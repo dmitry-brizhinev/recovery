@@ -21,7 +21,7 @@ export default class App extends React.Component<object, AppState> {
   }
 
   componentDidMount() {
-    getSavedUserWithTimeout(1000).then((user) => {
+    getSavedUserWithTimeout(2000).then((user) => {
       this.setState({user: user, awaitingSaved: false});
     });
   }
