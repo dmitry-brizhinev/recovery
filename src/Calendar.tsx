@@ -5,6 +5,7 @@ import 'react-calendar/dist/Calendar.css';
 import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendar } from './auth'
 import { Saver, SaverStatusString } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
+import { Editor } from './Editor'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
 
@@ -77,19 +78,9 @@ interface CalendarPageProps {
   onChange: (data: CalendarPageData) => void;
 }
 
-class CalendarPage extends React.PureComponent<CalendarPageProps, object> {
-  constructor(props: CalendarPageProps) {
-    super(props);
-
-    this.onChange = this.onChange.bind(this);
-  }
-
-  onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
-    this.props.onChange((event.target as HTMLTextAreaElement).value);
-  }
-
-
+class CalendarPage extends React.Component<CalendarPageProps, object> {
   render() {
-    return <textarea className="calendar" value={this.props.data} onChange={this.onChange}/>;
+    //return <textarea className="calendar" value={this.props.data} onChange={this.onChange}/>;
+    return <ErrorBoundary><Editor onChange={this.props.onChange} text={this.props.data}/></ErrorBoundary>;
   }
 }
