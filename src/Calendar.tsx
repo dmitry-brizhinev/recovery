@@ -20,7 +20,7 @@ interface CalendarState {
   formatting: boolean;
 }
 
-type CalendarSave = { Id: CalendarId, Data: CalendarPageMap };
+type CalendarPageSave = { Id: CalendarId, Data: CalendarPageData };
 
 export class Calendar extends React.Component<CalendarProps, CalendarState> {
   constructor(props: CalendarProps) {
@@ -53,8 +53,8 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
   tileClassName(props: CalendarTileProperties) : string {
     const id = dateToId(props.date);
     const isToday = id === dateToId(new Date());
-    const hasPage = this.state.pages.has(id);
-    const hasEvent = this.state.events.has(id);
+    const hasPage = !!this.state.pages.get(id);
+    const hasEvent = !!this.state.events.get(id);
     if (hasPage || hasEvent) {
       return isToday ? 'busy-today' : 'busy-day';
     } else {
@@ -64,10 +64,11 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
 
   render() {
     const classname = this.state.formatting ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
+    const pageData = this.state.pages.get(this.state.id) || '';
     return <ErrorBoundary><div className="calendar-wrapper">
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
-        {this.state.id.substring(1)}: <Saver<CalendarSave> id={this.state.id} data={this.state.pages} saver={saveCalendar}/>
-        <CalendarPage data={this.state.pages.get(this.state.id) || ''} onChange={this.onChangePage}/>
+        {this.state.id.substring(1)}: <Saver<CalendarPageSave> id={this.state.id} data={pageData} saver={saveCalendar}/>
+        <CalendarPage data={pageData} onChange={this.onChangePage}/>
     </div><hr/></ErrorBoundary>
   }
 }

@@ -132,11 +132,11 @@ export async function savePage(id: PageId, text: string) {
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
 }
 
-export async function saveCalendar(id: CalendarId, data: CalendarPageMap) {
+export async function saveCalendar(id: CalendarId, data: CalendarPageData) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;
   }
-  const page = data.get(id) || deleteField();
+  const page = data || deleteField();
   await setDoc(doc(db, 'users', uid), {[id]: page}, {merge: true});
 }
