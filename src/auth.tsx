@@ -51,8 +51,14 @@ export async function loginPopup(): Promise<MyUser> {
 }
 
 export type CalendarPageData = string;
+export type CalendarEventData = string[];
 export type CalendarId = string;
-export type CalendarData = Map<CalendarId, CalendarPageData>;
+export type CalendarPageMap = Map<CalendarId, CalendarPageData>;
+export type CalendarEventMap = Map<CalendarId, CalendarEventData>;
+export interface CalendarData {
+  pages: CalendarPageMap;
+  events: CalendarEventMap;
+}
 
 export interface MyData {
   pages: Map<PageId, string>;
@@ -84,8 +90,10 @@ export async function getData(): Promise<MyData> {
   const data = (await getDoc(doc(db, 'users', uid))).data();
   const pages: Map<PageId, string> = new Map();
   const days: Map<CalendarId, CalendarPageData> = new Map();
+  const events: Map<CalendarId, CalendarEventData> = new Map();
+  const calendar = {pages: days, events: events};
   if (data == null) {
-    return {pages: pages, calendar: days};
+    return {pages: pages, calendar: calendar};
   }
 
   for (const id of Object.values(PageId)) {
@@ -113,7 +121,7 @@ export async function getData(): Promise<MyData> {
     days.set(key, typeof value === 'string' ? value : `WRONG TYPE ${typeof value}`);
   }
 
-  return {pages: pages, calendar: days};
+  return {pages: pages, calendar: calendar};
 }
 
 export async function savePage(id: PageId, text: string) {
@@ -124,7 +132,7 @@ export async function savePage(id: PageId, text: string) {
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
 }
 
-export async function saveCalendar(id: CalendarId, data: CalendarData) {
+export async function saveCalendar(id: CalendarId, data: CalendarPageMap) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;

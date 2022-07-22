@@ -1,3 +1,16 @@
+textarea.calendar {
+    width:350px;
+    height:272px;
+    resize:horizontal;
+}
+
+div.calendar {
+    width:350px;
+    height:272px;
+    background-color: lightcoral;
+    resize:horizontal;
+}
+
 div.calendar-wrapper {
     display:flex;
     margin-left:10px;

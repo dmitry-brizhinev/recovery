@@ -112,12 +112,14 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   constructor(props: LoadedAppProps) {
     super(props)
 
-    this.backup = JSON.stringify(Array.from(this.props.data.pages.entries())) + JSON.stringify(Array.from(this.props.data.calendar.entries()));
+    this.backup = JSON.stringify(Array.from(this.props.data.pages.entries())) +
+                  JSON.stringify(Array.from(this.props.data.calendar.pages.entries())) +
+                  JSON.stringify(Array.from(this.props.data.calendar.events.entries()));
   }
 
   render() {
     return <ErrorBoundary><input type="text" readOnly={true} value={this.backup}/><hr/>
-      <Calendar initialData={this.props.data.calendar}/>
+      <Calendar data={this.props.data.calendar}/>
       {Object.values(PageId).map(id => <Page id={id} key={id} text={this.props.data.pages.get(id) || 'MISSING ENTRY'}/>)}
     </ErrorBoundary>;
   }
