@@ -3,7 +3,7 @@ import './Calendar.css'
 import 'react-calendar/dist/Calendar.css';
 
 import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendar } from './auth'
-import { Saver, SaverStatusString } from './Saver'
+import { OverengineeredSaver, SaverStatusString } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 import { Editor } from './Editor'
 
@@ -25,10 +25,12 @@ interface CalendarInnerState {
 
 }
 
+type CalendarSave = { Id: CalendarId, Data: CalendarData };
+
 export class Calendar extends React.Component<CalendarProps, object> {
   render() {
     return <ErrorBoundary>
-      <Saver<CalendarData,CalendarId> data={this.props.data} id={dateToId(new Date())} saver={saveCalendar} render={(id, data, status, onChange) => {
+      <OverengineeredSaver<CalendarSave> data={this.props.data} id={dateToId(new Date())} saver={saveCalendar} render={(id, data, status, onChange) => {
       return <CalendarInner id={id} data={data} status={status} onChange={onChange}/>;
     }}/>
     </ErrorBoundary>;

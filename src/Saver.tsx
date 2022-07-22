@@ -1,10 +1,18 @@
 import * as React from 'react'
 
-interface SaverProps<SavedData,Id> {
-  data: SavedData;
-  id: Id;
-  saver: (id: Id, data: SavedData) => Promise<void>;
-  render: (id: Id, data: SavedData, status: SaverStatusString, onChange: (id: Id, data: SavedData, opts?: {force?: boolean}) => void) => JSX.Element;
+interface X {
+  Data: any,
+  Id: any,
+}
+
+type Data<T extends X> = T['Data'];
+type Id<T extends X> = T['Id'];
+
+interface SaverProps<T extends X> {
+  data: Data<T>;
+  id: Id<T>;
+  saver: (id: Id<T>, data: Data<T>) => Promise<void>;
+  render: (id: Id<T>, data: Data<T>, status: SaverStatusString, onChange: (id: Id<T>, data: Data<T>, opts?: {force?: boolean}) => void) => JSX.Element;
   delay: number;
 }
 
@@ -20,9 +28,9 @@ const enum SaverStatus {
   Cooling,
 }
 
-interface SaverState<SavedData,Id> {
-  data: SavedData;
-  id: Id;
+interface SaverState<T extends X> {
+  data: Data<T>;
+  id: Id<T>;
   status: SaverStatusString;
 }
 
@@ -36,17 +44,17 @@ class Alarm {
   }
 }
 
-class InnerSaver<SavedData,Id> {
+class InnerSaver<T extends X> {
   delay: number;
   force = new Alarm();
   status = SaverStatus.Saved;
   modified: boolean = false;
-  id: Id;
-  data: SavedData;
-  onStatusUpdate: (id: Id, status: SaverStatusString) => void;
-  saver: (id: Id, data: SavedData) => Promise<void>;
+  id: Id<T>;
+  data: Data<T>;
+  onStatusUpdate: (id: Id<T>, status: SaverStatusString) => void;
+  saver: (id: Id<T>, data: Data<T>) => Promise<void>;
 
-  constructor(id: Id, data: SavedData, delay: number, saver: (id: Id, data: SavedData) => Promise<void>, onStatusUpdate: (id: Id, status: SaverStatusString) => void) {
+  constructor(id: Id<T>, data: Data<T>, delay: number, saver: (id: Id<T>, data: Data<T>) => Promise<void>, onStatusUpdate: (id: Id<T>, status: SaverStatusString) => void) {
     this.delay = delay;
     this.id = id;
     this.data = data;
@@ -54,7 +62,7 @@ class InnerSaver<SavedData,Id> {
     this.onStatusUpdate = onStatusUpdate;
   }
 
-  onChange(data: SavedData, opts?: {force?: boolean}) {
+  onChange(data: Data<T>, opts?: {force?: boolean}) {
     this.data = data;
     if (opts && opts.force) {
       this.force.trigger();
@@ -99,15 +107,77 @@ class InnerSaver<SavedData,Id> {
   }
 }
 
-export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id>, SaverState<SavedData,Id>> {
+interface StandaloneSaverProps<T extends X> {
+  id: Id<T>;
+  data: Data<T>;
+  saver: (id: Id<T>, data: Data<T>) => Promise<void>;
+  delay: number;
+}
+
+interface StandaloneSaverState {
+  status: SaverStatusString;
+}
+
+export class Saver<T extends X> extends React.Component<StandaloneSaverProps<T>, StandaloneSaverState> {
   static defaultProps = {
     delay: 5000
   }
 
-  inner: Map<Id, InnerSaver<SavedData,Id>>;
-  currentId: Id;
+  inner: Map<Id<T>, InnerSaver<T>>;
 
-  constructor(props: SaverProps<SavedData,Id>) {
+  constructor(props: StandaloneSaverProps<T>) {
+    super(props);
+    this.state = {status: SaverStatusString.Saved};
+
+    this.onStatusUpdate = this.onStatusUpdate.bind(this);
+
+    this.inner = new Map();
+    this.inner.set(this.props.id, new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate));
+  }
+
+  componentDidUpdate(prevProps: StandaloneSaverProps<T>, prevState: StandaloneSaverState) {
+    const sameId = prevProps.id === this.props.id;
+    const sameData = prevProps.data === this.props.data;
+    if (sameId && sameData) {
+      return;
+    }
+
+    if (!sameId) {
+      const s = this.inner.get(prevProps.id)
+      if (!s) {
+        throw new Error(`Missing saver for ${prevProps.id}`);
+      }
+      s.onChange(prevProps.data, {force: true});
+    }
+
+    let ss = this.inner.get(this.props.id);
+    if (!ss) {
+      ss = new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate);
+      this.inner.set(this.props.id, ss);
+    }
+    ss.onChange(this.props.data);
+  }
+
+  onStatusUpdate(id: Id<T>, status: SaverStatusString) {
+    if (id === this.props.id) {
+      this.setState({status: status});
+    }
+  }
+
+  render() {
+    return this.state.status;
+  }
+}
+
+export class OverengineeredSaver<T extends X> extends React.Component<SaverProps<T>, SaverState<T>> {
+  static defaultProps = {
+    delay: 5000
+  }
+
+  inner: Map<Id<T>, InnerSaver<T>>;
+  currentId: Id<T>;
+
+  constructor(props: SaverProps<T>) {
     super(props);
     this.state = {
       data: this.props.data,
@@ -122,7 +192,7 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
     this.inner.set(this.props.id, new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate));
   }
 
-  onChange(id: Id, data: SavedData, opts?: {force?: boolean}) {
+  onChange(id: Id<T>, data: Data<T>, opts?: {force?: boolean}) {
     this.setState({id: id, data: data});
     this.currentId = id;
 
@@ -134,7 +204,7 @@ export class Saver<SavedData,Id> extends React.Component<SaverProps<SavedData,Id
     saver.onChange(data, opts);
   }
 
-  onStatusUpdate(id: Id, status: SaverStatusString) {
+  onStatusUpdate(id: Id<T>, status: SaverStatusString) {
     if (id === this.currentId) {
       this.setState({status: status});
     }

@@ -2,7 +2,7 @@ import * as React from 'react'
 import './App.css'
 import { MyUser, MyData, PageId, getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
 import { Calendar } from './Calendar'
-import { Saver, SaverStatusString } from './Saver'
+import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 export interface AppState {
@@ -128,17 +128,16 @@ interface PageProps {
   data: MyData;
 }
 
+type PageSave = { Id: PageId, Data: string };
+
 function Page(props: PageProps) : JSX.Element {
-  function renderPage(id: PageId, text: string, status: SaverStatusString, onChange: (id: PageId, text: string) => void) : JSX.Element {
-    function onChangeOuter(event: React.FormEvent<HTMLTextAreaElement>) {
-      onChange(id, (event.target as HTMLTextAreaElement).value);
-    }
-    return <label>
-      {PAGE_IDS[id]}{status}
-      <textarea value={text} onChange={onChangeOuter}/>
-      <hr/>
-    </label>
-  }
   const text = props.data.pages.get(props.id) || 'MISSING ENTRY';
-  return <ErrorBoundary><Saver<string,PageId> id={props.id} data={text} saver={savePage} render={renderPage}/></ErrorBoundary>;
+  const [currentText, updateText] = React.useState(text);
+  return <label>
+    <ErrorBoundary>
+      {PAGE_IDS[props.id]}<Saver<PageSave> id={props.id} data={currentText} saver={savePage}/>
+      <textarea value={currentText} onChange={event => updateText(event.target.value)}/>
+    </ErrorBoundary>
+    <hr/>
+  </label>;
 }
