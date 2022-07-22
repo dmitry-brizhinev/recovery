@@ -117,22 +117,21 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
 
   render() {
     return <ErrorBoundary><input type="text" readOnly={true} value={this.backup}/><hr/>
-      <Calendar data={this.props.data.calendar}/>
-      {Object.values(PageId).map(id => <Page id={id} key={id} data={this.props.data}/>)}
+      <Calendar initialData={this.props.data.calendar}/>
+      {Object.values(PageId).map(id => <Page id={id} key={id} text={this.props.data.pages.get(id) || 'MISSING ENTRY'}/>)}
     </ErrorBoundary>;
   }
 }
 
 interface PageProps {
   id: PageId;
-  data: MyData;
+  text: string;
 }
 
 type PageSave = { Id: PageId, Data: string };
 
 function Page(props: PageProps) : JSX.Element {
-  const text = props.data.pages.get(props.id) || 'MISSING ENTRY';
-  const [currentText, updateText] = React.useState(text);
+  const [currentText, updateText] = React.useState(props.text);
   return <label>
     <ErrorBoundary>
       {PAGE_IDS[props.id]}<Saver<PageSave> id={props.id} data={currentText} saver={savePage}/>

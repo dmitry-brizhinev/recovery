@@ -155,7 +155,7 @@ export class Saver<T extends X> extends React.Component<StandaloneSaverProps<T>,
       ss = new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate);
       this.inner.set(this.props.id, ss);
     }
-    ss.onChange(this.props.data);
+    ss.onChange(this.props.data, {force: !sameId});
   }
 
   onStatusUpdate(id: Id<T>, status: SaverStatusString) {

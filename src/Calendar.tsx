@@ -3,7 +3,7 @@ import './Calendar.css'
 import 'react-calendar/dist/Calendar.css';
 
 import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendar } from './auth'
-import { OverengineeredSaver, SaverStatusString } from './Saver'
+import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 import { Editor } from './Editor'
 
@@ -11,54 +11,41 @@ import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar
 
 
 interface CalendarProps {
-  data: CalendarData;
+  initialData: CalendarData;
 }
 
-interface CalendarInnerProps {
+interface CalendarState {
   id: CalendarId;
   data: CalendarData;
-  status: SaverStatusString;
-  onChange: (id: CalendarId, data: CalendarData, opts?: {force?: boolean}) => void;
-}
-
-interface CalendarInnerState {
-
+  formatting: boolean;
 }
 
 type CalendarSave = { Id: CalendarId, Data: CalendarData };
 
-export class Calendar extends React.Component<CalendarProps, object> {
-  render() {
-    return <ErrorBoundary>
-      <OverengineeredSaver<CalendarSave> data={this.props.data} id={dateToId(new Date())} saver={saveCalendar} render={(id, data, status, onChange) => {
-      return <CalendarInner id={id} data={data} status={status} onChange={onChange}/>;
-    }}/>
-    </ErrorBoundary>;
-  }
-}
-
-class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerState> {
-  constructor(props: CalendarInnerProps) {
+export class Calendar extends React.Component<CalendarProps, CalendarState> {
+  constructor(props: CalendarProps) {
     super(props);
+
+    this.state = {id: dateToId(new Date()), data: this.props.initialData, formatting: false};
+
     this.onClickDay = this.onClickDay.bind(this);
     this.onChange = this.onChange.bind(this);
     this.tileClassName = this.tileClassName.bind(this);
   }
 
   onClickDay(value: Date) {
-    this.props.onChange(this.props.id, this.props.data, {force: true});
-    this.props.onChange(dateToId(value), this.props.data, {force: true});
+    this.setState({id: dateToId(value), formatting: !this.state.formatting});
   }
 
   onChange(data: CalendarPageData) {
-    const modified = new Map(this.props.data);
-    modified.set(this.props.id, data);
-    this.props.onChange(this.props.id, modified);
+    const modified = new Map(this.state.data);
+    modified.set(this.state.id, data);
+    this.setState({data: modified, formatting: !this.state.formatting});
   }
 
   tileClassName(props: CalendarTileProperties) : string {
     const id = dateToId(props.date);
-    if (this.props.data.get(id)) {
+    if (this.state.data.get(id)) {
       return id === dateToId(new Date()) ? 'busy-today' : 'busy-day';
     } else {
       return 'normal-day';
@@ -66,11 +53,11 @@ class CalendarInner extends React.Component<CalendarInnerProps, CalendarInnerSta
   }
 
   render() {
-    const classname = this.props.status === SaverStatusString.Saving ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
+    const classname = this.state.formatting ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
     return <ErrorBoundary><div className="calendar-wrapper">
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
-        {this.props.id.substring(1)}: {this.props.status}
-        <CalendarPage data={this.props.data.get(this.props.id) || ''} onChange={this.onChange}/>
+        {this.state.id.substring(1)}: <Saver<CalendarSave> id={this.state.id} data={this.state.data} saver={saveCalendar}/>
+        <CalendarPage data={this.state.data.get(this.state.id) || ''} onChange={this.onChange}/>
     </div><hr/></ErrorBoundary>
   }
 }
