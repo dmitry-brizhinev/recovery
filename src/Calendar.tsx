@@ -2,11 +2,14 @@ import * as React from 'react'
 import './Calendar.css'
 import 'react-calendar/dist/Calendar.css';
 
-import { CalendarId, dateToId, CalendarData, CalendarPageData, saveCalendarPage, saveCalendarEvent, CalendarEventData, CalendarPageMap, CalendarEventMap } from './auth'
+
+import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from './Data'
+import { saveCalendarPage, saveCalendarEvent } from './auth'
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
+import { EventInput } from './Schedule';
 
 
 interface CalendarProps {
@@ -131,7 +134,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
 
   makeBox(index: number): JSX.Element {
     const text = index < this.props.data.length ? this.props.data[index] : '';
-    return <input className="calendar-event" type="text" key={index} value={text} onChange={(event) => this.onChange(index, event.target.value)}/>
+    return <EventInput key={index} index={index} value={text} onChange={this.onChange}/>
   }
 
   render() {

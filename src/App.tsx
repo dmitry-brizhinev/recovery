@@ -1,12 +1,13 @@
 import * as React from 'react'
 import './App.css'
-import { MyUser, MyData, PageId, getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
+import { User, MyData, PageId } from './Data'
+import { getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
 import { Calendar } from './Calendar'
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 export interface AppState {
-  user: MyUser | null;
+  user: User | null;
   awaitingSaved: boolean;
   awaitingLogin: boolean;
 }
@@ -57,7 +58,7 @@ export default class App extends React.Component<object, AppState> {
 }
 
 interface LoggedInAppProps {
-  user: MyUser;
+  user: User;
 }
 
 interface LoggedInAppState {

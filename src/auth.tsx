@@ -1,6 +1,9 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField } from "firebase/firestore";
+
+import { User, MyData, PageId, CalendarId, CalendarPageData, CalendarEventData } from './Data'
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyDpeFI1YoAh9n1ibsczs60jU9MG3LbaIPE",
@@ -16,18 +19,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-export interface MyUser {
-  name: string | null;
-  id: string;
-}
-
-const firstUser : Promise<User> = new Promise((resolve) => onAuthStateChanged(auth, (user) => user && resolve(user)));
+const firstUser : Promise<FUser> = new Promise((resolve) => onAuthStateChanged(auth, (user) => user && resolve(user)));
 
 function delay(millis : number) : Promise<null> {
   return new Promise(resolve => setTimeout(() => resolve(null), millis));
 }
 
-export async function getSavedUserWithTimeout(millis: number): Promise<MyUser | null> {
+export async function getSavedUserWithTimeout(millis: number): Promise<User | null> {
   const user = await Promise.race([delay(millis), firstUser]);
   if (user == null) {
     return null;
@@ -43,43 +41,11 @@ function getCurrentUidOrNull(): string | null {
   return user.uid;
 }
 
-export async function loginPopup(): Promise<MyUser> {
+export async function loginPopup(): Promise<User> {
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
   return {name: user.email, id: user.uid};
-}
-
-export type CalendarPageData = string;
-export type CalendarEventData = string[];
-export type CalendarId = string;
-export type CalendarPageMap = Map<CalendarId, CalendarPageData>;
-export type CalendarEventMap = Map<CalendarId, CalendarEventData>;
-export interface CalendarData {
-  pages: CalendarPageMap;
-  events: CalendarEventMap;
-}
-
-export interface MyData {
-  pages: Map<PageId, string>;
-  calendar: CalendarData;
-}
-
-export function dateToId(date: Date): CalendarId {
-  return `C${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-}
-
-export enum PageId {
-  todo = 'todo',
-  plan = 'plan',
-  oneoff = 'oneoff',
-  exerc = 'exerc',
-  resea = 'resea',
-  buy = 'buy',
-  think = 'think',
-  psych = 'psych',
-  eggy = 'eggy',
-  other = 'other',
 }
 
 export async function getData(): Promise<MyData> {
