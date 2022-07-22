@@ -108,8 +108,10 @@ export async function getData(): Promise<MyData> {
     }
   }
 
-  for (const [key, value] of Object.entries(data)) {
-    if (key.length !== 11 || !key.startsWith('C20') || value === '') {
+  for (const [keyx, valuex] of Object.entries(data)) {
+    const isEvent = keyx.startsWith('EC20');
+    const key = isEvent ? keyx.substring(1) : keyx;
+    if (key.length !== 11 || !key.startsWith('C20') || valuex === '') {
       continue;
     }
     const year = Number.parseInt(key.substring(1, 5));
@@ -118,7 +120,12 @@ export async function getData(): Promise<MyData> {
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
       continue;
     }
-    days.set(key, typeof value === 'string' ? value : `WRONG TYPE ${typeof value}`);
+    const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
+    if (isEvent) {
+      events.set(key, value.split('\n'));
+    } else {
+      days.set(key, value);
+    }
   }
 
   return {pages: pages, calendar: calendar};
@@ -132,11 +139,20 @@ export async function savePage(id: PageId, text: string) {
   await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
 }
 
-export async function saveCalendar(id: CalendarId, data: CalendarPageData) {
+export async function saveCalendarPage(id: CalendarId, data: CalendarPageData) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;
   }
   const page = data || deleteField();
   await setDoc(doc(db, 'users', uid), {[id]: page}, {merge: true});
+}
+
+export async function saveCalendarEvent(id: CalendarId, data: CalendarEventData) {
+  const uid = getCurrentUidOrNull();
+  if (uid == null) {
+    return;
+  }
+  const page = data.join('\n') || deleteField();
+  await setDoc(doc(db, 'users', uid), {['E' + id]: page}, {merge: true});
 }
