@@ -28,8 +28,24 @@ div.calendar-events {
     overflow-y:scroll;
 }
 
-input.calendar-event {
+input.calendar-event-invalid {
     width:95%;
+    color:red;
+}
+
+input.calendar-event-valid {
+    width:95%;
+    color:green;
+}
+
+input.calendar-event-primed {
+    width:95%;
+    color:purple;
+}
+
+input.calendar-event-active {
+    width:95%;
+    color:rgb(211, 116, 0);
 }
 
 button.norm-day {
