@@ -1,11 +1,13 @@
 div.calendar-wrapper {
     display:flex;
     margin-left:10px;
+    overflow-x:auto;
 }
 
 div.calendar-page {
     display:flex;
     width:350px;
+    min-width:200px;
     height:272px;
     flex-direction:column;
     align-items:center;
@@ -21,6 +23,7 @@ textarea.calendar {
 div.calendar-events {
     display:flex;
     width:350px;
+    min-width:200px;
     height:272px;
     flex-direction:column;
     align-items:center;
@@ -28,23 +31,28 @@ div.calendar-events {
     overflow-y:scroll;
 }
 
-input.calendar-event-invalid {
+div.calendar-event {
     width:95%;
+    display:flex;
+}
+
+input.calendar-event {
+    width:100%;
+}
+
+input.calendar-event.invalid {
     color:red;
 }
 
-input.calendar-event-valid {
-    width:95%;
+input.calendar-event.valid {
     color:green;
 }
 
-input.calendar-event-primed {
-    width:95%;
+input.calendar-event.finished {
     color:purple;
 }
 
-input.calendar-event-active {
-    width:95%;
+input.calendar-event.active {
     color:rgb(211, 116, 0);
 }
 

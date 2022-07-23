@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField } from "firebase/firestore";
 
-import { User, MyData, PageId, CalendarId, CalendarPageData, CalendarEventData } from './Data'
+import { User, MyData, PageId, CalendarId, CalendarPageData, CalendarEventData, idToDay } from './Data'
 
 
 const firebaseConfig = {
@@ -80,9 +80,7 @@ export async function getData(): Promise<MyData> {
     if (key.length !== 11 || !key.startsWith('C20') || valuex === '') {
       continue;
     }
-    const year = Number.parseInt(key.substring(1, 5));
-    const month = Number.parseInt(key.substring(6, 8));
-    const day = Number.parseInt(key.substring(9, 11));
+    const {year, month, day} = idToDay(key);
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
       continue;
     }

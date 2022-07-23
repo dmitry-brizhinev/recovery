@@ -59,9 +59,9 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     const isToday = id === dateToId(new Date());
     const hasPage = !!this.state.pages.get(id);
     const event = this.state.events.get(id);
-    const hasEvent = event != null && event.length > 0;
+    const hasPageOrEvent = hasPage || (event != null && event.length > 0 && event.some(value => value && !value.endsWith('|F')));
 
-    return `${hasPage || hasEvent ? 'busy' : 'norm'}-${isToday ? 'tod' : 'day'}${isSelected ? '-selected' : ''}`;
+    return `${hasPageOrEvent ? 'busy' : 'norm'}-${isToday ? 'tod' : 'day'}${isSelected ? '-selected' : ''}`;
   }
 
   render() {
@@ -134,7 +134,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
 
   makeBox(index: number): JSX.Element {
     const text = index < this.props.data.length ? this.props.data[index] : '';
-    return <EventInput key={index} index={index} value={text} onChange={this.onChange}/>
+    return <EventInput key={index} dayId={this.props.id} index={index} value={text} onChange={this.onChange}/>
   }
 
   render() {
