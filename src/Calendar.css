@@ -1,13 +1,20 @@
 div.calendar-wrapper {
     display:flex;
-    margin-left:10px;
+    padding-left:10px;
     overflow-x:auto;
+}
+
+div.react-calendar {
+    min-width: 300px;
+    width: 350px;
+    max-width: 350px;
 }
 
 div.calendar-page {
     display:flex;
     width:350px;
-    min-width:200px;
+    min-width:300px;
+    max-width:350px;
     height:272px;
     flex-direction:column;
     align-items:center;
@@ -23,12 +30,37 @@ textarea.calendar {
 div.calendar-events {
     display:flex;
     width:350px;
-    min-width:200px;
+    min-width:300px;
+    flex: 1 1 350px;
     height:272px;
     flex-direction:column;
     align-items:center;
     resize:none;
     overflow-y:scroll;
+}
+
+@media screen and (max-width: 900px) {
+    div.calendar-wrapper {
+        flex-direction:column;
+        align-items:center;
+    }
+    
+    div.react-calendar {
+        order: 3;
+    }
+    
+    div.calendar-page {
+        order: 2;
+    }
+    
+    div.calendar-events {
+        order: 1;
+        max-width: 100%;
+        width: 100%;
+        flex-basis:content;
+        height:fit-content;
+        overflow-y:scroll;
+    }
 }
 
 div.calendar-event {

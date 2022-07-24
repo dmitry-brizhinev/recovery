@@ -138,7 +138,7 @@ function Page(props: PageProps) : JSX.Element {
   return <label>
     <ErrorBoundary>
       {PAGE_IDS[props.id]}<Saver<PageSave> id={props.id} data={currentText} saver={savePage}/>
-      <textarea value={currentText} onChange={event => updateText(event.target.value)}/>
+      <textarea className="page" value={currentText} onChange={event => updateText(event.target.value)}/>
     </ErrorBoundary>
     <hr/>
   </label>;

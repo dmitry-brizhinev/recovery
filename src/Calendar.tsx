@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css';
 
 import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, idToDay } from './Data'
 import { saveCalendarPage, saveCalendarEvent } from './auth'
-import { Saver } from './Saver'
+import { InnerSaver, Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
@@ -57,6 +57,8 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
       const newData = [...(modified.get(newId) ?? [])];
       newData.push(reschedule.event);
       modified.set(newId, newData);
+
+      new InnerSaver<CalendarEventSave>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});
     }
 
     this.setState({events: modified, formatting: !this.state.formatting});

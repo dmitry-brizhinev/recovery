@@ -44,7 +44,7 @@ class Alarm {
   }
 }
 
-class InnerSaver<T extends X> {
+export class InnerSaver<T extends X> {
   delay: number;
   force = new Alarm();
   status = SaverStatus.Saved;

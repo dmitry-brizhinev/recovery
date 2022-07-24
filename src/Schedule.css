@@ -10,11 +10,12 @@ button.schedule.open {
 div.schedule-detail {
   display:flex;
   flex-direction:column;
-  width:100%;
+  align-items:center;
+  width:95%;
 }
 
 textarea.schedule-detail-comment {
-  width:95%;
+  width:98%;
   height:62px;
   resize:vertical;
 }
