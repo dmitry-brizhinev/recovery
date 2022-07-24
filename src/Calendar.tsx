@@ -3,7 +3,7 @@ import './Calendar.css'
 import 'react-calendar/dist/Calendar.css';
 
 
-import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from './Data'
+import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, idToDay } from './Data'
 import { saveCalendarPage, saveCalendarEvent } from './auth'
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
@@ -47,9 +47,18 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     this.setState({pages: modified, formatting: !this.state.formatting});
   }
 
-  onChangeEvent(events: CalendarEventData) {
+  onChangeEvent(events: CalendarEventData, reschedule?: Reschedule) {
     const modified = new Map(this.state.events);
     modified.set(this.state.id, events);
+
+    if (reschedule) {
+      const {year, month, day} = idToDay(this.state.id);
+      const newId = dateToId(new Date(year, month-1, day + reschedule.days));
+      const newData = [...(modified.get(newId) ?? [])];
+      newData.push(reschedule.event);
+      modified.set(newId, newData);
+    }
+
     this.setState({events: modified, formatting: !this.state.formatting});
   }
 
@@ -101,10 +110,15 @@ class CalendarPage extends React.Component<CalendarPageProps, object> {
   }
 }
 
+interface Reschedule {
+  days: number;
+  event: string;
+}
+
 interface CalendarEventProps {
   id: CalendarId;
   data: CalendarEventData;
-  onChange: (data: CalendarEventData) => void;
+  onChange: (data: CalendarEventData, reschedule?: Reschedule) => void;
 }
 
 type CalendarEventSave = { Id: CalendarId, Data: CalendarEventData };
@@ -117,30 +131,35 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
     this.makeBox = this.makeBox.bind(this);
   }
 
-  onChange(index: number, text: string) {
+  onChange(index: number, text: string, rescheduleDays?: number) {
     const modified = [...this.props.data];
+    let reschedule = undefined;
     if (index === modified.length) {
       if (!text) {
         return;
       }
       modified.push(text);
-    } else if (text) {
+    } else if (text || index + 1 < modified.length) {
+      if (rescheduleDays) {
+        reschedule = {days: rescheduleDays, event: modified[index]};
+      }
       modified[index] = text;
     } else {
-      modified.splice(index, 1);
+      //modified.splice(index, 1);
+      modified.pop();
     }
-    this.props.onChange(modified);
+    this.props.onChange(modified, reschedule);
   }
 
   makeBox(index: number): JSX.Element {
     const text = index < this.props.data.length ? this.props.data[index] : '';
-    return <EventInput key={index} dayId={this.props.id} index={index} value={text} onChange={this.onChange}/>
+    return <EventInput key={`${this.props.id}${index}`} dayId={this.props.id} index={index} value={text} onChange={this.onChange}/>
   }
 
   render() {
-    return <ErrorBoundary><div className="calendar-events">
+    return <div className="calendar-events"><ErrorBoundary>
       <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
       {[...Array(this.props.data.length + 1).keys()].map(this.makeBox)}
-    </div></ErrorBoundary>;
+    </ErrorBoundary></div>;
   }
 }

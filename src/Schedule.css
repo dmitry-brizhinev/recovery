@@ -1,0 +1,28 @@
+button.schedule {
+  color: black;
+  /*border-style: outset;*/
+}
+
+button.schedule.open {
+  border-style: inset;
+}
+
+div.schedule-detail {
+  display:flex;
+  flex-direction:column;
+  width:100%;
+}
+
+textarea.schedule-detail-comment {
+  width:95%;
+  height:62px;
+  resize:vertical;
+}
+
+div.schedule-detail-buttons {
+  width:100%;
+}
+
+button.schedule-detail-button {
+  width:30%;
+}

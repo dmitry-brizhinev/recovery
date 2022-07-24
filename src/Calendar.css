@@ -44,7 +44,7 @@ input.calendar-event.invalid {
     color:red;
 }
 
-input.calendar-event.valid {
+input.calendar-event.inactive {
     color:green;
 }
 
