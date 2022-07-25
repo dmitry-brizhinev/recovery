@@ -17,6 +17,19 @@ export enum PageId {
   other = 'other',
 }
 
+export const PAGE_IDS = {
+  [PageId.todo]: 'One-offs todo:',
+  [PageId.plan]: 'Concrete plans to schedule:',
+  [PageId.oneoff]: 'Ideas for one-offs:',
+  [PageId.exerc]: 'Ideas for plans/recurring/exercises to try:',
+  [PageId.resea]: 'To research:',
+  [PageId.buy]: 'To buy:',
+  [PageId.think]: 'To think about:',
+  [PageId.psych]: 'To discuss with psych:',
+  [PageId.eggy]: 'To discuss with Eggy:',
+  [PageId.other]: 'Other:',
+};
+
 export type CalendarPageData = string;
 export type CalendarEventData = string[];
 export type CalendarId = string;

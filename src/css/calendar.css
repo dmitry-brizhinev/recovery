@@ -1,0 +1,55 @@
+button.norm-day {
+    background:none;
+}
+
+button.norm-day-selected,
+button.busy-day-selected {
+    background:#006edc;
+    color:white;
+}
+
+button.norm-day:enabled:hover {
+    background:#e6e6e6;
+}
+
+button.norm-day-selected:enabled:hover,
+button.busy-day-selected:enabled:hover {
+    background:#0a59a9;
+    color:white;
+}
+
+button.norm-tod {
+    background:#ffff76;
+}
+
+button.norm-tod-selected,
+button.busy-tod-selected {
+    background:#606013;
+    color:white;
+}
+
+button.norm-tod:enabled:hover {
+    background:#ffffa9;
+}
+
+button.norm-tod-selected:enabled:hover,
+button.busy-tod-selected:enabled:hover {
+    background:#41410c;
+    color:white;
+}
+
+button.busy-day {
+    background:purple;
+}
+
+button.busy-day:enabled:hover {
+    background:rgb(76, 0, 76);
+}
+
+button.busy-tod {
+    background:orange;
+}
+
+button.busy-tod:enabled:hover {
+    background:rgb(155, 101, 0);
+}

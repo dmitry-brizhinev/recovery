@@ -1,0 +1,119 @@
+div.calendar-wrapper {
+  display:flex;
+  padding-left:10px;
+  overflow-x:auto;
+}
+
+div.react-calendar {
+  min-width: 300px;
+  width: 350px;
+  max-width: 350px;
+}
+
+div.calendar-page {
+  display:flex;
+  width:350px;
+  min-width:300px;
+  max-width:350px;
+  height:272px;
+  flex-direction:column;
+  align-items:center;
+  resize:none;
+}
+
+textarea.calendar {
+  width:95%;
+  height:95%;
+  resize:none;
+}
+
+div.calendar-events {
+  display:flex;
+  width:350px;
+  min-width:300px;
+  flex: 1 1 350px;
+  height:272px;
+  flex-direction:column;
+  align-items:center;
+  resize:none;
+  overflow-y:scroll;
+}
+
+@media screen and (max-width: 900px) {
+  div.calendar-wrapper {
+      flex-direction:column;
+      align-items:center;
+  }
+  
+  div.react-calendar {
+      order: 3;
+  }
+  
+  div.calendar-page {
+      order: 2;
+  }
+  
+  div.calendar-events {
+      order: 1;
+      max-width: 100%;
+      width: 100%;
+      flex-basis:content;
+      height:fit-content;
+      overflow-y:scroll;
+  }
+}
+
+div.calendar-event {
+  width:95%;
+  display:flex;
+}
+
+input.calendar-event {
+  width:100%;
+}
+
+input.calendar-event.invalid {
+  color:red;
+}
+
+input.calendar-event.inactive {
+  color:green;
+}
+
+input.calendar-event.finished {
+  color:purple;
+}
+
+input.calendar-event.active {
+  color:rgb(211, 116, 0);
+}
+
+button.schedule {
+  color: black;
+  /*border-style: outset;*/
+}
+
+button.schedule.open {
+  border-style: inset;
+}
+
+div.schedule-detail {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  width:95%;
+}
+
+textarea.schedule-detail-comment {
+  width:98%;
+  height:62px;
+  resize:vertical;
+}
+
+div.schedule-detail-buttons {
+  width:100%;
+}
+
+button.schedule-detail-button {
+  width:30%;
+}
