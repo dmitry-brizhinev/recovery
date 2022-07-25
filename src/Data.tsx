@@ -1,48 +1,61 @@
 
 export interface User {
   name: string | null;
-  id: string;
+  uid: string;
 }
 
-export enum PageId {
-  todo = 'todo',
-  plan = 'plan',
-  oneoff = 'oneoff',
-  exerc = 'exerc',
-  resea = 'resea',
-  buy = 'buy',
-  think = 'think',
-  psych = 'psych',
-  eggy = 'eggy',
-  other = 'other',
-}
+export const PageIds = [
+  'todo',
+  'plan',
+  'oneoff',
+  'exerc',
+  'resea',
+  'buy',
+  'think',
+  'psych',
+  'eggy',
+  'other',
+] as const;
 
-export const PAGE_IDS = {
-  [PageId.todo]: 'One-offs todo:',
-  [PageId.plan]: 'Concrete plans to schedule:',
-  [PageId.oneoff]: 'Ideas for one-offs:',
-  [PageId.exerc]: 'Ideas for plans/recurring/exercises to try:',
-  [PageId.resea]: 'To research:',
-  [PageId.buy]: 'To buy:',
-  [PageId.think]: 'To think about:',
-  [PageId.psych]: 'To discuss with psych:',
-  [PageId.eggy]: 'To discuss with Eggy:',
-  [PageId.other]: 'Other:',
+export type PageId = typeof PageIds[number];
+type PageTitlesType = {
+  [key in PageId]: string;
 };
 
-export type CalendarPageData = string;
-export type CalendarEventData = string[];
+export const PageTitles: PageTitlesType = {
+  todo: 'One-offs todo:',
+  plan: 'Concrete plans to schedule:',
+  oneoff: 'Ideas for one-offs:',
+  exerc: 'Ideas for plans/recurring/exercises to try:',
+  resea: 'To research:',
+  buy: 'To buy:',
+  think: 'To think about:',
+  psych: 'To discuss with psych:',
+  eggy: 'To discuss with Eggy:',
+  other: 'Other:',
+} as const;
+
+export type PageData = string;
+export type PageMap = Map<PageId, PageData>;
 export type CalendarId = string;
+export type CalendarPageData = string;
 export type CalendarPageMap = Map<CalendarId, CalendarPageData>;
+export type CalendarEventData = string[];
 export type CalendarEventMap = Map<CalendarId, CalendarEventData>;
 export interface CalendarData {
   pages: CalendarPageMap;
   events: CalendarEventMap;
 }
 
-export interface MyData {
-  pages: Map<PageId, string>;
+export interface UserData {
+  pages: PageMap;
   calendar: CalendarData;
+}
+
+export function getBackupString(data: UserData): string {
+  return JSON.stringify(Array.from(data.pages.entries())) +
+    JSON.stringify(Array.from(data.calendar.pages.entries())) +
+    JSON.stringify(Array.from(data.calendar.events.entries()));
 }
 
 export function dateToId(date: Date): CalendarId {

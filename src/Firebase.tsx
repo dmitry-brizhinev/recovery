@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField } from "firebase/firestore";
 
-import { User, MyData, PageId, CalendarId, CalendarPageData, CalendarEventData, idToDay } from './Data'
+import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, idToDay } from './Data'
 
 
 const firebaseConfig = {
@@ -30,7 +30,7 @@ export async function getSavedUserWithTimeout(millis: number): Promise<User | nu
   if (user == null) {
     return null;
   }
-  return {name: user.email, id: user.uid};
+  return {name: user.email, uid: user.uid};
 }
 
 function getCurrentUidOrNull(): string | null {
@@ -45,24 +45,24 @@ export async function loginPopup(): Promise<User> {
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
-  return {name: user.email, id: user.uid};
+  return {name: user.email, uid: user.uid};
 }
 
-export async function getData(): Promise<MyData> {
+export async function getData(): Promise<UserData> {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     throw new Error('No logged-in user');
   }
   const data = (await getDoc(doc(db, 'users', uid))).data();
-  const pages: Map<PageId, string> = new Map();
+  const pages: Map<PageId, PageData> = new Map();
   const days: Map<CalendarId, CalendarPageData> = new Map();
   const events: Map<CalendarId, CalendarEventData> = new Map();
-  const calendar = {pages: days, events: events};
+  const calendar = {pages: days, events};
   if (data == null) {
-    return {pages: pages, calendar: calendar};
+    return {pages, calendar};
   }
 
-  for (const id of Object.values(PageId)) {
+  for (const id of PageIds) {
     const text = data[id];
     if (text == null) {
       pages.set(id, 'NO DATA');
@@ -92,7 +92,7 @@ export async function getData(): Promise<MyData> {
     }
   }
 
-  return {pages: pages, calendar: calendar};
+  return {pages, calendar};
 }
 
 export async function savePage(id: PageId, text: string) {

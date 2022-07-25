@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { User, MyData, PageId, PAGE_IDS } from './Data'
+import { User, UserData, PageData, PageId, PageIds, getBackupString, PageTitles } from './Data'
 import { getSavedUserWithTimeout, loginPopup, getData, savePage } from './Firebase'
 import { Calendar } from './Calendar'
 import { Saver } from './Saver'
@@ -61,7 +61,7 @@ interface LoggedInAppProps {
 }
 
 interface LoggedInAppState {
-  data: MyData | null;
+  data: UserData | null;
 }
 
 class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
@@ -90,7 +90,7 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
 }
 
 interface LoadedAppProps {
-  data: MyData;
+  data: UserData;
 }
 
 class LoadedApp extends React.Component<LoadedAppProps, object> {
@@ -99,31 +99,29 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   constructor(props: LoadedAppProps) {
     super(props)
 
-    this.backup = JSON.stringify(Array.from(this.props.data.pages.entries())) +
-                  JSON.stringify(Array.from(this.props.data.calendar.pages.entries())) +
-                  JSON.stringify(Array.from(this.props.data.calendar.events.entries()));
+    this.backup = getBackupString(this.props.data);
   }
 
   render() {
     return <ErrorBoundary><input type="text" readOnly={true} value={this.backup}/><hr/>
       <Calendar data={this.props.data.calendar}/>
-      {Object.values(PageId).map(id => <Page id={id} key={id} text={this.props.data.pages.get(id) || 'MISSING ENTRY'}/>)}
+      {PageIds.map(id => <Page id={id} key={id} text={this.props.data.pages.get(id) || 'MISSING ENTRY'}/>)}
     </ErrorBoundary>;
   }
 }
 
 interface PageProps {
   id: PageId;
-  text: string;
+  text: PageData;
 }
 
-type PageSave = { Id: PageId, Data: string };
+type PageSave = { Id: PageId, Data: PageData };
 
 function Page(props: PageProps) : JSX.Element {
   const [currentText, updateText] = React.useState(props.text);
   return <label>
     <ErrorBoundary>
-      {PAGE_IDS[props.id]}<Saver<PageSave> id={props.id} data={currentText} saver={savePage}/>
+      {PageTitles[props.id]}<Saver<PageSave> id={props.id} data={currentText} saver={savePage}/>
       <textarea className="page" value={currentText} onChange={event => updateText(event.target.value)}/>
     </ErrorBoundary>
     <hr/>

@@ -6,7 +6,7 @@ import { InnerSaver, Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
-import { EventInput } from './Schedule';
+import { EventInput } from './CalendarEvents';
 
 
 interface CalendarProps {
