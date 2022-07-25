@@ -1,7 +1,6 @@
 import * as React from 'react'
 import { CalendarId, idToDay } from './Data';
 import ErrorBoundary from './ErrorBoundary';
-import './Schedule.css'
 
 const enum ScheduleStatus {
   Inactive = 'inactive',

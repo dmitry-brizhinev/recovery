@@ -1,7 +1,6 @@
 import * as React from 'react'
-import './App.css'
-import { User, MyData, PageId } from './Data'
-import { getSavedUserWithTimeout, loginPopup, getData, savePage } from './auth'
+import { User, MyData, PageId, PAGE_IDS } from './Data'
+import { getSavedUserWithTimeout, loginPopup, getData, savePage } from './Firebase'
 import { Calendar } from './Calendar'
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
@@ -89,19 +88,6 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
     </ErrorBoundary>;
   }
 }
-
-const PAGE_IDS = {
-  [PageId.todo]: 'One-offs todo:',
-  [PageId.plan]: 'Concrete plans to schedule:',
-  [PageId.oneoff]: 'Ideas for one-offs:',
-  [PageId.exerc]: 'Ideas for plans/recurring/exercises to try:',
-  [PageId.resea]: 'To research:',
-  [PageId.buy]: 'To buy:',
-  [PageId.think]: 'To think about:',
-  [PageId.psych]: 'To discuss with psych:',
-  [PageId.eggy]: 'To discuss with Eggy:',
-  [PageId.other]: 'Other:',
-};
 
 interface LoadedAppProps {
   data: MyData;

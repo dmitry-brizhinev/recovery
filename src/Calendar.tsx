@@ -1,10 +1,7 @@
 import * as React from 'react'
-import './Calendar.css'
-import 'react-calendar/dist/Calendar.css';
-
 
 import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, idToDay } from './Data'
-import { saveCalendarPage, saveCalendarEvent } from './auth'
+import { saveCalendarPage, saveCalendarEvent } from './Firebase'
 import { InnerSaver, Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 

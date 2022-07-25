@@ -1,3 +1,11 @@
+# Recovery
+
+This app is for me to help with my mental health.
+
+Run a dev server with `npm start`.
+
+Deploy to prod with `npm run build && firebase deploy`.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
