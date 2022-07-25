@@ -3,10 +3,6 @@
 
 declare const secret: unique symbol;
 
-type Email = string & {
-  [secret]: true
-}
-
 /** 
  * Defines a type which is equivalent to `T`, but instances of `T`
  * cannot be assigned to it except via the `castToTypedef` function.

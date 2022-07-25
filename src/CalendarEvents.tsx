@@ -1,30 +1,8 @@
 import * as React from 'react'
-import { CalendarId, idToDay } from './Data';
+import { CalendarId, CommentRegex, getScheduledDate, isActive, parseSchedule, Schedule } from './Data';
 import ErrorBoundary from './ErrorBoundary';
 
-const enum ScheduleStatus {
-  Inactive = 'inactive',
-  Active = 'active',
-  Finished = 'finished',
-}
 
-interface Schedule {
-  timeMinutes: number;
-  notifyMinutes: number; // 0 = don't notify
-  title: string;
-  comment: string;       // May be empty
-  recurDays: number;     // 0 = don't recur
-  status: ScheduleStatus;
-}
-
-function getScheduledDate(dayId: CalendarId, schedule: Schedule): Date {
-  const {year, month, day} = idToDay(dayId);
-  return new Date(year, month-1, day, 0, schedule.timeMinutes);
-}
-
-function isActive(schedule: Schedule): boolean {
-  return schedule.status === ScheduleStatus.Active;
-}
 
 interface EventInputProps {
   dayId: CalendarId;
@@ -190,24 +168,4 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
 
     return <button className={`schedule${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{negative}{hours}:{minutes}:{remainingSecs}</button>;
   }
-}
-
-const ScheduleRegex = /^(?<hour>\d\d?)(:(?<minute>\d\d))?(?<ap>a|p)m\|((?<hours>\d+)h)?((?<minutes>\d+)m)?\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>X|F)?$/;
-const CommentRegex = /(?<=^\d\d?(?::\d\d)?[ap]m\|(?:\d+h)?(?:\d+m)?\|[^|\n]+\|)[^|\n]*(?=\|\d*\|[XF]?$)/;
-
-function maybeParse(value: string | undefined, mult?: number): number {
-  return Number.parseInt(value || '0') * (mult ?? 1);
-}
-
-function parseSchedule(value: string): Schedule | null {
-  const result = value.match(ScheduleRegex);
-  if (!result) {
-    return null;
-  }
-  const { hour, minute, ap, hours, minutes, title, comment, recur, marked } = result.groups!;
-  const timeMinutes = maybeParse(hour, 60) + (ap === 'p' ? 60*12 : 0) + maybeParse(minute);
-  const notifyMinutes = maybeParse(hours, 60) + maybeParse(minutes);
-  const recurDays = maybeParse(recur);
-  const status = {'X':ScheduleStatus.Active, 'F':ScheduleStatus.Finished}[marked] || ScheduleStatus.Inactive;
-  return {timeMinutes, notifyMinutes, title, comment: comment || '', recurDays, status};
 }

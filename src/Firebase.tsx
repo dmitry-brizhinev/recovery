@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField } from "firebase/firestore";
 
-import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, idToDay } from './Data'
+import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString } from './Data'
 
 
 const firebaseConfig = {
@@ -74,21 +74,17 @@ export async function getData(): Promise<UserData> {
     }
   }
 
-  for (const [keyx, valuex] of Object.entries(data)) {
-    const isEvent = keyx.startsWith('EC20');
-    const key = isEvent ? keyx.substring(1) : keyx;
-    if (key.length !== 11 || !key.startsWith('C20') || valuex === '') {
-      continue;
-    }
-    const {year, month, day} = idToDay(key);
-    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+  for (const [key, valuex] of Object.entries(data)) {
+    const isEvent = key.startsWith('EC20');
+    const cid = checkIdString(isEvent ? key.substring(1) : key);
+    if (!cid) {
       continue;
     }
     const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
     if (isEvent) {
-      events.set(key, value.split('\n'));
+      events.set(cid, value.split('\n'));
     } else {
-      days.set(key, value);
+      days.set(cid, value);
     }
   }
 
