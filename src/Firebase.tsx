@@ -82,7 +82,7 @@ export async function getData(): Promise<UserData> {
     }
     const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
     if (isEvent) {
-      events.set(cid, value.split('\n').map(Event.parse).sort(Event.compare));
+      events.set(cid, value.split('\n').map(Event.parseAndGenKey).sort(Event.compare));
     } else {
       days.set(cid, value);
     }

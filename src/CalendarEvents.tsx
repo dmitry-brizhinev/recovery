@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { CalendarId, Event, EventStatus, ValidComment } from './Data';
+import { CalendarId, Event, ValidComment } from './Data';
 import ErrorBoundary from './ErrorBoundary';
 
 
@@ -8,7 +8,7 @@ interface EventInputProps {
   dayId: CalendarId;
   index: number;
   event: Event;
-  onChange: (index: number, event: Event | null, reschedule?: boolean) => void
+  onChange: (index: number, event: Event, reschedule?: boolean) => void
 }
 
 interface EventInputState {
@@ -24,11 +24,12 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
     this.onClickCountdown = this.onClickCountdown.bind(this);
     this.onClickSave = this.onClickSave.bind(this);
     this.onClickReschedule = this.onClickReschedule.bind(this);
+    this.onChange = this.onChange.bind(this);
   }
 
   static getDerivedStateFromProps(props: EventInputProps, state: EventInputState) {
     if (state.open && !props.event.isActive()) {
-      return {open: false};
+      //return {open: false};
     }
     return null;
   }
@@ -39,25 +40,31 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
 
   onClickSave(comment: string) {
     const newValue = this.props.event.withUpdate({comment});
-    this.props.onChange(this.props.index, newValue);
+    this.onChange(newValue);
   }
 
   onClickReschedule(comment: string) {
-    const newValue = this.props.event.withUpdate({comment, status: EventStatus.Finished});
-    this.props.onChange(this.props.index, newValue, true);
+    const newValue = this.props.event.withUpdate({comment, finished: true});
+    this.onChange(newValue, true);
+  }
+
+  onChange(newValue: Event, reschedule?: boolean) {
+    this.props.onChange(this.props.index, newValue, reschedule);
   }
 
   render() {
-    const classname = `calendar-event ${this.props.event.status}`;
+    const classname = `calendar-event ${this.props.event.status()}`;
     const targetUTCmillis = this.props.event.isActive() && this.props.event.getScheduledDate(this.props.dayId).getTime();
-    const open = this.state.open && !!targetUTCmillis;
+    //const open = this.state.open && !!targetUTCmillis;
 
     return <ErrorBoundary>
     <div className="calendar-event">
-      <input className={classname} type="text" value={this.props.event.toString()} onChange={(event) => this.props.onChange(this.props.index, event.target.value ? Event.parse(event.target.value) : null)}/>
-      {targetUTCmillis && <ErrorBoundary><Countdown open={open} targetUTCmillis={targetUTCmillis} onClick={this.onClickCountdown}/></ErrorBoundary>}
+      <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))}/>
+      <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))}/>
+      <input className="calendar-event-recur" type="number" min={0} max={14} value={this.props.event.recurDays} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value)}))} />
+      <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis || 0} onClick={this.onClickCountdown}/></ErrorBoundary>
     </div>
-      {open && <ErrorBoundary>
+      {this.state.open && <ErrorBoundary>
         <EventDetail event={this.props.event} onCancel={this.onClickCountdown} onSave={this.onClickSave} onReschedule={this.onClickReschedule}/>
       </ErrorBoundary>}
     </ErrorBoundary>;
@@ -102,7 +109,6 @@ class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState
     const rescheduleDays = canReschedule ? ` ${this.props.event.recurDays}d` : '';
 
     return <div className="event-detail">
-      {this.props.event.title}
       <textarea className="event-detail-comment" value={this.state.unsavedComment} onChange={this.onChange}/>
       <div className="event-detail-buttons">
         <button className="event-detail-button" onClick={this.props.onCancel}>Cancel</button>
@@ -147,6 +153,7 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
   }
 
   render() {
+    if (this.props.targetUTCmillis) {
     let remainingSecs = Math.round((this.props.targetUTCmillis - this.state.nowUTCmillis) / 1000);
     const negative = remainingSecs < 0 ? '-' : '';
     if (negative) remainingSecs = -remainingSecs;
@@ -156,5 +163,8 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
     remainingSecs = remainingSecs % 60;
 
     return <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{negative}{hours}:{minutes}:{remainingSecs}</button>;
+    } else {
+      return  <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>Inactive</button>;
+    }
   }
 }

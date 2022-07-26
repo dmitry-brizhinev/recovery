@@ -96,10 +96,13 @@ export function idToDay(id: CalendarId): Day {
   return {year, month, day};
 }
 
+let lastMagicKey = 1;
+function getMagicKey(): number {
+  return ++lastMagicKey;
+}
 
 export const enum EventStatus {
   Invalid = 'invalid',
-  Inactive = 'inactive',
   Active = 'active',
   Finished = 'finished',
 }
@@ -114,21 +117,34 @@ export class Event {
     readonly title: string,
     readonly comment: ValidComment,
     readonly recurDays: number,     // 0 = don't recur
-    readonly status: EventStatus,
-  ) {
+    private readonly finished: boolean,
+    readonly magicKey: number,
+  ) {}
 
+  status(): EventStatus {
+    if (!this.title || (!this.timeMinutes && !this.comment && !this.recurDays)) {
+      return EventStatus.Invalid;
+    } else if (this.finished) {
+      return EventStatus.Finished;
+    } else {
+      return EventStatus.Active;
+    }
   }
 
   isActive(): boolean {
-    return this.status === EventStatus.Active;
+    return this.status() === EventStatus.Active;
   }
 
   isValid(): boolean {
-    return this.status !== EventStatus.Invalid;
+    return this.status() !== EventStatus.Invalid;
   }
 
   isFinished(): boolean {
-    return this.status === EventStatus.Finished;
+    return this.status() === EventStatus.Finished;
+  }
+
+  isEmpty(): boolean {
+    return !this.title && !this.comment;
   }
 
   getScheduledDate(dayId: CalendarId): Date {
@@ -136,18 +152,36 @@ export class Event {
     return new Date(year, month-1, day, 0, this.timeMinutes);
   }
 
-  static parse(value: string): Event {
+  static makeEmpty(): Event {
+    return Event.parseAndGenKey('Title');
+  }
+
+  static parseAndGenKey(value: string): Event {
+    const magicKey = getMagicKey();
+    return Event.parse(value, magicKey);
+  }
+
+  static parse(value: string, magicKey: number): Event {
     const result = value.match(EventRegex);
     if (!result) {
-      return new Event(0, 0, value, Event.sanitizeComment(''), 0, EventStatus.Invalid);
+      return new Event(0, 0, value, Event.sanitizeComment(''), 0, false, magicKey);
     }
     const { hour, minute, ap, hours, minutes, title, comment, recur, marked } = result.groups!;
     const timeMinutes = (maybeParse(hour, 60) % (60*12)) + (ap === 'p' ? 60*12 : 0) + maybeParse(minute);
     const notifyMinutes = maybeParse(hours, 60) + maybeParse(minutes);
     const unescapedComment = Event.sanitizeComment((comment || '').replaceAll('\\n', '\n'));
     const recurDays = maybeParse(recur);
-    const status = {'X':EventStatus.Active, 'F':EventStatus.Finished}[marked] || EventStatus.Inactive;
-    return new Event(timeMinutes, notifyMinutes, title, unescapedComment, recurDays, status);
+    const finished = marked === 'F';
+    return new Event(timeMinutes, notifyMinutes, title, unescapedComment, recurDays, finished, magicKey);
+  }
+
+  toTimeInputString(): string {
+    if (!this.isValid()) {
+      return '';
+    }
+    const minute = (this.timeMinutes % 60).toString().padStart(2, '0');
+    const hour = Math.trunc(this.timeMinutes / 60).toString().padStart(2, '0');
+    return `${hour}:${minute}`;
   }
 
   toString(): string {
@@ -158,11 +192,17 @@ export class Event {
     const minute = this.timeMinutes % 60 || '';
     const hour = (Math.trunc(this.timeMinutes / 60) % 12);
     // Notify minutes
+    const notifyMinutes = this.notifyMinutes ? 'XXX' : '';
+    //
     const title = this.title;
     const comment = this.comment.replaceAll('\n', '\\n');
     const recur = this.recurDays || '';
-    const marked = {active: 'X', finished: 'F', inactive: '', invalid: ''}[this.status];
-    return `${hour}${minute && ':'}${minute}${ap}m||${title}|${comment}|${recur}|${marked}`
+    const finished = this.finished ? 'F' : '';
+    return `${hour}${minute && ':'}${minute}${ap}m|${notifyMinutes}|${title}|${comment}|${recur}|${finished}`
+  }
+
+  static sanitizeTitle(title?: string): string | undefined {
+    return title?.replaceAll('|', '/').replaceAll('\n', '\\n');
   }
 
   static sanitizeComment(comment: string): ValidComment {
@@ -173,18 +213,21 @@ export class Event {
     return value.toString();
   }
 
-  withUpdate(fields: {comment: string, status?: EventStatus}): Event {
+  withUpdate(fields: {comment?: string, finished?: boolean, timeinput?: string, title?: string, recur?:number}): Event {
     return new Event(
-      this.timeMinutes,
+      parseTimeInput(fields.timeinput) ?? this.timeMinutes,
       this.notifyMinutes,
-      this.title,
-      Event.sanitizeComment(fields.comment),
-      this.recurDays,
-      fields.status || this.status);
+      Event.sanitizeTitle(fields.title) ?? this.title,
+      fields.comment != null ? Event.sanitizeComment(fields.comment) : this.comment,
+      fields.recur ?? this.recurDays,
+      fields.finished ?? this.finished,
+      this.magicKey);
   }
 
   static compare(a: Event, b: Event): number {
-    return a.timeMinutes - b.timeMinutes;
+    const aa = (a.isValid() ? a.timeMinutes : 60*24*100 + a.magicKey);
+    const bb = (b.isValid() ? b.timeMinutes : 60*24*100 + b.magicKey);
+    return aa - bb;
   }
 }
 
@@ -193,4 +236,11 @@ const EventRegex = /^(?<hour>\d\d?)(:(?<minute>\d\d))?(?<ap>a|p)m\|((?<hours>\d+
 
 function maybeParse(value: string | undefined, mult?: number): number {
   return Number.parseInt(value || '0') * (mult ?? 1);
+}
+
+function parseTimeInput(value?: string): number | undefined {
+  if (!value) return undefined;
+  const hour = Number.parseInt(value.substring(0, 2));
+  const minute = Number.parseInt(value.substring(3, 5));
+  return hour * 60 + minute;
 }

@@ -76,7 +76,7 @@ input.calendar-event.invalid {
   color:red;
 }
 
-input.calendar-event.inactive {
+input.calendar-event.active {
   color:green;
 }
 
@@ -84,9 +84,19 @@ input.calendar-event.finished {
   color:purple;
 }
 
+/*
 input.calendar-event.active {
   color:rgb(211, 116, 0);
+}*/
+
+input.calendar-event-time {
+  min-width:97px;
+  max-width:97px;
 }
+
+/*input.calendar-event-recur {
+
+}*/
 
 button.event {
   color: black;
@@ -116,4 +126,10 @@ div.event-detail-buttons {
 
 button.event-detail-button {
   width:30%;
+}
+
+button.event-create {
+  font-size: x-large;
+  width: 30%;
+  margin: 5px;
 }

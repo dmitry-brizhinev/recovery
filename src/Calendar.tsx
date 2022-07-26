@@ -123,22 +123,24 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
 
     this.onChange = this.onChange.bind(this);
     this.makeBox = this.makeBox.bind(this);
+    this.onEventCreate = this.onEventCreate.bind(this);
   }
 
-  onChange(index: number, event: Event | null, reschedule?: boolean) {
+  onChange(index: number, event: Event, reschedule?: boolean) {
     const modified = [...this.props.data];
     let rescheduled = undefined;
     if (index === modified.length) {
-      if (!event) {
-        return;
-      }
+      //if (event.isEmpty()) {
+      //  return;
+      //}
       modified.push(event);
       modified.sort(Event.compare);
-    } else if (event) {
+    } else if (!event.isEmpty()) {
       if (reschedule) {
         rescheduled = modified[index];
       }
       modified[index] = event;
+      modified.sort(Event.compare);
     } else {
       modified.splice(index, 1);
       //modified.pop();
@@ -146,18 +148,19 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
     this.props.onChange(modified, rescheduled);
   }
 
-  makeBox(index: number): JSX.Element {
-    if (index >= this.props.data.length) {
-      return <button key="I'm a button">HELLO</button>;
-    }
-    const event = this.props.data[index];
-    return <EventInput key={`${this.props.id}${index}`} dayId={this.props.id} index={index} event={event} onChange={this.onChange}/>
+  onEventCreate() {
+    this.onChange(this.props.data.length, Event.makeEmpty());
+  }
+
+  makeBox(event: Event, index: number): JSX.Element {
+    return <EventInput key={`${this.props.id}${event.magicKey}`} dayId={this.props.id} index={index} event={event} onChange={this.onChange}/>
   }
 
   render() {
     return <div className="calendar-events"><ErrorBoundary>
       <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
-      {[...Array(this.props.data.length + 1).keys()].map(this.makeBox)}
+      {this.props.data.map(this.makeBox)}
+      <button className="event-create" onClick={this.onEventCreate}>+</button>
     </ErrorBoundary></div>;
   }
 }
