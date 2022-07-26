@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { CalendarId, CommentRegex, getScheduledDate, isActive, parseSchedule, Schedule } from './Data';
+import { CalendarId, Event, EventStatus, ValidComment } from './Data';
 import ErrorBoundary from './ErrorBoundary';
 
 
@@ -7,8 +7,8 @@ import ErrorBoundary from './ErrorBoundary';
 interface EventInputProps {
   dayId: CalendarId;
   index: number;
-  value: string;
-  onChange: (index: number, value: string, rescheduledDays?: number) => void
+  event: Event;
+  onChange: (index: number, event: Event | null, reschedule?: boolean) => void
 }
 
 interface EventInputState {
@@ -27,7 +27,7 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
   }
 
   static getDerivedStateFromProps(props: EventInputProps, state: EventInputState) {
-    if (state.open && !props.value.endsWith('|X')) {
+    if (state.open && !props.event.isActive()) {
       return {open: false};
     }
     return null;
@@ -37,88 +37,77 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
     this.setState(prevState => {return {open: !prevState.open};});
   }
 
-  static replaceComment(oldValue: string, newComment: string): string {
-    return oldValue.replace(CommentRegex, newComment);
-  }
-
   onClickSave(comment: string) {
-    const newValue = EventInput.replaceComment(this.props.value, comment);
+    const newValue = this.props.event.withUpdate({comment});
     this.props.onChange(this.props.index, newValue);
   }
 
   onClickReschedule(comment: string) {
-    const newValue = EventInput.replaceComment(this.props.value, comment).replace(/\|X$/, '|F');
-    const rescheduledDaysMatch = this.props.value.match(/(?<=\|)\d+(?=\|X$)/);
-    if (!rescheduledDaysMatch) {
-      this.props.onChange(this.props.index, newValue);
-      return;
-    }
-    const rescheduledDays = Number.parseInt(rescheduledDaysMatch[0]);
-    this.props.onChange(this.props.index, newValue, rescheduledDays);
+    const newValue = this.props.event.withUpdate({comment, status: EventStatus.Finished});
+    this.props.onChange(this.props.index, newValue, true);
   }
 
   render() {
-    const schedule = parseSchedule(this.props.value);
-    const classname = 'calendar-event ' + (schedule?.status ?? 'invalid');
-    const targetUTCmillis = schedule && isActive(schedule) && getScheduledDate(this.props.dayId, schedule).getTime();
+    const classname = `calendar-event ${this.props.event.status}`;
+    const targetUTCmillis = this.props.event.isActive() && this.props.event.getScheduledDate(this.props.dayId).getTime();
     const open = this.state.open && !!targetUTCmillis;
 
     return <ErrorBoundary>
     <div className="calendar-event">
-      <input className={classname} type="text" value={this.props.value} onChange={(event) => this.props.onChange(this.props.index, event.target.value)}/>
+      <input className={classname} type="text" value={this.props.event.toString()} onChange={(event) => this.props.onChange(this.props.index, event.target.value ? Event.parse(event.target.value) : null)}/>
       {targetUTCmillis && <ErrorBoundary><Countdown open={open} targetUTCmillis={targetUTCmillis} onClick={this.onClickCountdown}/></ErrorBoundary>}
     </div>
       {open && <ErrorBoundary>
-        <ScheduleDetail schedule={schedule} onCancel={this.onClickCountdown} onSave={this.onClickSave} onReschedule={this.onClickReschedule}/>
+        <EventDetail event={this.props.event} onCancel={this.onClickCountdown} onSave={this.onClickSave} onReschedule={this.onClickReschedule}/>
       </ErrorBoundary>}
     </ErrorBoundary>;
   }
 }
 
-interface ScheduleDetailProps {
-  schedule: Schedule;
+interface EventDetailProps {
+  event: Event;
   onCancel: () => void;
   onSave: (comment: string) => void;
   onReschedule: (comment: string) => void;
 }
 
-interface ScheduleDetailState {
-  unsavedComment: string;
+interface EventDetailState {
+  unsavedComment: ValidComment;
 }
 
-class ScheduleDetail extends React.PureComponent<ScheduleDetailProps, ScheduleDetailState> {
-  constructor(props: ScheduleDetailProps) {
+class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState> {
+  constructor(props: EventDetailProps) {
     super(props);
 
-    this.state = {unsavedComment: this.props.schedule.comment.replaceAll('\\n', '\n')};
+    this.state = {unsavedComment: this.props.event.comment};
     this.onSave = this.onSave.bind(this);
     this.onReschedule = this.onReschedule.bind(this);
     this.onChange = this.onChange.bind(this);
   }
 
   onSave() {
-    this.props.onSave(this.state.unsavedComment.replaceAll('\n', '\\n'));
+    this.props.onSave(this.state.unsavedComment);
   }
 
   onReschedule() {
-    this.props.onReschedule(this.state.unsavedComment.replaceAll('\n', '\\n'));
+    this.props.onReschedule(this.state.unsavedComment);
   }
 
   onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
-    this.setState({unsavedComment: event.target.value});
+    this.setState({unsavedComment: Event.sanitizeComment(event.target.value)});
   }
 
   render() {
-    const canReschedule = !!this.props.schedule.recurDays;
-    const rescheduleDays = canReschedule ? ` ${this.props.schedule.recurDays}d` : '';
+    const canReschedule = !!this.props.event.recurDays;
+    const rescheduleDays = canReschedule ? ` ${this.props.event.recurDays}d` : '';
 
-    return <div className="schedule-detail">
-      {this.props.schedule.title}
-      <textarea className="schedule-detail-comment" value={this.state.unsavedComment} onChange={this.onChange}/>
-      <div className="schedule-detail-buttons">
-        <button className="schedule-detail-button" onClick={this.props.onCancel}>Cancel</button>
-        <button className="schedule-detail-button" onClick={this.onSave}>Save</button>
-        <button className="schedule-detail-button" onClick={this.onReschedule} disabled={!canReschedule}>Reschedule{rescheduleDays}</button>
+    return <div className="event-detail">
+      {this.props.event.title}
+      <textarea className="event-detail-comment" value={this.state.unsavedComment} onChange={this.onChange}/>
+      <div className="event-detail-buttons">
+        <button className="event-detail-button" onClick={this.props.onCancel}>Cancel</button>
+        <button className="event-detail-button" onClick={this.onSave}>Save</button>
+        <button className="event-detail-button" onClick={this.onReschedule} disabled={!canReschedule}>Reschedule{rescheduleDays}</button>
       </div>
     </div>;
   }
@@ -166,6 +155,6 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
     const minutes = Math.floor(remainingSecs / 60);
     remainingSecs = remainingSecs % 60;
 
-    return <button className={`schedule${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{negative}{hours}:{minutes}:{remainingSecs}</button>;
+    return <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{negative}{hours}:{minutes}:{remainingSecs}</button>;
   }
 }

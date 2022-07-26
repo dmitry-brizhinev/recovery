@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
-import { getFirestore, setDoc, doc, getDoc, deleteField } from "firebase/firestore";
+import { getFirestore, setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
 
-import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString } from './Data'
+import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event } from './Data'
 
 
 const firebaseConfig = {
@@ -82,7 +82,7 @@ export async function getData(): Promise<UserData> {
     }
     const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
     if (isEvent) {
-      events.set(cid, value.split('\n'));
+      events.set(cid, value.split('\n').map(Event.parse).sort(Event.compare));
     } else {
       days.set(cid, value);
     }
@@ -91,28 +91,22 @@ export async function getData(): Promise<UserData> {
   return {pages, calendar};
 }
 
-export async function savePage(id: PageId, text: string) {
+async function save(id: string, data: string | FieldValue) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;
   }
-  await setDoc(doc(db, 'users', uid), {[id]: text}, {merge: true});
+  await setDoc(doc(db, 'users', uid), {[id]: data}, {merge: true});
+}
+
+export async function savePage(id: PageId, data: PageData) {
+  await save(id, data);
 }
 
 export async function saveCalendarPage(id: CalendarId, data: CalendarPageData) {
-  const uid = getCurrentUidOrNull();
-  if (uid == null) {
-    return;
-  }
-  const page = data || deleteField();
-  await setDoc(doc(db, 'users', uid), {[id]: page}, {merge: true});
+  await save(id, data || deleteField());
 }
 
 export async function saveCalendarEvent(id: CalendarId, data: CalendarEventData) {
-  const uid = getCurrentUidOrNull();
-  if (uid == null) {
-    return;
-  }
-  const page = data.join('\n') || deleteField();
-  await setDoc(doc(db, 'users', uid), {['E' + id]: page}, {merge: true});
+  await save('E' + id, data.map(Event.toString).join('\n') || deleteField());
 }

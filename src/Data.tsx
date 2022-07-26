@@ -36,12 +36,14 @@ export const PageTitles: PageTitlesType = {
   other: 'Other:',
 } as const;
 
+declare const calendarid: unique symbol;
+
 export type PageData = string;
 export type PageMap = Map<PageId, PageData>;
-export type CalendarId = StrongTypedef<string>;
+export type CalendarId = StrongTypedef<string, typeof calendarid>;
 export type CalendarPageData = string;
 export type CalendarPageMap = Map<CalendarId, CalendarPageData>;
-export type CalendarEventData = string[];
+export type CalendarEventData = Event[];
 export type CalendarEventMap = Map<CalendarId, CalendarEventData>;
 export interface CalendarData {
   pages: CalendarPageMap;
@@ -70,7 +72,7 @@ interface Day {
 export function checkIdString(id: string): CalendarId | null {
   if (!CalendarIdRegex.test(id)) return null;
   
-  const cid = castToTypedef(id);
+  const cid = castToTypedef<CalendarId, typeof calendarid>(id);
 
   const {month, day} = idToDay(cid);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
@@ -95,46 +97,100 @@ export function idToDay(id: CalendarId): Day {
 }
 
 
-export const enum ScheduleStatus {
+export const enum EventStatus {
+  Invalid = 'invalid',
   Inactive = 'inactive',
   Active = 'active',
   Finished = 'finished',
 }
 
-export interface Schedule {
-  timeMinutes: number;
-  notifyMinutes: number; // 0 = don't notify
-  title: string;
-  comment: string;       // May be empty
-  recurDays: number;     // 0 = don't recur
-  status: ScheduleStatus;
+declare const validcomment: unique symbol;
+export type ValidComment = StrongTypedef<string, typeof validcomment>;
+
+export class Event {
+  private constructor(
+    readonly timeMinutes: number,
+    readonly notifyMinutes: number, // 0 = don't notify
+    readonly title: string,
+    readonly comment: ValidComment,
+    readonly recurDays: number,     // 0 = don't recur
+    readonly status: EventStatus,
+  ) {
+
+  }
+
+  isActive(): boolean {
+    return this.status === EventStatus.Active;
+  }
+
+  isValid(): boolean {
+    return this.status !== EventStatus.Invalid;
+  }
+
+  isFinished(): boolean {
+    return this.status === EventStatus.Finished;
+  }
+
+  getScheduledDate(dayId: CalendarId): Date {
+    const {year, month, day} = idToDay(dayId);
+    return new Date(year, month-1, day, 0, this.timeMinutes);
+  }
+
+  static parse(value: string): Event {
+    const result = value.match(EventRegex);
+    if (!result) {
+      return new Event(0, 0, value, Event.sanitizeComment(''), 0, EventStatus.Invalid);
+    }
+    const { hour, minute, ap, hours, minutes, title, comment, recur, marked } = result.groups!;
+    const timeMinutes = (maybeParse(hour, 60) % (60*12)) + (ap === 'p' ? 60*12 : 0) + maybeParse(minute);
+    const notifyMinutes = maybeParse(hours, 60) + maybeParse(minutes);
+    const unescapedComment = Event.sanitizeComment((comment || '').replaceAll('\\n', '\n'));
+    const recurDays = maybeParse(recur);
+    const status = {'X':EventStatus.Active, 'F':EventStatus.Finished}[marked] || EventStatus.Inactive;
+    return new Event(timeMinutes, notifyMinutes, title, unescapedComment, recurDays, status);
+  }
+
+  toString(): string {
+    if (!this.isValid()) {
+      return this.title;
+    }
+    const ap = this.timeMinutes >= 60*12 ? 'p' : 'a';
+    const minute = this.timeMinutes % 60 || '';
+    const hour = (Math.trunc(this.timeMinutes / 60) % 12);
+    // Notify minutes
+    const title = this.title;
+    const comment = this.comment.replaceAll('\n', '\\n');
+    const recur = this.recurDays || '';
+    const marked = {active: 'X', finished: 'F', inactive: '', invalid: ''}[this.status];
+    return `${hour}${minute && ':'}${minute}${ap}m||${title}|${comment}|${recur}|${marked}`
+  }
+
+  static sanitizeComment(comment: string): ValidComment {
+    return castToTypedef<ValidComment, typeof validcomment>(comment.replaceAll('|', '/'));
+  }
+
+  static toString(value: Event): string {
+    return value.toString();
+  }
+
+  withUpdate(fields: {comment: string, status?: EventStatus}): Event {
+    return new Event(
+      this.timeMinutes,
+      this.notifyMinutes,
+      this.title,
+      Event.sanitizeComment(fields.comment),
+      this.recurDays,
+      fields.status || this.status);
+  }
+
+  static compare(a: Event, b: Event): number {
+    return a.timeMinutes - b.timeMinutes;
+  }
 }
 
-export function getScheduledDate(dayId: CalendarId, schedule: Schedule): Date {
-  const {year, month, day} = idToDay(dayId);
-  return new Date(year, month-1, day, 0, schedule.timeMinutes);
-}
-
-export function isActive(schedule: Schedule): boolean {
-  return schedule.status === ScheduleStatus.Active;
-}
-
-const ScheduleRegex = /^(?<hour>\d\d?)(:(?<minute>\d\d))?(?<ap>a|p)m\|((?<hours>\d+)h)?((?<minutes>\d+)m)?\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>X|F)?$/;
-export const CommentRegex = /(?<=^\d\d?(?::\d\d)?[ap]m\|(?:\d+h)?(?:\d+m)?\|[^|\n]+\|)[^|\n]*(?=\|\d*\|[XF]?$)/;
+const EventRegex = /^(?<hour>\d\d?)(:(?<minute>\d\d))?(?<ap>a|p)m\|((?<hours>\d+)h)?((?<minutes>\d+)m)?\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>X|F)?$/;
+// export const CommentRegex = /(?<=^\d\d?(?::\d\d)?[ap]m\|(?:\d+h)?(?:\d+m)?\|[^|\n]+\|)[^|\n]*(?=\|\d*\|[XF]?$)/;
 
 function maybeParse(value: string | undefined, mult?: number): number {
   return Number.parseInt(value || '0') * (mult ?? 1);
-}
-
-export function parseSchedule(value: string): Schedule | null {
-  const result = value.match(ScheduleRegex);
-  if (!result) {
-    return null;
-  }
-  const { hour, minute, ap, hours, minutes, title, comment, recur, marked } = result.groups!;
-  const timeMinutes = maybeParse(hour, 60) + (ap === 'p' ? 60*12 : 0) + maybeParse(minute);
-  const notifyMinutes = maybeParse(hours, 60) + maybeParse(minutes);
-  const recurDays = maybeParse(recur);
-  const status = {'X':ScheduleStatus.Active, 'F':ScheduleStatus.Finished}[marked] || ScheduleStatus.Inactive;
-  return {timeMinutes, notifyMinutes, title, comment: comment || '', recurDays, status};
 }

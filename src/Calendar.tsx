@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, idToDay } from './Data'
+import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, idToDay, Event } from './Data'
 import { saveCalendarPage, saveCalendarEvent } from './Firebase'
 import { InnerSaver, Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
@@ -44,15 +44,15 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     this.setState({pages: modified, formatting: !this.state.formatting});
   }
 
-  onChangeEvent(events: CalendarEventData, reschedule?: Reschedule) {
+  onChangeEvent(events: CalendarEventData, reschedule?: Event) {
     const modified = new Map(this.state.events);
     modified.set(this.state.id, events);
 
-    if (reschedule) {
+    if (reschedule && reschedule.recurDays) {
       const {year, month, day} = idToDay(this.state.id);
-      const newId = dateToId(new Date(year, month-1, day + reschedule.days));
+      const newId = dateToId(new Date(year, month-1, day + reschedule.recurDays));
       const newData = [...(modified.get(newId) ?? [])];
-      newData.push(reschedule.event);
+      newData.push(reschedule);
       modified.set(newId, newData);
 
       new InnerSaver<CalendarEventSave>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});
@@ -66,8 +66,8 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     const isSelected = id === this.state.id;
     const isToday = id === dateToId(new Date());
     const hasPage = !!this.state.pages.get(id);
-    const event = this.state.events.get(id);
-    const hasPageOrEvent = hasPage || (event != null && event.length > 0 && event.some(value => value && !value.endsWith('|F')));
+    const events = this.state.events.get(id);
+    const hasPageOrEvent = hasPage || (events != null && events.length > 0 && events.some(event => !event.isFinished()));
 
     return `${hasPageOrEvent ? 'busy' : 'norm'}-${isToday ? 'tod' : 'day'}${isSelected ? '-selected' : ''}`;
   }
@@ -109,15 +109,10 @@ class CalendarPage extends React.Component<CalendarPageProps, object> {
   }
 }
 
-interface Reschedule {
-  days: number;
-  event: string;
-}
-
 interface CalendarEventProps {
   id: CalendarId;
   data: CalendarEventData;
-  onChange: (data: CalendarEventData, reschedule?: Reschedule) => void;
+  onChange: (data: CalendarEventData, reschedule?: Event) => void;
 }
 
 type CalendarEventSave = { Id: CalendarId, Data: CalendarEventData };
@@ -130,29 +125,33 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
     this.makeBox = this.makeBox.bind(this);
   }
 
-  onChange(index: number, text: string, rescheduleDays?: number) {
+  onChange(index: number, event: Event | null, reschedule?: boolean) {
     const modified = [...this.props.data];
-    let reschedule = undefined;
+    let rescheduled = undefined;
     if (index === modified.length) {
-      if (!text) {
+      if (!event) {
         return;
       }
-      modified.push(text);
-    } else if (text || index + 1 < modified.length) {
-      if (rescheduleDays) {
-        reschedule = {days: rescheduleDays, event: modified[index]};
+      modified.push(event);
+      modified.sort(Event.compare);
+    } else if (event) {
+      if (reschedule) {
+        rescheduled = modified[index];
       }
-      modified[index] = text;
+      modified[index] = event;
     } else {
-      //modified.splice(index, 1);
-      modified.pop();
+      modified.splice(index, 1);
+      //modified.pop();
     }
-    this.props.onChange(modified, reschedule);
+    this.props.onChange(modified, rescheduled);
   }
 
   makeBox(index: number): JSX.Element {
-    const text = index < this.props.data.length ? this.props.data[index] : '';
-    return <EventInput key={`${this.props.id}${index}`} dayId={this.props.id} index={index} value={text} onChange={this.onChange}/>
+    if (index >= this.props.data.length) {
+      return <button key="I'm a button">HELLO</button>;
+    }
+    const event = this.props.data[index];
+    return <EventInput key={`${this.props.id}${index}`} dayId={this.props.id} index={index} event={event} onChange={this.onChange}/>
   }
 
   render() {
