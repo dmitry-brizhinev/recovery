@@ -53,6 +53,7 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
       const newId = dateToId(new Date(year, month-1, day + reschedule.recurDays));
       const newData = [...(modified.get(newId) ?? [])];
       newData.push(reschedule);
+      newData.sort(Event.compare);
       modified.set(newId, newData);
 
       new InnerSaver<CalendarEventSave>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});

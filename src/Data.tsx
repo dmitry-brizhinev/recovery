@@ -113,7 +113,6 @@ export type ValidComment = StrongTypedef<string, typeof validcomment>;
 export class Event {
   private constructor(
     readonly timeMinutes: number,
-    readonly notifyMinutes: number, // 0 = don't notify
     readonly title: string,
     readonly comment: ValidComment,
     readonly recurDays: number,     // 0 = don't recur
@@ -144,7 +143,7 @@ export class Event {
   }
 
   isEmpty(): boolean {
-    return !this.title && !this.comment;
+    return !this.title && !this.comment && !this.recurDays;
   }
 
   getScheduledDate(dayId: CalendarId): Date {
@@ -164,15 +163,14 @@ export class Event {
   static parse(value: string, magicKey: number): Event {
     const result = value.match(EventRegex);
     if (!result) {
-      return new Event(0, 0, value, Event.sanitizeComment(''), 0, false, magicKey);
+      return new Event(0, value, Event.sanitizeComment(''), 0, false, magicKey);
     }
-    const { hour, minute, ap, hours, minutes, title, comment, recur, marked } = result.groups!;
-    const timeMinutes = (maybeParse(hour, 60) % (60*12)) + (ap === 'p' ? 60*12 : 0) + maybeParse(minute);
-    const notifyMinutes = maybeParse(hours, 60) + maybeParse(minutes);
+    const { time, title, comment, recur, marked } = result.groups!;
+    const timeMinutes = parseTimeInput(time) || 0;
     const unescapedComment = Event.sanitizeComment((comment || '').replaceAll('\\n', '\n'));
     const recurDays = maybeParse(recur);
     const finished = marked === 'F';
-    return new Event(timeMinutes, notifyMinutes, title, unescapedComment, recurDays, finished, magicKey);
+    return new Event(timeMinutes, title, unescapedComment, recurDays, finished, magicKey);
   }
 
   toTimeInputString(): string {
@@ -184,21 +182,20 @@ export class Event {
     return `${hour}:${minute}`;
   }
 
+  toJSON(): string {
+    return this.toString();
+  }
+
   toString(): string {
     if (!this.isValid()) {
       return this.title;
     }
-    const ap = this.timeMinutes >= 60*12 ? 'p' : 'a';
-    const minute = this.timeMinutes % 60 || '';
-    const hour = (Math.trunc(this.timeMinutes / 60) % 12);
-    // Notify minutes
-    const notifyMinutes = this.notifyMinutes ? 'XXX' : '';
-    //
+    const time = this.toTimeInputString();
     const title = this.title;
     const comment = this.comment.replaceAll('\n', '\\n');
     const recur = this.recurDays || '';
     const finished = this.finished ? 'F' : '';
-    return `${hour}${minute && ':'}${minute}${ap}m|${notifyMinutes}|${title}|${comment}|${recur}|${finished}`
+    return `${time}||${title}|${comment}|${recur}|${finished}`
   }
 
   static sanitizeTitle(title?: string): string | undefined {
@@ -213,34 +210,39 @@ export class Event {
     return value.toString();
   }
 
+  static sanitizeRecur(recur?: number): number | undefined {
+    return recur != null && Number.isInteger(recur) && recur >= 0 && recur <= 30 ? recur : undefined;
+  }
+
   withUpdate(fields: {comment?: string, finished?: boolean, timeinput?: string, title?: string, recur?:number}): Event {
     return new Event(
       parseTimeInput(fields.timeinput) ?? this.timeMinutes,
-      this.notifyMinutes,
       Event.sanitizeTitle(fields.title) ?? this.title,
       fields.comment != null ? Event.sanitizeComment(fields.comment) : this.comment,
-      fields.recur ?? this.recurDays,
+      Event.sanitizeRecur(fields.recur) ?? this.recurDays,
       fields.finished ?? this.finished,
       this.magicKey);
   }
 
+  private sortKey(): number {
+    return (this.isValid() ? this.timeMinutes * 1000 : 60*24*2000) + this.magicKey;
+  }
+
   static compare(a: Event, b: Event): number {
-    const aa = (a.isValid() ? a.timeMinutes : 60*24*100 + a.magicKey);
-    const bb = (b.isValid() ? b.timeMinutes : 60*24*100 + b.magicKey);
-    return aa - bb;
+    return a.sortKey() - b.sortKey();
   }
 }
 
-const EventRegex = /^(?<hour>\d\d?)(:(?<minute>\d\d))?(?<ap>a|p)m\|((?<hours>\d+)h)?((?<minutes>\d+)m)?\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>X|F)?$/;
-// export const CommentRegex = /(?<=^\d\d?(?::\d\d)?[ap]m\|(?:\d+h)?(?:\d+m)?\|[^|\n]+\|)[^|\n]*(?=\|\d*\|[XF]?$)/;
+const EventRegex = /^(?<time>\d\d:\d\d)\|\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>F?)$/;
 
 function maybeParse(value: string | undefined, mult?: number): number {
   return Number.parseInt(value || '0') * (mult ?? 1);
 }
 
 function parseTimeInput(value?: string): number | undefined {
-  if (!value) return undefined;
+  if (!value || value.length !== 5 || !/^\d\d:\d\d$/.test(value)) return undefined;
   const hour = Number.parseInt(value.substring(0, 2));
   const minute = Number.parseInt(value.substring(3, 5));
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return undefined;
   return hour * 60 + minute;
 }

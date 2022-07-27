@@ -84,23 +84,22 @@ input.calendar-event.finished {
   color:purple;
 }
 
-/*
-input.calendar-event.active {
-  color:rgb(211, 116, 0);
-}*/
-
 input.calendar-event-time {
   min-width:97px;
   max-width:97px;
 }
 
-/*input.calendar-event-recur {
-
-}*/
+input.calendar-event-recur {
+  min-width:30px;
+  max-width:30px;
+}
 
 button.event {
-  color: black;
-  /*border-style: outset;*/
+  max-width: 65px;
+  min-width: 65px;
+  text-align: center;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 button.event.open {

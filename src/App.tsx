@@ -22,7 +22,7 @@ export default class App extends React.Component<object, AppState> {
 
   componentDidMount() {
     getSavedUserWithTimeout(2000).then((user) => {
-      this.setState({user: user, awaitingSaved: false});
+      this.setState({user, awaitingSaved: false});
     });
   }
 
@@ -33,7 +33,7 @@ export default class App extends React.Component<object, AppState> {
       const errorCode = error.code;
       const errorMessage = error.message;
     });*/
-    this.setState({user: user, awaitingLogin: false});
+    this.setState({user, awaitingLogin: false});
   }
 
   render() {
@@ -74,7 +74,7 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   }
 
   componentDidMount() {
-    getData().then((data) => this.setState({data: data}));
+    getData().then((data) => this.setState({data}));
   }
 
   onClickRefresh() {

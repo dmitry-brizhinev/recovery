@@ -27,13 +27,6 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
     this.onChange = this.onChange.bind(this);
   }
 
-  static getDerivedStateFromProps(props: EventInputProps, state: EventInputState) {
-    if (state.open && !props.event.isActive()) {
-      //return {open: false};
-    }
-    return null;
-  }
-
   onClickCountdown() { // Also for cancel click
     this.setState(prevState => {return {open: !prevState.open};});
   }
@@ -55,13 +48,12 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
   render() {
     const classname = `calendar-event ${this.props.event.status()}`;
     const targetUTCmillis = this.props.event.isActive() && this.props.event.getScheduledDate(this.props.dayId).getTime();
-    //const open = this.state.open && !!targetUTCmillis;
 
     return <ErrorBoundary>
     <div className="calendar-event">
       <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))}/>
       <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))}/>
-      <input className="calendar-event-recur" type="number" min={0} max={14} value={this.props.event.recurDays} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value)}))} />
+      <input className="calendar-event-recur" type="number" min={0} max={14} value={this.props.event.recurDays || ''} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value || '0')}))} />
       <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis || 0} onClick={this.onClickCountdown}/></ErrorBoundary>
     </div>
       {this.state.open && <ErrorBoundary>
@@ -153,18 +145,17 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
   }
 
   render() {
+    let text = 'Inactive';
     if (this.props.targetUTCmillis) {
-    let remainingSecs = Math.round((this.props.targetUTCmillis - this.state.nowUTCmillis) / 1000);
-    const negative = remainingSecs < 0 ? '-' : '';
-    if (negative) remainingSecs = -remainingSecs;
-    const hours = Math.floor(remainingSecs / 3600);
-    remainingSecs = remainingSecs % 3600;
-    const minutes = Math.floor(remainingSecs / 60);
-    remainingSecs = remainingSecs % 60;
-
-    return <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{negative}{hours}:{minutes}:{remainingSecs}</button>;
-    } else {
-      return  <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>Inactive</button>;
+      let remainingSecs = Math.round((this.props.targetUTCmillis - this.state.nowUTCmillis) / 1000);
+      const negative = remainingSecs < 0 ? '-' : '';
+      if (negative) remainingSecs = -remainingSecs;
+      const hours = Math.floor(remainingSecs / 3600);
+      remainingSecs = remainingSecs % 3600;
+      const minutes = Math.floor(remainingSecs / 60).toString().padStart(2, '0');
+      const seconds = (remainingSecs % 60).toString().padStart(2, '0');
+      text = `${negative}${hours}:${minutes}:${seconds}`;
     }
+    return <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{text}</button>;
   }
 }

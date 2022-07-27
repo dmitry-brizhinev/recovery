@@ -160,7 +160,7 @@ export class Saver<T extends X> extends React.Component<StandaloneSaverProps<T>,
 
   onStatusUpdate(id: Id<T>, status: SaverStatusString) {
     if (id === this.props.id) {
-      this.setState({status: status});
+      this.setState({status});
     }
   }
 
@@ -193,7 +193,7 @@ export class OverengineeredSaver<T extends X> extends React.Component<SaverProps
   }
 
   onChange(id: Id<T>, data: Data<T>, opts?: {force?: boolean}) {
-    this.setState({id: id, data: data});
+    this.setState({id, data});
     this.currentId = id;
 
     let saver = this.inner.get(id);
@@ -206,7 +206,7 @@ export class OverengineeredSaver<T extends X> extends React.Component<SaverProps
 
   onStatusUpdate(id: Id<T>, status: SaverStatusString) {
     if (id === this.currentId) {
-      this.setState({status: status});
+      this.setState({status});
     }
   }
 
