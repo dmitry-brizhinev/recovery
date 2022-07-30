@@ -7,6 +7,7 @@ import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
 import { EventInput } from './CalendarEvents';
+import * as Immutable from 'immutable'
 
 
 interface CalendarProps {
@@ -53,21 +54,17 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
   }
 
   onChangePage(page: CalendarPageData) {
-    const modified = new Map(this.state.pages);
-    modified.set(this.state.id, page);
+    const modified = this.state.pages.set(this.state.id, page);
     this.setState({pages: modified, formatting: !this.state.formatting});
   }
 
   onChangeEvent(events: CalendarEventData, reschedule?: Event) {
-    const modified = new Map(this.state.events);
-    modified.set(this.state.id, events);
+    let modified = this.state.events.set(this.state.id, events);
 
     if (reschedule && reschedule.recurDays) {
       const newId = incrementId(this.state.id, reschedule.recurDays);
-      const newData = [...(modified.get(newId) ?? [])];
-      newData.push(reschedule);
-      newData.sort(Event.compare);
-      modified.set(newId, newData);
+      const newData = modified.get(newId)?.push(reschedule).sort(Event.compare) ?? Immutable.List<Event>([reschedule]);
+      modified = modified.set(newId, newData);
 
       new InnerSaver<CalendarEventSave>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});
     }
@@ -81,15 +78,15 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     const isToday = id === dateToId(new Date());
     const hasPage = !!this.state.pages.get(id);
     const events = this.state.events.get(id);
-    const hasPageOrEvent = hasPage || (events != null && events.length > 0 && events.some(event => !event.isFinished()));
+    const hasPageOrEvent = hasPage || (!!events && events.size > 0 && events.some(event => !event.isFinished()));
 
     return `${hasPageOrEvent ? 'busy' : 'norm'}-${isToday ? 'tod' : 'day'}${isSelected ? '-selected' : ''}`;
   }
 
   render() {
     const classname = this.state.formatting ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
-    const pageData = this.state.pages.get(this.state.id) || '';
-    const eventData = this.state.events.get(this.state.id) || [];
+    const pageData = this.state.pages.get(this.state.id) ?? '';
+    const eventData = this.state.events.get(this.state.id) ?? Immutable.List<Event>();
     return <ErrorBoundary><div className="calendar-wrapper">
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
       <CalendarPage id={this.state.id} data={pageData} onChange={this.onChangePage}/>
@@ -143,29 +140,27 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
   }
 
   onChange(index: number, event: Event | null, reschedule?: boolean) {
-    const modified = [...this.props.data];
+    let modified = this.props.data;
     let rescheduled = undefined;
-    if (index === modified.length) {
+    if (index === modified.size) {
       if (!event) {
         return;
       }
-      modified.push(event);
-      modified.sort(Event.compare);
+      modified = modified.push(event).sort(Event.compare);
     } else if (event) {
       if (reschedule) {
-        rescheduled = modified[index];
+        rescheduled = modified.get(index);
       }
-      modified[index] = event;
-      modified.sort(Event.compare);
+      modified = modified.set(index, event).sort(Event.compare);
     } else {
-      modified.splice(index, 1);
-      //modified.pop();
+      modified = modified.splice(index, 1);
+      //modified = modified.pop();
     }
     this.props.onChange(modified, rescheduled);
   }
 
   onEventCreate() {
-    this.onChange(this.props.data.length, Event.makeEmpty());
+    this.onChange(this.props.data.size, Event.makeEmpty());
   }
 
   makeBox(event: Event, index: number): JSX.Element {

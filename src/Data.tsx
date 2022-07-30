@@ -1,10 +1,10 @@
 import { castToTypedef, StrongTypedef } from "./StrongTypedef";
 
-//import * as Immutable from 'immutable';
+import * as Immutable from 'immutable';
 
 export interface User {
-  name: string | null;
-  uid: string;
+  readonly name: string | null;
+  readonly uid: string;
 }
 
 export const PageIds = [
@@ -41,20 +41,20 @@ export const PageTitles: PageTitlesType = {
 declare const calendarid: unique symbol;
 
 export type PageData = string;
-export type PageMap = Map<PageId, PageData>;
+export type PageMap = Immutable.Map<PageId, PageData>;
 export type CalendarId = StrongTypedef<string, typeof calendarid>;
 export type CalendarPageData = string;
-export type CalendarPageMap = Map<CalendarId, CalendarPageData>;
-export type CalendarEventData = Event[];
-export type CalendarEventMap = Map<CalendarId, CalendarEventData>;
+export type CalendarPageMap = Immutable.Map<CalendarId, CalendarPageData>;
+export type CalendarEventData = Immutable.List<Event>;
+export type CalendarEventMap = Immutable.Map<CalendarId, CalendarEventData>;
 export interface CalendarData {
-  pages: CalendarPageMap;
-  events: CalendarEventMap;
+  readonly pages: CalendarPageMap;
+  readonly events: CalendarEventMap;
 }
 
 export interface UserData {
-  pages: PageMap;
-  calendar: CalendarData;
+  readonly pages: PageMap;
+  readonly calendar: CalendarData;
 }
 
 export function getBackupString(data: UserData): string {

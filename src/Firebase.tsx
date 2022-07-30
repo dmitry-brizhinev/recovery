@@ -4,6 +4,7 @@ import { getFirestore, setDoc, doc, getDoc, deleteField, FieldValue } from "fire
 
 import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event } from './Data'
 
+import * as Immutable from 'immutable';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDpeFI1YoAh9n1ibsczs60jU9MG3LbaIPE",
@@ -54,41 +55,39 @@ export async function getData(): Promise<UserData> {
     throw new Error('No logged-in user');
   }
   const data = (await getDoc(doc(db, 'users', uid))).data();
-  const pages: Map<PageId, PageData> = new Map();
-  const days: Map<CalendarId, CalendarPageData> = new Map();
-  const events: Map<CalendarId, CalendarEventData> = new Map();
-  const calendar = {pages: days, events};
-  if (data == null) {
-    return {pages, calendar};
+  const pages = Immutable.Map<PageId, PageData>().asMutable();
+  const days = Immutable.Map<CalendarId, CalendarPageData>().asMutable();
+  const events = Immutable.Map<CalendarId, CalendarEventData>().asMutable();
+
+  if (data != null) {
+    for (const id of PageIds) {
+      const text = data[id];
+      if (text == null) {
+        pages.set(id, 'NO DATA');
+      }
+      else if (typeof text !== 'string') {
+        pages.set(id, `WRONG TYPE ${typeof text}`);
+      } else {
+        pages.set(id, text);
+      }
+    }
+
+    for (const [key, valuex] of Object.entries(data)) {
+      const isEvent = key.startsWith('EC20');
+      const cid = checkIdString(isEvent ? key.substring(1) : key);
+      if (!cid) {
+        continue;
+      }
+      const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
+      if (isEvent) {
+        events.set(cid, Immutable.List(value.split('\n').map(Event.parseAndGenKey).sort(Event.compare)));
+      } else {
+        days.set(cid, value);
+      }
+    }
   }
 
-  for (const id of PageIds) {
-    const text = data[id];
-    if (text == null) {
-      pages.set(id, 'NO DATA');
-    }
-    else if (typeof text !== 'string') {
-      pages.set(id, `WRONG TYPE ${typeof text}`);
-    } else {
-      pages.set(id, text);
-    }
-  }
-
-  for (const [key, valuex] of Object.entries(data)) {
-    const isEvent = key.startsWith('EC20');
-    const cid = checkIdString(isEvent ? key.substring(1) : key);
-    if (!cid) {
-      continue;
-    }
-    const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
-    if (isEvent) {
-      events.set(cid, value.split('\n').map(Event.parseAndGenKey).sort(Event.compare));
-    } else {
-      days.set(cid, value);
-    }
-  }
-
-  return {pages, calendar};
+  return {pages: pages.asImmutable(), calendar: {pages: days.asImmutable(), events: events.asImmutable()}};
 }
 
 async function save(id: string, data: string | FieldValue) {
