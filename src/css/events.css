@@ -63,6 +63,22 @@ div.calendar-events {
   }
 }
 
+div.calendar-events-header {
+  width:95%;
+}
+
+button.event-prev-day {
+  max-width:fit-content;
+  min-width:fit-content;
+  float:left;
+}
+
+button.event-next-day {
+  max-width:fit-content;
+  min-width:fit-content;
+  float:right;
+}
+
 div.calendar-event {
   width:95%;
   display:flex;

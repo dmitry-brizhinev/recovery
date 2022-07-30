@@ -1,5 +1,7 @@
 import { castToTypedef, StrongTypedef } from "./StrongTypedef";
 
+//import * as Immutable from 'immutable';
+
 export interface User {
   name: string | null;
   uid: string;
@@ -89,8 +91,8 @@ export function dateToDay(date: Date): Day {
 
 export function dateToId(date: Date): CalendarId {
   const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
   const id = checkIdString(`C${year}-${month}-${day}`);
   if (!id) throw new Error(`Failed constructing CalendarId with date ${date}`);
   return id;
@@ -126,7 +128,7 @@ export function idToNiceString(id: CalendarId): string {
   }
 
   const month = new Intl.DateTimeFormat('en-US', {month: 'short'}).format(idDate);
-  const day = idDate.getDate().toString().padStart(2, '0');
+  const day = pad2(idDate.getDate());
 
   if (idDate.getFullYear() === toDate.getFullYear()) {
     return `${weekday}, ${month} ${day}`;
@@ -161,7 +163,7 @@ export class Event {
   ) {}
 
   status(): EventStatus {
-    if (!this.title || this.timeMinutes < 0) {
+    if (!this.isValid()) {
       return EventStatus.Invalid;
     } else if (this.finished) {
       return EventStatus.Finished;
@@ -171,15 +173,15 @@ export class Event {
   }
 
   isActive(): boolean {
-    return this.status() === EventStatus.Active;
+    return this.isValid() && !this.finished;
   }
 
   isValid(): boolean {
-    return this.status() !== EventStatus.Invalid;
+    return !!this.title && this.timeMinutes >= 0;
   }
 
   isFinished(): boolean {
-    return this.status() === EventStatus.Finished;
+    return this.isValid() && this.finished;
   }
 
   getScheduledDate(dayId: CalendarId): Date {
@@ -213,8 +215,8 @@ export class Event {
     if (!this.isValid()) {
       return '';
     }
-    const minute = (this.timeMinutes % 60).toString().padStart(2, '0');
-    const hour = Math.trunc(this.timeMinutes / 60).toString().padStart(2, '0');
+    const minute = pad2(this.timeMinutes % 60);
+    const hour = pad2(Math.trunc(this.timeMinutes / 60));
     return `${hour}:${minute}`;
   }
 
@@ -288,4 +290,8 @@ function parseTimeInput(value?: string): number | undefined {
   const minute = Number.parseInt(value.substring(3, 5));
   if (!Number.isInteger(hour) || !Number.isInteger(minute)) return undefined;
   return hour * 60 + minute;
+}
+
+export function pad2(num: number): string {
+  return num.toString().padStart(2, '0');
 }

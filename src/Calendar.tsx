@@ -32,10 +32,24 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     this.onChangePage = this.onChangePage.bind(this);
     this.onChangeEvent = this.onChangeEvent.bind(this);
     this.tileClassName = this.tileClassName.bind(this);
+    this.onClickPrevDay = this.onClickPrevDay.bind(this);
+    this.onClickNextDay = this.onClickNextDay.bind(this);
+  }
+
+  changeDay(id: CalendarId) {
+    this.setState({id, formatting: !this.state.formatting});
   }
 
   onClickDay(value: Date) {
-    this.setState({id: dateToId(value), formatting: !this.state.formatting});
+    this.changeDay(dateToId(value));
+  }
+
+  onClickPrevDay() {
+    this.changeDay(incrementId(this.state.id, -1));
+  }
+
+  onClickNextDay() {
+    this.changeDay(incrementId(this.state.id, 1));
   }
 
   onChangePage(page: CalendarPageData) {
@@ -79,7 +93,7 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     return <ErrorBoundary><div className="calendar-wrapper">
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
       <CalendarPage id={this.state.id} data={pageData} onChange={this.onChangePage}/>
-      <CalendarEvents id={this.state.id} data={eventData} onChange={this.onChangeEvent}/>
+      <CalendarEvents id={this.state.id} data={eventData} onChange={this.onChangeEvent} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay}/>
     </div><hr/></ErrorBoundary>
   }
 }
@@ -113,6 +127,8 @@ interface CalendarEventProps {
   id: CalendarId;
   data: CalendarEventData;
   onChange: (data: CalendarEventData, reschedule?: Event) => void;
+  onClickPrevDay: () => void;
+  onClickNextDay: () => void;
 }
 
 type CalendarEventSave = { Id: CalendarId, Data: CalendarEventData };
@@ -158,7 +174,11 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
 
   render() {
     return <div className="calendar-events"><ErrorBoundary>
-      {idToNiceString(this.props.id)}: <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
+      <div className="calendar-events-header">
+        <button className="event-prev-day" onClick={this.props.onClickPrevDay}>&lt;</button>
+        {idToNiceString(this.props.id)}: <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
+        <button className="event-next-day" onClick={this.props.onClickNextDay}>&gt;</button>
+      </div>
       {this.props.data.map(this.makeBox)}
       <button className="event-create" onClick={this.onEventCreate}>+</button>
     </ErrorBoundary></div>;

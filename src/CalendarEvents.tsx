@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { CalendarId, Event, ValidComment } from './Data';
+import { CalendarId, Event, pad2, ValidComment } from './Data';
 import ErrorBoundary from './ErrorBoundary';
 
 
@@ -47,7 +47,7 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
 
   render() {
     const classname = `calendar-event ${this.props.event.status()}`;
-    const targetUTCmillis = this.props.event.isActive() && this.props.event.getScheduledDate(this.props.dayId).getTime();
+    const targetUTCmillis = (this.props.event.isActive() || 0) && this.props.event.getScheduledDate(this.props.dayId).getTime();
 
     return <ErrorBoundary>
     <div className="calendar-event">
@@ -57,7 +57,7 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
       }
       <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))}/>
       <input className="calendar-event-recur" type="number" min={0} max={14} step={1} value={this.props.event.recurDays || ''} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value || '0')}))} />
-      <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis || 0} onClick={this.onClickCountdown}/></ErrorBoundary>
+      <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis} onClick={this.onClickCountdown}/></ErrorBoundary>
     </div>
       {this.state.open && <ErrorBoundary>
         <EventDetail event={this.props.event} onCancel={this.onClickCountdown} onSave={this.onClickSave} onReschedule={this.onClickReschedule}/>
@@ -155,8 +155,8 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
       if (negative) remainingSecs = -remainingSecs;
       const hours = Math.floor(remainingSecs / 3600);
       remainingSecs = remainingSecs % 3600;
-      const minutes = Math.floor(remainingSecs / 60).toString().padStart(2, '0');
-      const seconds = (remainingSecs % 60).toString().padStart(2, '0');
+      const minutes = pad2(Math.floor(remainingSecs / 60));
+      const seconds = pad2(remainingSecs % 60);
       text = `${negative}${hours}:${minutes}:${seconds}`;
     }
     return <button className={`event${this.props.open ? ' open' : ''}`} onClick={this.props.onClick}>{text}</button>;
