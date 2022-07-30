@@ -66,6 +66,7 @@ div.calendar-events {
 div.calendar-event {
   width:95%;
   display:flex;
+  height:24px;
 }
 
 input.calendar-event {
@@ -87,6 +88,11 @@ input.calendar-event.finished {
 input.calendar-event-time {
   min-width:97px;
   max-width:97px;
+}
+
+button.calendar-event-delete {
+  min-width:102px;
+  max-width:102px;
 }
 
 input.calendar-event-recur {
@@ -125,6 +131,7 @@ div.event-detail-buttons {
 
 button.event-detail-button {
   width:30%;
+  min-width: fit-content;
 }
 
 button.event-create {

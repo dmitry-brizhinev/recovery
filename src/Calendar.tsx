@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, idToDay, Event } from './Data'
+import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, incrementId, Event, idToNiceString } from './Data'
 import { saveCalendarPage, saveCalendarEvent } from './Firebase'
 import { InnerSaver, Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
@@ -49,8 +49,7 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     modified.set(this.state.id, events);
 
     if (reschedule && reschedule.recurDays) {
-      const {year, month, day} = idToDay(this.state.id);
-      const newId = dateToId(new Date(year, month-1, day + reschedule.recurDays));
+      const newId = incrementId(this.state.id, reschedule.recurDays);
       const newData = [...(modified.get(newId) ?? [])];
       newData.push(reschedule);
       newData.sort(Event.compare);
@@ -127,16 +126,16 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
     this.onEventCreate = this.onEventCreate.bind(this);
   }
 
-  onChange(index: number, event: Event, reschedule?: boolean) {
+  onChange(index: number, event: Event | null, reschedule?: boolean) {
     const modified = [...this.props.data];
     let rescheduled = undefined;
     if (index === modified.length) {
-      //if (event.isEmpty()) {
-      //  return;
-      //}
+      if (!event) {
+        return;
+      }
       modified.push(event);
       modified.sort(Event.compare);
-    } else if (!event.isEmpty()) {
+    } else if (event) {
       if (reschedule) {
         rescheduled = modified[index];
       }
@@ -159,7 +158,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
 
   render() {
     return <div className="calendar-events"><ErrorBoundary>
-      <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
+      {idToNiceString(this.props.id)}: <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
       {this.props.data.map(this.makeBox)}
       <button className="event-create" onClick={this.onEventCreate}>+</button>
     </ErrorBoundary></div>;

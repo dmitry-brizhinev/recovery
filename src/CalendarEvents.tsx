@@ -8,7 +8,7 @@ interface EventInputProps {
   dayId: CalendarId;
   index: number;
   event: Event;
-  onChange: (index: number, event: Event, reschedule?: boolean) => void
+  onChange: (index: number, event: Event | null, reschedule?: boolean) => void
 }
 
 interface EventInputState {
@@ -41,7 +41,7 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
     this.onChange(newValue, true);
   }
 
-  onChange(newValue: Event, reschedule?: boolean) {
+  onChange(newValue: Event | null, reschedule?: boolean) {
     this.props.onChange(this.props.index, newValue, reschedule);
   }
 
@@ -51,9 +51,12 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
 
     return <ErrorBoundary>
     <div className="calendar-event">
-      <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))}/>
+      {this.state.open ?
+        <button className="calendar-event-delete" onClick={event => this.onChange(null)}>Delete</button> :
+        <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))}/>
+      }
       <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))}/>
-      <input className="calendar-event-recur" type="number" min={0} max={14} value={this.props.event.recurDays || ''} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value || '0')}))} />
+      <input className="calendar-event-recur" type="number" min={0} max={14} step={1} value={this.props.event.recurDays || ''} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value || '0')}))} />
       <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis || 0} onClick={this.onClickCountdown}/></ErrorBoundary>
     </div>
       {this.state.open && <ErrorBoundary>

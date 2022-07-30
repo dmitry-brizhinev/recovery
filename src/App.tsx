@@ -103,7 +103,7 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   }
 
   render() {
-    return <ErrorBoundary><input type="text" readOnly={true} value={this.backup}/><hr/>
+    return <ErrorBoundary><br/><input type="text" readOnly={true} value={this.backup}/><hr/>
       <Calendar data={this.props.data.calendar}/>
       {PageIds.map(id => <Page id={id} key={id} text={this.props.data.pages.get(id) || 'MISSING ENTRY'}/>)}
     </ErrorBoundary>;

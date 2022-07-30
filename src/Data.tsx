@@ -80,6 +80,13 @@ export function checkIdString(id: string): CalendarId | null {
   return cid;
 }
 
+export function dateToDay(date: Date): Day {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return {year, month, day};
+}
+
 export function dateToId(date: Date): CalendarId {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -89,11 +96,44 @@ export function dateToId(date: Date): CalendarId {
   return id;
 }
 
-export function idToDay(id: CalendarId): Day {
+export function incrementId(id: CalendarId, incrementDays: number): CalendarId {
+  const {year, month, day} = idToDay(id);
+  return dateToId(new Date(year, month-1, day + incrementDays));
+}
+
+function idToDay(id: CalendarId): Day {
   const year = Number.parseInt(id.substring(1, 5));
   const month = Number.parseInt(id.substring(6, 8));
   const day = Number.parseInt(id.substring(9, 11));
   return {year, month, day};
+}
+
+export function idToNiceString(id: CalendarId): string {
+  const d = idToDay(id);
+  const idDate = new Date(d.year, d.month-1, d.day);
+  const toDate = new Date(); toDate.setHours(0, 0, 0, 0);
+  
+
+  const dayDiff = Math.round((toDate.getTime() - idDate.getTime()) / (1000*60*60*24));
+
+  let weekday = new Intl.DateTimeFormat('en-US', {weekday: 'long'}).format(idDate);
+
+  if (dayDiff === 0) weekday = 'Today';
+  else if (dayDiff === 1) weekday = 'Yesterday';
+  else if (dayDiff === -1) weekday = 'Tomorrow';
+  else if (dayDiff >= -7 && dayDiff <= 7) {
+    weekday = dayDiff < 0 ? `Next ${weekday}` : `Last ${weekday}`;
+  }
+
+  const month = new Intl.DateTimeFormat('en-US', {month: 'short'}).format(idDate);
+  const day = idDate.getDate().toString().padStart(2, '0');
+
+  if (idDate.getFullYear() === toDate.getFullYear()) {
+    return `${weekday}, ${month} ${day}`;
+  } else {
+    const year = idDate.getFullYear();
+    return `${weekday}, ${year}-${month}-${day}`;
+  }
 }
 
 let lastMagicKey = 1;
@@ -121,7 +161,7 @@ export class Event {
   ) {}
 
   status(): EventStatus {
-    if (!this.title || (!this.timeMinutes && !this.comment && !this.recurDays)) {
+    if (!this.title || this.timeMinutes < 0) {
       return EventStatus.Invalid;
     } else if (this.finished) {
       return EventStatus.Finished;
@@ -142,17 +182,13 @@ export class Event {
     return this.status() === EventStatus.Finished;
   }
 
-  isEmpty(): boolean {
-    return !this.title && !this.comment && !this.recurDays;
-  }
-
   getScheduledDate(dayId: CalendarId): Date {
     const {year, month, day} = idToDay(dayId);
-    return new Date(year, month-1, day, 0, this.timeMinutes);
+    return new Date(year, month-1, day, 0, this.isValid() ? this.timeMinutes : 0);
   }
 
   static makeEmpty(): Event {
-    return Event.parseAndGenKey('Title');
+    return Event.parseAndGenKey('');
   }
 
   static parseAndGenKey(value: string): Event {
@@ -161,16 +197,16 @@ export class Event {
   }
 
   static parse(value: string, magicKey: number): Event {
-    const result = value.match(EventRegex);
+    const result = extractNamedGroups(EventRegex, value);
     if (!result) {
-      return new Event(0, value, Event.sanitizeComment(''), 0, false, magicKey);
+      return new Event(-1, value, Event.sanitizeComment(''), 0, false, magicKey);
     }
-    const { time, title, comment, recur, marked } = result.groups!;
-    const timeMinutes = parseTimeInput(time) || 0;
-    const unescapedComment = Event.sanitizeComment((comment || '').replaceAll('\\n', '\n'));
+    const { time, title, comment, recur, marked } = result;
+    const timeMinutes = parseTimeInput(time) ?? -1;
+    const unescapedComment = Event.sanitizeComment((comment ?? '').replaceAll('\\n', '\n'));
     const recurDays = maybeParse(recur);
     const finished = marked === 'F';
-    return new Event(timeMinutes, title, unescapedComment, recurDays, finished, magicKey);
+    return new Event(timeMinutes, title ?? '', unescapedComment, recurDays, finished, magicKey);
   }
 
   toTimeInputString(): string {
@@ -234,6 +270,13 @@ export class Event {
 }
 
 const EventRegex = /^(?<time>\d\d:\d\d)\|\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>F?)$/;
+
+type NamedGroups = {[key: string]: string | undefined};
+function extractNamedGroups(regex: RegExp, match: string): NamedGroups | undefined {
+  const result = regex.exec(match);
+  if (!result) return undefined;
+  return result.groups || {};
+}
 
 function maybeParse(value: string | undefined, mult?: number): number {
   return Number.parseInt(value || '0') * (mult ?? 1);
