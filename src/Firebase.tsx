@@ -2,9 +2,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
 
-import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event } from './Data'
+import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event, PageMap, makeUserData, CalendarPageMap, CalendarEventMap } from './Data'
 
-import * as Immutable from 'immutable';
+import { Map as IMap } from 'immutable';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDpeFI1YoAh9n1ibsczs60jU9MG3LbaIPE",
@@ -55,9 +55,9 @@ export async function getData(): Promise<UserData> {
     throw new Error('No logged-in user');
   }
   const data = (await getDoc(doc(db, 'users', uid))).data();
-  const pages = Immutable.Map<PageId, PageData>().asMutable();
-  const days = Immutable.Map<CalendarId, CalendarPageData>().asMutable();
-  const events = Immutable.Map<CalendarId, CalendarEventData>().asMutable();
+  const pages: PageMap = IMap<PageId, PageData>().asMutable();
+  const calendarPages: CalendarPageMap = IMap<CalendarId, CalendarPageData>().asMutable();
+  const events: CalendarEventMap = IMap<CalendarId, CalendarEventData>().asMutable();
 
   if (data != null) {
     for (const id of PageIds) {
@@ -80,14 +80,17 @@ export async function getData(): Promise<UserData> {
       }
       const value = typeof valuex === 'string' ? valuex : `WRONG TYPE ${typeof valuex}`;
       if (isEvent) {
-        events.set(cid, Immutable.List(value.split('\n').map(Event.parseAndGenKey).sort(Event.compare)));
+        events.set(cid, IMap(value.split('\n').map(Event.parseAndGenKey).map(event => [event.magicKey, event])));
       } else {
-        days.set(cid, value);
+        calendarPages.set(cid, value);
       }
     }
   }
 
-  return {pages: pages.asImmutable(), calendar: {pages: days.asImmutable(), events: events.asImmutable()}};
+  return makeUserData({
+    pages: pages.asImmutable(),
+    calendarPages: calendarPages.asImmutable(),
+    calendarEvents: events.asImmutable()});
 }
 
 async function save(id: string, data: string | FieldValue) {

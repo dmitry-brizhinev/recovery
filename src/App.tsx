@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { User, UserData, PageData, PageId, PageIds, getBackupString, PageTitles } from './Data'
-import { getSavedUserWithTimeout, loginPopup, getData, savePage } from './Firebase'
+import { User, UserData, PageData, PageId, PageIds, PageTitles, Root, DataRoot } from './Data'
+import { getSavedUserWithTimeout, loginPopup, savePage, getData } from './Firebase'
 import { Calendar } from './Calendar'
 import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
+import { RootContext } from './Root'
 
 export interface AppState {
   user: User | null;
@@ -61,6 +62,7 @@ interface LoggedInAppProps {
 }
 
 interface LoggedInAppState {
+  root: Root | null;
   data: UserData | null;
 }
 
@@ -68,23 +70,31 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   constructor(props: LoggedInAppProps) {
     super(props);
 
-    this.onClickRefresh = this.onClickRefresh.bind(this);
+    this.state = {root: null, data: null};
 
-    this.state = {data: null};
+    this.onUpdate = this.onUpdate.bind(this)
   }
 
   componentDidMount() {
-    getData().then((data) => this.setState({data}));
+    getData().then((data) => {
+      const root = new DataRoot(data, this.onUpdate);
+      this.setState({root, data});
+    });
   }
 
-  onClickRefresh() {
-
+  onUpdate(data: UserData) {
+    this.setState({data});
   }
 
   render() {
     return <ErrorBoundary>
       {this.props.user.name} --- {new Date().toLocaleString()}
-      {this.state.data ? <LoadedApp data={this.state.data}/> : <><hr/>Loading...</>}
+      {this.state.root && this.state.data ?
+        <RootContext.Provider value={this.state.root}>
+          <LoadedApp data={this.state.data}/>
+        </RootContext.Provider> :
+        <><hr/>Loading...</>
+      }
     </ErrorBoundary>;
   }
 }
@@ -94,20 +104,21 @@ interface LoadedAppProps {
 }
 
 class LoadedApp extends React.Component<LoadedAppProps, object> {
-  backup: string;
-
-  constructor(props: LoadedAppProps) {
-    super(props)
-
-    this.backup = getBackupString(this.props.data);
-  }
-
   render() {
-    return <ErrorBoundary><br/><input type="text" readOnly={true} value={this.backup}/><hr/>
-      <Calendar data={this.props.data.calendar}/>
-      {PageIds.map(id => <Page id={id} key={id} text={this.props.data.pages.get(id) || 'MISSING ENTRY'}/>)}
+    return <ErrorBoundary><br/><Backup data={this.props.data}/><hr/>
+      <Calendar pages={this.props.data.calendarPages} events={this.props.data.calendarEvents}/>
+      {PageIds.map(id => <Page key={id} id={id} text={this.props.data.pages.get(id, '')}/>)}
     </ErrorBoundary>;
   }
+}
+
+interface BackupProps {
+  data: UserData;
+}
+
+function Backup(props: BackupProps): JSX.Element {
+  const backup = React.useMemo(() => Root.getBackupString(props.data), [props.data]);
+  return <input type="text" readOnly={true} value={backup}/>
 }
 
 interface PageProps {
@@ -118,11 +129,12 @@ interface PageProps {
 type PageSave = { Id: PageId, Data: PageData };
 
 function Page(props: PageProps) : JSX.Element {
-  const [currentText, updateText] = React.useState(props.text);
+  //const [currentText, updateText] = React.useState(props.text);
+  const root = React.useContext(RootContext);
   return <label>
     <ErrorBoundary>
-      {PageTitles[props.id]}<Saver<PageSave> id={props.id} data={currentText} saver={savePage}/>
-      <textarea className="page" value={currentText} onChange={event => updateText(event.target.value)}/>
+      {PageTitles[props.id]}<Saver<PageSave> id={props.id} data={props.text} saver={savePage}/>
+      <textarea className="page" value={props.text} onChange={event => root.onPageUpdate(props.id, event)}/>
     </ErrorBoundary>
     <hr/>
   </label>;

@@ -1,6 +1,11 @@
 import { castToTypedef, StrongTypedef } from "./StrongTypedef";
 
-import * as Immutable from 'immutable';
+import Immutable from 'immutable';
+
+import { Map as IMap } from 'immutable';
+import type { ChangeEvent } from "react";
+import { saveCalendarEvent } from "./Firebase";
+import { InnerSaver } from "./Saver";
 
 export interface User {
   readonly name: string | null;
@@ -38,29 +43,112 @@ export const PageTitles: PageTitlesType = {
   other: 'Other:',
 } as const;
 
-declare const calendarid: unique symbol;
+declare const calendarid : unique symbol;
+
+export interface EventUpdateOpts {
+  reschedule?: boolean;
+  delete?: boolean;
+}
+
+export abstract class Root {
+  static getBackupString(data: UserData): string {
+    return JSON.stringify(data);
+  }
+
+  abstract onPageUpdate(id: PageId, event: ChangeEvent<HTMLTextAreaElement>): void;
+  abstract onCalendarPageUpdate(id: CalendarId, event: ChangeEvent<HTMLTextAreaElement>): void;
+  abstract onCalendarEventUpdate(id: CalendarId, event: Event, opts?: EventUpdateOpts): void;
+}
+
+export class EmptyRoot extends Root {
+  onPageUpdate() {}
+  onCalendarPageUpdate() {}
+  onCalendarEventUpdate() {}
+}
+
+export class DataRoot extends Root {
+  constructor(
+    private data: UserData,
+    private readonly subscriber: Callback<UserData>) {
+    super();
+    this.onPageUpdate = this.onPageUpdate.bind(this);
+  }
+
+  private onUpdate(key: readonly ['pages', PageId] | readonly ['calendarPages', CalendarId], value: string) {
+    if (value) {
+      this.data = this.data.setIn(key, value)
+    } else {
+      this.data = this.data.deleteIn(key);
+    }
+    this.subscriber(this.data);
+  }
+
+  private onUpdateEvent(key: readonly ['calendarEvents', CalendarId, number], value: Event | null) {
+    if (value) {
+      this.data = this.data.setIn(key, value)
+    } else {
+      this.data = this.data.deleteIn(key);
+    }
+  }
+
+  private getEvent(key: readonly ['calendarEvents', CalendarId, number]): Event | undefined {
+    return this.data.getIn(key) as Event | undefined;
+  }
+
+  onPageUpdate(id: PageId, event: ChangeEvent<HTMLTextAreaElement>) {
+    const key = ['pages', id] as const;
+    const text = event.target.value;
+    this.onUpdate(key, text);
+  }
+
+  onCalendarPageUpdate(id: CalendarId, event: ChangeEvent<HTMLTextAreaElement>) {
+    const key = ['calendarPages', id] as const;
+    const text = event.target.value;
+    this.onUpdate(key, text);
+  }
+
+  onCalendarEventUpdate(id: CalendarId, event: Event, opts?: EventUpdateOpts) {
+    const key = ['calendarEvents', id, event.magicKey] as const;
+  
+    if (opts?.reschedule) {
+      const oldEvent = this.getEvent(key);
+      if (oldEvent && oldEvent.recurDays) {
+        const newEvent = oldEvent.withUpdate({regenKey: true});
+        const newId = incrementId(id, oldEvent.recurDays);
+        const newKey = ['calendarEvents', newId, newEvent.magicKey] as const;
+        this.onUpdateEvent(newKey, newEvent);
+        const newData = this.data.calendarEvents.get(newId);
+        if (newData) {
+          new InnerSaver<{ Id: CalendarId, Data: CalendarEventData }>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});
+        }
+      }
+    }
+
+    if (opts?.delete) {
+      this.onUpdateEvent(key, null);
+    } else {
+      this.onUpdateEvent(key, event);
+    }
+    this.subscriber(this.data);
+  }
+}
 
 export type PageData = string;
-export type PageMap = Immutable.Map<PageId, PageData>;
+export type PageMap = IMap<PageId, PageData>;
 export type CalendarId = StrongTypedef<string, typeof calendarid>;
 export type CalendarPageData = string;
-export type CalendarPageMap = Immutable.Map<CalendarId, CalendarPageData>;
-export type CalendarEventData = Immutable.List<Event>;
-export type CalendarEventMap = Immutable.Map<CalendarId, CalendarEventData>;
-export interface CalendarData {
-  readonly pages: CalendarPageMap;
-  readonly events: CalendarEventMap;
-}
+export type CalendarPageMap = IMap<CalendarId, CalendarPageData>;
+export type CalendarEventData = IMap<number, Event>;
+export type CalendarEventMap = IMap<CalendarId, CalendarEventData>;
 
-export interface UserData {
-  readonly pages: PageMap;
-  readonly calendar: CalendarData;
-}
+export const makeUserData: Immutable.Record.Factory<UserDataType> = Immutable.Record<UserDataType>({pages: IMap(), calendarPages: IMap(), calendarEvents: IMap()});
+export type UserData = Immutable.RecordOf<UserDataType>;
 
-export function getBackupString(data: UserData): string {
-  return JSON.stringify(Array.from(data.pages.entries())) +
-    JSON.stringify(Array.from(data.calendar.pages.entries())) +
-    JSON.stringify(Array.from(data.calendar.events.entries()));
+// type DataId = keyof UserDataType;
+interface UserDataType {
+  pages: PageMap;
+  calendarPages: CalendarPageMap;
+  calendarEvents: CalendarEventMap;
 }
 
 const CalendarIdRegex = /^C(20\d\d)-([01]\d)-([0123]\d)$/;
@@ -198,7 +286,7 @@ export class Event {
     return Event.parse(value, magicKey);
   }
 
-  static parse(value: string, magicKey: number): Event {
+  private static parse(value: string, magicKey: number): Event {
     const result = extractNamedGroups(EventRegex, value);
     if (!result) {
       return new Event(-1, value, Event.sanitizeComment(''), 0, false, magicKey);
@@ -252,14 +340,14 @@ export class Event {
     return recur != null && Number.isInteger(recur) && recur >= 0 && recur <= 30 ? recur : undefined;
   }
 
-  withUpdate(fields: {comment?: string, finished?: boolean, timeinput?: string, title?: string, recur?:number}): Event {
+  withUpdate(fields: {comment?: string, finished?: boolean, timeinput?: string, title?: string, recur?: number, regenKey?: boolean}): Event {
     return new Event(
       parseTimeInput(fields.timeinput) ?? this.timeMinutes,
       Event.sanitizeTitle(fields.title) ?? this.title,
       fields.comment != null ? Event.sanitizeComment(fields.comment) : this.comment,
       Event.sanitizeRecur(fields.recur) ?? this.recurDays,
       fields.finished ?? this.finished,
-      this.magicKey);
+      fields.regenKey ? getMagicKey() : this.magicKey);
   }
 
   private sortKey(): number {
@@ -295,3 +383,6 @@ function parseTimeInput(value?: string): number | undefined {
 export function pad2(num: number): string {
   return num.toString().padStart(2, '0');
 }
+
+export type Callback<T> = (x: T) => void;
+export type Func = () => void;

@@ -1,23 +1,24 @@
 import * as React from 'react'
 
-import { CalendarId, dateToId, CalendarData, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, incrementId, Event, idToNiceString } from './Data'
+import { CalendarId, dateToId, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, incrementId, Event, idToNiceString, Func } from './Data'
 import { saveCalendarPage, saveCalendarEvent } from './Firebase'
-import { InnerSaver, Saver } from './Saver'
+import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
 import { EventInput } from './CalendarEvents';
-import * as Immutable from 'immutable'
+
+import { Map as IMap } from 'immutable';
+import { RootContext } from './Root'
 
 
 interface CalendarProps {
-  data: CalendarData;
+  pages: CalendarPageMap;
+  events: CalendarEventMap;
 }
 
 interface CalendarState {
   id: CalendarId;
-  pages: CalendarPageMap;
-  events: CalendarEventMap;
   formatting: boolean;
 }
 
@@ -27,11 +28,9 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
   constructor(props: CalendarProps) {
     super(props);
 
-    this.state = {id: dateToId(new Date()), pages: this.props.data.pages, events: this.props.data.events, formatting: false};
+    this.state = {id: dateToId(new Date()), formatting: false};
 
     this.onClickDay = this.onClickDay.bind(this);
-    this.onChangePage = this.onChangePage.bind(this);
-    this.onChangeEvent = this.onChangeEvent.bind(this);
     this.tileClassName = this.tileClassName.bind(this);
     this.onClickPrevDay = this.onClickPrevDay.bind(this);
     this.onClickNextDay = this.onClickNextDay.bind(this);
@@ -53,31 +52,12 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
     this.changeDay(incrementId(this.state.id, 1));
   }
 
-  onChangePage(page: CalendarPageData) {
-    const modified = this.state.pages.set(this.state.id, page);
-    this.setState({pages: modified, formatting: !this.state.formatting});
-  }
-
-  onChangeEvent(events: CalendarEventData, reschedule?: Event) {
-    let modified = this.state.events.set(this.state.id, events);
-
-    if (reschedule && reschedule.recurDays) {
-      const newId = incrementId(this.state.id, reschedule.recurDays);
-      const newData = modified.get(newId)?.push(reschedule).sort(Event.compare) ?? Immutable.List<Event>([reschedule]);
-      modified = modified.set(newId, newData);
-
-      new InnerSaver<CalendarEventSave>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});
-    }
-
-    this.setState({events: modified, formatting: !this.state.formatting});
-  }
-
   tileClassName(props: CalendarTileProperties) : string {
     const id = dateToId(props.date);
     const isSelected = id === this.state.id;
     const isToday = id === dateToId(new Date());
-    const hasPage = !!this.state.pages.get(id);
-    const events = this.state.events.get(id);
+    const hasPage = !!this.props.pages.get(id);
+    const events = this.props.events.get(id);
     const hasPageOrEvent = hasPage || (!!events && events.size > 0 && events.some(event => !event.isFinished()));
 
     return `${hasPageOrEvent ? 'busy' : 'norm'}-${isToday ? 'tod' : 'day'}${isSelected ? '-selected' : ''}`;
@@ -85,12 +65,12 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
 
   render() {
     const classname = this.state.formatting ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
-    const pageData = this.state.pages.get(this.state.id) ?? '';
-    const eventData = this.state.events.get(this.state.id) ?? Immutable.List<Event>();
+    const pageData = this.props.pages.get(this.state.id) ?? '';
+    const eventData = this.props.events.get(this.state.id) ?? IMap<number, Event>();
     return <ErrorBoundary><div className="calendar-wrapper">
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
-      <CalendarPage id={this.state.id} data={pageData} onChange={this.onChangePage}/>
-      <CalendarEvents id={this.state.id} data={eventData} onChange={this.onChangeEvent} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay}/>
+      <CalendarPage id={this.state.id} data={pageData}/>
+      <CalendarEvents id={this.state.id} data={eventData} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay}/>
     </div><hr/></ErrorBoundary>
   }
 }
@@ -98,24 +78,15 @@ export class Calendar extends React.Component<CalendarProps, CalendarState> {
 interface CalendarPageProps {
   id: CalendarId;
   data: CalendarPageData;
-  onChange: (data: CalendarPageData) => void;
 }
 
 class CalendarPage extends React.Component<CalendarPageProps, object> {
-  constructor(props: CalendarPageProps) {
-    super(props);
-
-    this.onChange = this.onChange.bind(this);
-  }
-
-  onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
-    this.props.onChange(event.target.value);
-  }
-
+  static contextType = RootContext;
+  context!: React.ContextType<typeof RootContext>;
   render() {
     return <ErrorBoundary><div className="calendar-page">
       {this.props.id.substring(1)}: <Saver<CalendarPageSave> id={this.props.id} data={this.props.data} saver={saveCalendarPage}/>
-      <textarea className="calendar" value={this.props.data} onChange={this.onChange}/>
+      <textarea className="calendar" value={this.props.data} onChange={event => this.context.onCalendarPageUpdate(this.props.id, event)}/>
     </div></ErrorBoundary>;
   }
 }
@@ -123,48 +94,27 @@ class CalendarPage extends React.Component<CalendarPageProps, object> {
 interface CalendarEventProps {
   id: CalendarId;
   data: CalendarEventData;
-  onChange: (data: CalendarEventData, reschedule?: Event) => void;
-  onClickPrevDay: () => void;
-  onClickNextDay: () => void;
+  onClickPrevDay: Func;
+  onClickNextDay: Func;
 }
 
 type CalendarEventSave = { Id: CalendarId, Data: CalendarEventData };
 
 class CalendarEvents extends React.Component<CalendarEventProps, object> {
+  static contextType = RootContext;
+  context!: React.ContextType<typeof RootContext>;
   constructor(props: CalendarEventProps) {
     super(props);
-
-    this.onChange = this.onChange.bind(this);
     this.makeBox = this.makeBox.bind(this);
     this.onEventCreate = this.onEventCreate.bind(this);
   }
 
-  onChange(index: number, event: Event | null, reschedule?: boolean) {
-    let modified = this.props.data;
-    let rescheduled = undefined;
-    if (index === modified.size) {
-      if (!event) {
-        return;
-      }
-      modified = modified.push(event).sort(Event.compare);
-    } else if (event) {
-      if (reschedule) {
-        rescheduled = modified.get(index);
-      }
-      modified = modified.set(index, event).sort(Event.compare);
-    } else {
-      modified = modified.splice(index, 1);
-      //modified = modified.pop();
-    }
-    this.props.onChange(modified, rescheduled);
-  }
-
   onEventCreate() {
-    this.onChange(this.props.data.size, Event.makeEmpty());
+    this.context.onCalendarEventUpdate(this.props.id, Event.makeEmpty());
   }
 
-  makeBox(event: Event, index: number): JSX.Element {
-    return <EventInput key={`${this.props.id}${event.magicKey}`} dayId={this.props.id} index={index} event={event} onChange={this.onChange}/>
+  makeBox(event: Event): JSX.Element {
+    return <EventInput key={event.magicKey} dayId={this.props.id} event={event}/>
   }
 
   render() {
@@ -174,7 +124,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
         {idToNiceString(this.props.id)}: <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
         <button className="event-next-day" onClick={this.props.onClickNextDay}>&gt;</button>
       </div>
-      {this.props.data.map(this.makeBox)}
+      {[...this.props.data.values()].sort(Event.compare).map(this.makeBox)}
       <button className="event-create" onClick={this.onEventCreate}>+</button>
     </ErrorBoundary></div>;
   }

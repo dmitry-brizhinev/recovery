@@ -1,14 +1,13 @@
 import * as React from 'react'
-import { CalendarId, Event, pad2, ValidComment } from './Data';
+import { CalendarId, Callback, Event, EventUpdateOpts, Func, pad2, ValidComment } from './Data';
 import ErrorBoundary from './ErrorBoundary';
+import { RootContext } from './Root';
 
 
 
 interface EventInputProps {
   dayId: CalendarId;
-  index: number;
   event: Event;
-  onChange: (index: number, event: Event | null, reschedule?: boolean) => void
 }
 
 interface EventInputState {
@@ -16,6 +15,8 @@ interface EventInputState {
 }
 
 export class EventInput extends React.PureComponent<EventInputProps, EventInputState> {
+  static contextType = RootContext;
+  context!: React.ContextType<typeof RootContext>;
   constructor(props: EventInputProps) {
     super(props);
 
@@ -27,7 +28,7 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
     this.onChange = this.onChange.bind(this);
   }
 
-  onClickCountdown() { // Also for cancel click
+  onClickCountdown() { // Also for cancel and reschedule click
     this.setState(prevState => {return {open: !prevState.open};});
   }
 
@@ -38,11 +39,12 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
 
   onClickReschedule(comment: string) {
     const newValue = this.props.event.withUpdate({comment, finished: true});
-    this.onChange(newValue, true);
+    this.onChange(newValue, {reschedule: true});
+    this.onClickCountdown();
   }
 
-  onChange(newValue: Event | null, reschedule?: boolean) {
-    this.props.onChange(this.props.index, newValue, reschedule);
+  onChange(newValue: Event, opts?: EventUpdateOpts) {
+    this.context.onCalendarEventUpdate(this.props.dayId, newValue, opts);
   }
 
   render() {
@@ -52,7 +54,7 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
     return <ErrorBoundary>
     <div className="calendar-event">
       {this.state.open ?
-        <button className="calendar-event-delete" onClick={event => this.onChange(null)}>Delete</button> :
+        <button className="calendar-event-delete" onClick={event => this.onChange(this.props.event, {delete: true})}>Delete</button> :
         <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))}/>
       }
       <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))}/>
@@ -68,9 +70,9 @@ export class EventInput extends React.PureComponent<EventInputProps, EventInputS
 
 interface EventDetailProps {
   event: Event;
-  onCancel: () => void;
-  onSave: (comment: string) => void;
-  onReschedule: (comment: string) => void;
+  onCancel: Func;
+  onSave: Callback<string>;
+  onReschedule: Callback<string>;
 }
 
 interface EventDetailState {
@@ -116,7 +118,7 @@ class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState
 
 interface CountdownProps {
   targetUTCmillis: number;
-  onClick: () => void;
+  onClick: Func;
   open: boolean;
 }
 
