@@ -3,9 +3,6 @@ import { castToTypedef, StrongTypedef } from "./StrongTypedef";
 import Immutable from 'immutable';
 
 import { Map as IMap } from 'immutable';
-import type { ChangeEvent } from "react";
-import { saveCalendarEvent } from "./Firebase";
-import { InnerSaver } from "./Saver";
 
 export interface User {
   readonly name: string | null;
@@ -45,94 +42,6 @@ export const PageTitles: PageTitlesType = {
 
 declare const calendarid : unique symbol;
 
-export interface EventUpdateOpts {
-  reschedule?: boolean;
-  delete?: boolean;
-}
-
-export abstract class Root {
-  static getBackupString(data: UserData): string {
-    return JSON.stringify(data);
-  }
-
-  abstract onPageUpdate(id: PageId, event: ChangeEvent<HTMLTextAreaElement>): void;
-  abstract onCalendarPageUpdate(id: CalendarId, event: ChangeEvent<HTMLTextAreaElement>): void;
-  abstract onCalendarEventUpdate(id: CalendarId, event: Event, opts?: EventUpdateOpts): void;
-}
-
-export class EmptyRoot extends Root {
-  onPageUpdate() {}
-  onCalendarPageUpdate() {}
-  onCalendarEventUpdate() {}
-}
-
-export class DataRoot extends Root {
-  constructor(
-    private data: UserData,
-    private readonly subscriber: Callback<UserData>) {
-    super();
-    this.onPageUpdate = this.onPageUpdate.bind(this);
-  }
-
-  private onUpdate(key: readonly ['pages', PageId] | readonly ['calendarPages', CalendarId], value: string) {
-    if (value) {
-      this.data = this.data.setIn(key, value)
-    } else {
-      this.data = this.data.deleteIn(key);
-    }
-    this.subscriber(this.data);
-  }
-
-  private onUpdateEvent(key: readonly ['calendarEvents', CalendarId, number], value: Event | null) {
-    if (value) {
-      this.data = this.data.setIn(key, value)
-    } else {
-      this.data = this.data.deleteIn(key);
-    }
-  }
-
-  private getEvent(key: readonly ['calendarEvents', CalendarId, number]): Event | undefined {
-    return this.data.getIn(key) as Event | undefined;
-  }
-
-  onPageUpdate(id: PageId, event: ChangeEvent<HTMLTextAreaElement>) {
-    const key = ['pages', id] as const;
-    const text = event.target.value;
-    this.onUpdate(key, text);
-  }
-
-  onCalendarPageUpdate(id: CalendarId, event: ChangeEvent<HTMLTextAreaElement>) {
-    const key = ['calendarPages', id] as const;
-    const text = event.target.value;
-    this.onUpdate(key, text);
-  }
-
-  onCalendarEventUpdate(id: CalendarId, event: Event, opts?: EventUpdateOpts) {
-    const key = ['calendarEvents', id, event.magicKey] as const;
-  
-    if (opts?.reschedule) {
-      const oldEvent = this.getEvent(key);
-      if (oldEvent && oldEvent.recurDays) {
-        const newEvent = oldEvent.withUpdate({regenKey: true});
-        const newId = incrementId(id, oldEvent.recurDays);
-        const newKey = ['calendarEvents', newId, newEvent.magicKey] as const;
-        this.onUpdateEvent(newKey, newEvent);
-        const newData = this.data.calendarEvents.get(newId);
-        if (newData) {
-          new InnerSaver<{ Id: CalendarId, Data: CalendarEventData }>(newId, newData, 0, saveCalendarEvent, () => {}).onChange(newData, {force: true});
-        }
-      }
-    }
-
-    if (opts?.delete) {
-      this.onUpdateEvent(key, null);
-    } else {
-      this.onUpdateEvent(key, event);
-    }
-    this.subscriber(this.data);
-  }
-}
-
 export type PageData = string;
 export type PageMap = IMap<PageId, PageData>;
 export type CalendarId = StrongTypedef<string, typeof calendarid>;
@@ -144,7 +53,7 @@ export type CalendarEventMap = IMap<CalendarId, CalendarEventData>;
 export const makeUserData: Immutable.Record.Factory<UserDataType> = Immutable.Record<UserDataType>({pages: IMap(), calendarPages: IMap(), calendarEvents: IMap()});
 export type UserData = Immutable.RecordOf<UserDataType>;
 
-// type DataId = keyof UserDataType;
+export type DataId = keyof UserDataType;
 interface UserDataType {
   pages: PageMap;
   calendarPages: CalendarPageMap;

@@ -1,10 +1,10 @@
 import * as React from 'react'
-import { User, UserData, PageData, PageId, PageIds, PageTitles, Root, DataRoot } from './Data'
-import { getSavedUserWithTimeout, loginPopup, savePage, getData } from './Firebase'
+import { User, UserData, PageData, PageId, PageIds, PageTitles } from './Data'
+import { getSavedUserWithTimeout, loginPopup, getData } from './Firebase'
 import { Calendar } from './Calendar'
-import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
-import { RootContext } from './Root'
+import { RootContext, Root, DataRoot } from './Root'
+import { Saver } from './Saver'
 
 export interface AppState {
   user: User | null;
@@ -64,20 +64,22 @@ interface LoggedInAppProps {
 interface LoggedInAppState {
   root: Root | null;
   data: UserData | null;
+  saver: string;
 }
 
 class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   constructor(props: LoggedInAppProps) {
     super(props);
 
-    this.state = {root: null, data: null};
+    this.state = {root: null, data: null, saver: ''};
 
-    this.onUpdate = this.onUpdate.bind(this)
+    this.onUpdate = this.onUpdate.bind(this);
+    this.onSaverUpdate = this.onSaverUpdate.bind(this);
   }
 
   componentDidMount() {
     getData().then((data) => {
-      const root = new DataRoot(data, this.onUpdate);
+      const root = new DataRoot(data, this.onUpdate, new Saver(this.onSaverUpdate));
       this.setState({root, data});
     });
   }
@@ -86,12 +88,16 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
     this.setState({data});
   }
 
+  onSaverUpdate(saver: string) {
+    this.setState({saver});
+  }
+
   render() {
     return <ErrorBoundary>
       {this.props.user.name} --- {new Date().toLocaleString()}
       {this.state.root && this.state.data ?
         <RootContext.Provider value={this.state.root}>
-          <LoadedApp data={this.state.data}/>
+          <LoadedApp data={this.state.data} saver={this.state.saver}/>
         </RootContext.Provider> :
         <><hr/>Loading...</>
       }
@@ -101,11 +107,12 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
 
 interface LoadedAppProps {
   data: UserData;
+  saver: string;
 }
 
 class LoadedApp extends React.Component<LoadedAppProps, object> {
   render() {
-    return <ErrorBoundary><br/><Backup data={this.props.data}/><hr/>
+    return <ErrorBoundary><br/>{this.props.saver}<Backup data={this.props.data}/><hr/>
       <Calendar pages={this.props.data.calendarPages} events={this.props.data.calendarEvents}/>
       {PageIds.map(id => <Page key={id} id={id} text={this.props.data.pages.get(id, '')}/>)}
     </ErrorBoundary>;
@@ -126,14 +133,12 @@ interface PageProps {
   text: PageData;
 }
 
-type PageSave = { Id: PageId, Data: PageData };
-
 function Page(props: PageProps) : JSX.Element {
   //const [currentText, updateText] = React.useState(props.text);
   const root = React.useContext(RootContext);
   return <label>
     <ErrorBoundary>
-      {PageTitles[props.id]}<Saver<PageSave> id={props.id} data={props.text} saver={savePage}/>
+      {PageTitles[props.id]}
       <textarea className="page" value={props.text} onChange={event => root.onPageUpdate(props.id, event)}/>
     </ErrorBoundary>
     <hr/>

@@ -1,8 +1,6 @@
 import * as React from 'react'
 
 import { CalendarId, dateToId, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, incrementId, Event, idToNiceString, Func } from './Data'
-import { saveCalendarPage, saveCalendarEvent } from './Firebase'
-import { Saver } from './Saver'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
@@ -21,8 +19,6 @@ interface CalendarState {
   id: CalendarId;
   formatting: boolean;
 }
-
-type CalendarPageSave = { Id: CalendarId, Data: CalendarPageData };
 
 export class Calendar extends React.Component<CalendarProps, CalendarState> {
   constructor(props: CalendarProps) {
@@ -85,7 +81,7 @@ class CalendarPage extends React.Component<CalendarPageProps, object> {
   context!: React.ContextType<typeof RootContext>;
   render() {
     return <ErrorBoundary><div className="calendar-page">
-      {this.props.id.substring(1)}: <Saver<CalendarPageSave> id={this.props.id} data={this.props.data} saver={saveCalendarPage}/>
+      {this.props.id.substring(1)}
       <textarea className="calendar" value={this.props.data} onChange={event => this.context.onCalendarPageUpdate(this.props.id, event)}/>
     </div></ErrorBoundary>;
   }
@@ -97,8 +93,6 @@ interface CalendarEventProps {
   onClickPrevDay: Func;
   onClickNextDay: Func;
 }
-
-type CalendarEventSave = { Id: CalendarId, Data: CalendarEventData };
 
 class CalendarEvents extends React.Component<CalendarEventProps, object> {
   static contextType = RootContext;
@@ -121,7 +115,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
     return <div className="calendar-events"><ErrorBoundary>
       <div className="calendar-events-header">
         <button className="event-prev-day" onClick={this.props.onClickPrevDay}>&lt;</button>
-        {idToNiceString(this.props.id)}: <Saver<CalendarEventSave> id={this.props.id} data={this.props.data} saver={saveCalendarEvent}/>
+        {idToNiceString(this.props.id)}
         <button className="event-next-day" onClick={this.props.onClickNextDay}>&gt;</button>
       </div>
       {[...this.props.data.values()].sort(Event.compare).map(this.makeBox)}

@@ -93,22 +93,24 @@ export async function getData(): Promise<UserData> {
     calendarEvents: events.asImmutable()});
 }
 
-async function save(id: string, data: string | FieldValue) {
+export async function saveAll(
+  pages: Map<PageId, PageData | null>,
+  calendarPages: Map<CalendarId, CalendarPageData | null>,
+  calendarEvents: Map<CalendarId, CalendarEventData | null>) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;
   }
-  await setDoc(doc(db, 'users', uid), {[id]: data}, {merge: true});
-}
+  const data: {[key: string]: string | FieldValue} = {};
+  for (const [key, value] of pages) {
+    data[key] = value || deleteField();
+  }
+  for (const [key, value] of calendarPages) {
+    data[key] = value || deleteField();
+  }
+  for (const [key, value] of calendarEvents) {
+    data['E' + key] = value?.map(Event.toString).join('\n') || deleteField();
+  }
 
-export async function savePage(id: PageId, data: PageData) {
-  await save(id, data);
-}
-
-export async function saveCalendarPage(id: CalendarId, data: CalendarPageData) {
-  await save(id, data || deleteField());
-}
-
-export async function saveCalendarEvent(id: CalendarId, data: CalendarEventData) {
-  await save('E' + id, data.map(Event.toString).join('\n') || deleteField());
+  await setDoc(doc(db, 'users', uid), data, {merge: true});
 }

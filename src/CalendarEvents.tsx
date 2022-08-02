@@ -1,9 +1,7 @@
 import * as React from 'react'
-import { CalendarId, Callback, Event, EventUpdateOpts, Func, pad2, ValidComment } from './Data';
+import { CalendarId, Callback, Event, Func, pad2, ValidComment } from './Data';
 import ErrorBoundary from './ErrorBoundary';
-import { RootContext } from './Root';
-
-
+import { RootContext, EventUpdateOpts } from './Root';
 
 interface EventInputProps {
   dayId: CalendarId;

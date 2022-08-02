@@ -1,220 +1,75 @@
-import * as React from 'react'
+import { CalendarEventData, CalendarId, CalendarPageData, Callback, PageData, PageId, UserData } from './Data';
+import { saveAll } from './Firebase';
 
-interface X {
-  Data: any,
-  Id: any,
+const enum SaverStatusString {
+  Unsaved = ' [Unsaved..] ',
+  Saving = ' [Saving...] ',
+  Saved = ' [  Saved  ] ',
 }
 
-type Data<T extends X> = T['Data'];
-type Id<T extends X> = T['Id'];
-
-interface SaverProps<T extends X> {
-  data: Data<T>;
-  id: Id<T>;
-  saver: (id: Id<T>, data: Data<T>) => Promise<void>;
-  render: (id: Id<T>, data: Data<T>, status: SaverStatusString, onChange: (id: Id<T>, data: Data<T>, opts?: {force?: boolean}) => void) => JSX.Element;
-  delay: number;
+interface PageKey {
+  readonly type: 'pages';
+  readonly key: PageId;
 }
 
-export const enum SaverStatusString {
-  Unsaved = ' [Unsaved..]',
-  Saving = ' [Saving...]',
-  Saved = ' [  Saved  ]',
+interface CalendarKey {
+  readonly type: 'calendarPages' | 'calendarEvents';
+  readonly key: CalendarId;
 }
 
-const enum SaverStatus {
-  Saved,
-  Saving,
-  Cooling,
-}
+export type Key = PageKey | CalendarKey;
 
-interface SaverState<T extends X> {
-  data: Data<T>;
-  id: Id<T>;
-  status: SaverStatusString;
-}
+export class Saver {
+  private pages = new Map<PageId, PageData | null>();
+  private calendarPages = new Map<CalendarId, CalendarPageData | null>();
+  private calendarEvents = new Map<CalendarId, CalendarEventData | null>();
+  private static readonly delay = 2000;
+  private timeout?: NodeJS.Timeout;
 
-class Alarm {
-  trigger: () => void;
-  triggered: Promise<void>;
+  constructor(private readonly onStatusUpdate: Callback<string>) {
+    onStatusUpdate(SaverStatusString.Saved);
 
-  constructor() {
-    this.trigger = () => {};
-    this.triggered = new Promise(resolve => this.trigger = resolve);
-  }
-}
-
-export class InnerSaver<T extends X> {
-  delay: number;
-  force = new Alarm();
-  status = SaverStatus.Saved;
-  modified: boolean = false;
-  id: Id<T>;
-  data: Data<T>;
-  onStatusUpdate: (id: Id<T>, status: SaverStatusString) => void;
-  saver: (id: Id<T>, data: Data<T>) => Promise<void>;
-
-  constructor(id: Id<T>, data: Data<T>, delay: number, saver: (id: Id<T>, data: Data<T>) => Promise<void>, onStatusUpdate: (id: Id<T>, status: SaverStatusString) => void) {
-    this.delay = delay;
-    this.id = id;
-    this.data = data;
-    this.saver = saver;
-    this.onStatusUpdate = onStatusUpdate;
+    this.saveNow = this.saveNow.bind(this);
+    this.saveDone = this.saveDone.bind(this);
   }
 
-  onChange(data: Data<T>, opts?: {force?: boolean}) {
-    this.data = data;
-    if (opts && opts.force) {
-      this.force.trigger();
-    }
-    this.modified = true;
-    this.setStatus();
-    if (this.status === SaverStatus.Saved) {
-      this.definitelySave();
+  private saveNow() {
+    this.timeout = undefined;
+    const [a,b,c] = [this.pages, this.calendarPages, this.calendarEvents];
+    this.onStatusUpdate(SaverStatusString.Saving);
+    this.pages = new Map();
+    this.calendarPages = new Map();
+    this.calendarEvents = new Map();
+    saveAll(a,b,c).then(this.saveDone);
+  }
+
+  private saveDone() {
+    if (!this.timeout) {
+      this.onStatusUpdate(SaverStatusString.Saved);
     }
   }
 
-  async definitelySave() {
-    do {
-      this.status = SaverStatus.Cooling;
-      this.setStatus();
-      await Promise.race([delay(this.delay), this.force.triggered]);
-      this.status = SaverStatus.Saving;
-      this.modified = false;
-      this.force = new Alarm();
-      this.setStatus();
-      await this.saver(this.id, this.data);
-    } while (this.modified);
-    this.status = SaverStatus.Saved;
-    this.setStatus();
-  }
-
-  statusText(): SaverStatusString {
-    if (this.modified) {
-      return SaverStatusString.Unsaved;
+  logUpdate(newData: UserData, key: Key) {
+    if (this.timeout) {
+      clearTimeout(this.timeout);
     }
-    switch (this.status) {
-      case SaverStatus.Saving:
-        return SaverStatusString.Saving;
-      case SaverStatus.Saved:
-      case SaverStatus.Cooling:
-        return SaverStatusString.Saved;
-    }
-  }
-
-  setStatus() {
-    this.onStatusUpdate(this.id, this.statusText());
-  }
-}
-
-interface StandaloneSaverProps<T extends X> {
-  id: Id<T>;
-  data: Data<T>;
-  saver: (id: Id<T>, data: Data<T>) => Promise<void>;
-  delay: number;
-}
-
-interface StandaloneSaverState {
-  status: SaverStatusString;
-}
-
-export class Saver<T extends X> extends React.Component<StandaloneSaverProps<T>, StandaloneSaverState> {
-  static defaultProps = {
-    delay: 5000
-  }
-
-  inner: Map<Id<T>, InnerSaver<T>>;
-
-  constructor(props: StandaloneSaverProps<T>) {
-    super(props);
-    this.state = {status: SaverStatusString.Saved};
-
-    this.onStatusUpdate = this.onStatusUpdate.bind(this);
-
-    this.inner = new Map();
-    this.inner.set(this.props.id, new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate));
-  }
-
-  componentDidUpdate(prevProps: StandaloneSaverProps<T>, prevState: StandaloneSaverState) {
-    const sameId = prevProps.id === this.props.id;
-    const sameData = prevProps.data === this.props.data;
-    if (sameId && sameData) {
-      return;
+    switch (key.type) {
+      case 'pages':
+        const x = newData.get(key.type).get(key.key, null);
+        this.pages.set(key.key, x);
+        break;
+      case 'calendarPages':
+        const y = newData.get(key.type).get(key.key, null);
+        this.calendarPages.set(key.key, y);
+        break;
+      case 'calendarEvents':
+        const z = newData.get(key.type).get(key.key, null);
+        this.calendarEvents.set(key.key, z);
+        break;
     }
 
-    if (!sameId) {
-      const s = this.inner.get(prevProps.id)
-      if (!s) {
-        throw new Error(`Missing saver for ${prevProps.id}`);
-      }
-      s.onChange(prevProps.data, {force: true});
-    }
+    this.onStatusUpdate(SaverStatusString.Unsaved);
 
-    let ss = this.inner.get(this.props.id);
-    if (!ss) {
-      ss = new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate);
-      this.inner.set(this.props.id, ss);
-    }
-    ss.onChange(this.props.data, {force: !sameId});
+    this.timeout = setTimeout(this.saveNow, Saver.delay);
   }
-
-  onStatusUpdate(id: Id<T>, status: SaverStatusString) {
-    if (id === this.props.id) {
-      this.setState({status});
-    }
-  }
-
-  render() {
-    return this.state.status;
-  }
-}
-
-export class OverengineeredSaver<T extends X> extends React.Component<SaverProps<T>, SaverState<T>> {
-  static defaultProps = {
-    delay: 5000
-  }
-
-  inner: Map<Id<T>, InnerSaver<T>>;
-  currentId: Id<T>;
-
-  constructor(props: SaverProps<T>) {
-    super(props);
-    this.state = {
-      data: this.props.data,
-      id: this.props.id,
-      status: SaverStatusString.Saved,
-    };
-    this.onChange = this.onChange.bind(this);
-    this.onStatusUpdate = this.onStatusUpdate.bind(this);
-
-    this.currentId = this.props.id;
-    this.inner = new Map();
-    this.inner.set(this.props.id, new InnerSaver(this.props.id, this.props.data, this.props.delay, this.props.saver, this.onStatusUpdate));
-  }
-
-  onChange(id: Id<T>, data: Data<T>, opts?: {force?: boolean}) {
-    this.setState({id, data});
-    this.currentId = id;
-
-    let saver = this.inner.get(id);
-    if (!saver) {
-      saver = new InnerSaver(id, data, this.props.delay, this.props.saver, this.onStatusUpdate);
-      this.inner.set(id, saver);
-    }
-    saver.onChange(data, opts);
-  }
-
-  onStatusUpdate(id: Id<T>, status: SaverStatusString) {
-    if (id === this.currentId) {
-      this.setState({status});
-    }
-  }
-
-  render() {
-    return this.props.render(this.state.id, this.state.data, this.state.status, this.onChange);
-  }
-}
-
-function delay(millis : number) {
-  return new Promise(resolve => setTimeout(resolve, millis));
 }
