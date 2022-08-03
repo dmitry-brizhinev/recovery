@@ -2,9 +2,12 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser, signOut } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
 
-import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, Func, Callback } from './Data'
-
+import { User, UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap } from './Data'
+import Event from './Event';
 import { Map as IMap } from 'immutable';
+import { CalendarId, checkIdString } from './CalendarId';
+import { PageId, PageIds } from './PageId';
+import { Callback, Func } from './Utils';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDpeFI1YoAh9n1ibsczs60jU9MG3LbaIPE",

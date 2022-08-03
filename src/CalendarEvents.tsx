@@ -1,7 +1,9 @@
 import * as React from 'react'
-import { CalendarId, Callback, Event, Func, pad2, ValidComment } from './Data';
+import { Callback, Func, pad2 } from './Utils';
 import ErrorBoundary from './ErrorBoundary';
 import { RootContext, EventUpdateOpts } from './Root';
+import { ValidComment, default as Event } from './Event';
+import { CalendarId } from './CalendarId';
 
 interface EventInputProps {
   dayId: CalendarId;
@@ -12,7 +14,7 @@ interface EventInputState {
   open: boolean;
 }
 
-export class EventInput extends React.PureComponent<EventInputProps, EventInputState> {
+export default class EventInput extends React.PureComponent<EventInputProps, EventInputState> {
   static contextType = RootContext;
   context!: React.ContextType<typeof RootContext>;
   constructor(props: EventInputProps) {
@@ -124,7 +126,7 @@ interface CountdownState {
   nowUTCmillis: number;
 }
 
-export class Countdown extends React.PureComponent<CountdownProps, CountdownState> {
+class Countdown extends React.PureComponent<CountdownProps, CountdownState> {
   
   timer?: NodeJS.Timer;
 

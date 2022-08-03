@@ -1,17 +1,19 @@
 import * as React from 'react'
-import { User, UserData, PageData, PageId, PageIds, PageTitles, Func } from './Data'
+import { User, UserData } from './Data'
 import { subscribeToUserChanges, loginPopup, getData, logout } from './Firebase'
-import { Calendar } from './Calendar'
+import Calendar from './Calendar'
 import ErrorBoundary from './ErrorBoundary'
 import { RootContext, Root, DataRoot } from './Root'
 import { Saver } from './Saver'
+import Pages from './Pages'
+import { Func } from './Utils';
 
-export interface AppState {
+interface AppState {
   user: User | null;
   finishedWaiting: boolean;
 }
 
-export interface AppProps {
+interface AppProps {
   allowLogout?: boolean;
   loginDelay?: number;
 }
@@ -147,7 +149,7 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   render() {
     return <ErrorBoundary><br/>{this.props.saver}<Backup data={this.props.data}/><hr/>
       <Calendar pages={this.props.data.calendarPages} events={this.props.data.calendarEvents}/>
-      {PageIds.map(id => <Page key={id} id={id} text={this.props.data.pages.get(id, '')}/>)}
+      <Pages pages={this.props.data.pages}/>
     </ErrorBoundary>;
   }
 }
@@ -156,23 +158,7 @@ interface BackupProps {
   data: UserData;
 }
 
-function Backup(props: BackupProps): JSX.Element {
+function Backup(props: BackupProps): React.ReactElement {
   const backup = React.useMemo(() => Root.getBackupString(props.data), [props.data]);
   return <input type="text" readOnly={true} value={backup}/>
-}
-
-interface PageProps {
-  id: PageId;
-  text: PageData;
-}
-
-function Page(props: PageProps) : JSX.Element {
-  const root = React.useContext(RootContext);
-  return <label>
-    <ErrorBoundary>
-      {PageTitles[props.id]}
-      <textarea className="page" value={props.text} onChange={event => root.onPageUpdate(props.id, event)}/>
-    </ErrorBoundary>
-    <hr/>
-  </label>;
 }

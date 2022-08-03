@@ -1,13 +1,16 @@
 import * as React from 'react'
 
-import { CalendarId, dateToId, CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap, incrementId, Event, idToNiceString, Func } from './Data'
+import { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from './Data'
 import ErrorBoundary from './ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
-import { EventInput } from './CalendarEvents';
+import EventInput from './CalendarEvents';
 
 import { Map as IMap } from 'immutable';
 import { RootContext } from './Root'
+import Event from './Event';
+import { CalendarId, dateToId, incrementId, idToNiceString } from './CalendarId';
+import { Func } from './Utils';
 
 
 interface CalendarProps {
@@ -20,7 +23,7 @@ interface CalendarState {
   formatting: boolean;
 }
 
-export class Calendar extends React.Component<CalendarProps, CalendarState> {
+export default class Calendar extends React.Component<CalendarProps, CalendarState> {
   constructor(props: CalendarProps) {
     super(props);
 
@@ -107,7 +110,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
     this.context.onCalendarEventUpdate(this.props.id, Event.makeEmpty());
   }
 
-  makeBox(event: Event): JSX.Element {
+  makeBox(event: Event): React.ReactNode {
     return <EventInput key={event.magicKey} dayId={this.props.id} event={event}/>
   }
 
