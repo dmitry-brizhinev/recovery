@@ -1,5 +1,6 @@
 textarea.page {
-  width:95%;
+  width:100%;
   resize:vertical;
   height:5cm;
+  box-sizing: border-box;
 }

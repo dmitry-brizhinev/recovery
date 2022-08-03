@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { User, UserData, PageData, PageId, PageIds, PageTitles, Func } from './Data'
-import { subscribeToUserChanges, loginPopup, getData } from './Firebase'
+import { subscribeToUserChanges, loginPopup, getData, logout } from './Firebase'
 import { Calendar } from './Calendar'
 import ErrorBoundary from './ErrorBoundary'
 import { RootContext, Root, DataRoot } from './Root'
@@ -11,11 +11,16 @@ export interface AppState {
   finishedWaiting: boolean;
 }
 
-export default class App extends React.Component<object, AppState> {
+export interface AppProps {
+  allowLogout?: boolean;
+  loginDelay?: number;
+}
+
+export default class App extends React.Component<AppProps, AppState> {
   unsubscribe?: Func;
   cancel?: NodeJS.Timeout;
 
-  constructor(props: object) {
+  constructor(props: AppProps) {
     super(props);
 
     this.state = {user: null, finishedWaiting: false};
@@ -25,7 +30,7 @@ export default class App extends React.Component<object, AppState> {
 
   componentDidMount() {
     if (!this.cancel && !this.state.finishedWaiting) {
-      this.cancel = setTimeout(() => {this.setState({finishedWaiting: true})}, 2000);
+      this.cancel = setTimeout(() => {this.setState({finishedWaiting: true})}, this.props.loginDelay ?? 2000);
     }
 
     if (!this.unsubscribe) {
@@ -60,7 +65,7 @@ export default class App extends React.Component<object, AppState> {
     }
     return <main>
       <h2>Recovery</h2>
-      {/*this.state.user && <button onClick={logout}>Logout</button>*/}
+      {this.state.user && this.props.allowLogout && <button onClick={logout}>Logout</button>}
       <ErrorBoundary>{upper}</ErrorBoundary>
       {this.state.user ? null : <hr/>}
     </main>;
@@ -78,6 +83,9 @@ interface LoggedInAppState {
 }
 
 class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
+  waitingForData = false;
+  mounted = false;
+
   constructor(props: LoggedInAppProps) {
     super(props);
 
@@ -85,13 +93,28 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
 
     this.onUpdate = this.onUpdate.bind(this);
     this.onSaverUpdate = this.onSaverUpdate.bind(this);
+    this.onDataArrived = this.onDataArrived.bind(this);
   }
 
   componentDidMount() {
-    getData().then((data) => {
-      const root = new DataRoot(data, this.onUpdate, new Saver(this.onSaverUpdate));
-      this.setState({root, data});
-    });
+    this.mounted = true;
+    if (!this.waitingForData) {
+      this.waitingForData = true;
+      getData().then(this.onDataArrived, () => this.waitingForData = false);
+    }
+  }
+
+  componentWillUnmount() {
+    this.mounted = false;
+  }
+
+  onDataArrived(data: UserData) {
+    this.waitingForData = false;
+    if (!this.mounted) {
+      return;
+    }
+    const root = new DataRoot(data, this.onUpdate, new Saver(this.onSaverUpdate));
+    this.setState({root, data});
   }
 
   onUpdate(data: UserData) {
@@ -144,7 +167,6 @@ interface PageProps {
 }
 
 function Page(props: PageProps) : JSX.Element {
-  //const [currentText, updateText] = React.useState(props.text);
   const root = React.useContext(RootContext);
   return <label>
     <ErrorBoundary>

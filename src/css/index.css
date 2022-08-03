@@ -1,6 +1,8 @@
 main {
   text-align: center;
   vertical-align: center;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 .App {

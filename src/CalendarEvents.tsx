@@ -140,7 +140,8 @@ export class Countdown extends React.PureComponent<CountdownProps, CountdownStat
   }
 
   componentWillUnmount() {
-    this.timer && clearInterval(this.timer);
+    this.timer != null && clearInterval(this.timer);
+    this.timer = undefined;
   }
 
   tick() {

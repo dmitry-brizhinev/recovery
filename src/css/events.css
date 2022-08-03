@@ -1,6 +1,5 @@
 div.calendar-wrapper {
   display:flex;
-  padding-left:10px;
   overflow-x:auto;
 }
 
@@ -19,11 +18,14 @@ div.calendar-page {
   flex-direction:column;
   align-items:center;
   resize:none;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 textarea.calendar {
-  width:95%;
-  height:95%;
+  box-sizing: border-box;
+  width:100%;
+  height:100%;
   resize:none;
 }
 
@@ -51,6 +53,7 @@ div.calendar-events {
   
   div.calendar-page {
       order: 2;
+      margin-bottom: 10px;
   }
   
   div.calendar-events {
@@ -64,7 +67,7 @@ div.calendar-events {
 }
 
 div.calendar-events-header {
-  width:95%;
+  width:100%;
 }
 
 button.event-prev-day {
@@ -80,7 +83,7 @@ button.event-next-day {
 }
 
 div.calendar-event {
-  width:95%;
+  width:100%;
   display:flex;
   height:24px;
 }
@@ -132,11 +135,12 @@ div.event-detail {
   display:flex;
   flex-direction:column;
   align-items:center;
-  width:95%;
+  width:100%;
 }
 
 textarea.event-detail-comment {
-  width:98%;
+  width:100%;
+  box-sizing: border-box;
   height:62px;
   resize:vertical;
 }
