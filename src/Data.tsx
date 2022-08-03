@@ -43,22 +43,31 @@ export const PageTitles: PageTitlesType = {
 declare const calendarid : unique symbol;
 
 export type PageData = string;
-export type PageMap = IMap<PageId, PageData>;
+export type PageMap = DMap<PageTypes>;
 export type CalendarId = StrongTypedef<string, typeof calendarid>;
 export type CalendarPageData = string;
-export type CalendarPageMap = IMap<CalendarId, CalendarPageData>;
+export type CalendarPageMap = DMap<CalendarPageTypes>;
 export type CalendarEventData = IMap<number, Event>;
-export type CalendarEventMap = IMap<CalendarId, CalendarEventData>;
+export type CalendarEventMap = DMap<CalendarEventTypes>;
+
+type DataType = {id: any, data: any};
+
+type PageTypes = {id: PageId, data: PageData};
+type CalendarPageTypes = {id: CalendarId, data: CalendarPageData};
+type CalendarEventTypes = {id: CalendarId, data: CalendarEventData};
+
+type DataTypes = {
+  pages: PageTypes;
+  calendarPages: CalendarPageTypes;
+  calendarEvents: CalendarEventTypes;
+}
+
+type UserDataType = {[T in keyof DataTypes]: DMap<DataTypes[T]>};
+
+type DMap<T extends DataType> = IMap<T['id'], T['data']>;
 
 export const makeUserData: Immutable.Record.Factory<UserDataType> = Immutable.Record<UserDataType>({pages: IMap(), calendarPages: IMap(), calendarEvents: IMap()});
 export type UserData = Immutable.RecordOf<UserDataType>;
-
-export type DataId = keyof UserDataType;
-interface UserDataType {
-  pages: PageMap;
-  calendarPages: CalendarPageMap;
-  calendarEvents: CalendarEventMap;
-}
 
 const CalendarIdRegex = /^C(20\d\d)-([01]\d)-([0123]\d)$/;
 
@@ -249,14 +258,30 @@ export class Event {
     return recur != null && Number.isInteger(recur) && recur >= 0 && recur <= 30 ? recur : undefined;
   }
 
-  withUpdate(fields: {comment?: string, finished?: boolean, timeinput?: string, title?: string, recur?: number, regenKey?: boolean}): Event {
+  withUpdate(fields: {timeinput?: string, title?: string, comment?: string, recur?: number, finished?: boolean, regenKey?: boolean}): Event {
+    const timeMinutes = parseTimeInput(fields.timeinput) ?? this.timeMinutes;
+    const title = Event.sanitizeTitle(fields.title) ?? this.title;
+    const comment = fields.comment != null ? Event.sanitizeComment(fields.comment) : this.comment;
+    const recurDays = Event.sanitizeRecur(fields.recur) ?? this.recurDays;
+    const finished = fields.finished ?? this.finished;
+    const magicKey = fields.regenKey ? getMagicKey() : this.magicKey;
+
+    if(timeMinutes === this.timeMinutes &&
+      title === this.title &&
+      comment === this.comment &&
+      recurDays === this.recurDays &&
+      finished === this.finished &&
+      magicKey === this.magicKey) {
+        return this;
+    }
+    
     return new Event(
-      parseTimeInput(fields.timeinput) ?? this.timeMinutes,
-      Event.sanitizeTitle(fields.title) ?? this.title,
-      fields.comment != null ? Event.sanitizeComment(fields.comment) : this.comment,
-      Event.sanitizeRecur(fields.recur) ?? this.recurDays,
-      fields.finished ?? this.finished,
-      fields.regenKey ? getMagicKey() : this.magicKey);
+      timeMinutes,
+      title,
+      comment,
+      recurDays,
+      finished,
+      magicKey);
   }
 
   private sortKey(): number {

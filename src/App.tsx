@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { User, UserData, PageData, PageId, PageIds, PageTitles } from './Data'
-import { getSavedUserWithTimeout, loginPopup, getData } from './Firebase'
+import { User, UserData, PageData, PageId, PageIds, PageTitles, Func } from './Data'
+import { subscribeToUserChanges, loginPopup, getData } from './Firebase'
 import { Calendar } from './Calendar'
 import ErrorBoundary from './ErrorBoundary'
 import { RootContext, Root, DataRoot } from './Root'
@@ -8,51 +8,61 @@ import { Saver } from './Saver'
 
 export interface AppState {
   user: User | null;
-  awaitingSaved: boolean;
-  awaitingLogin: boolean;
+  finishedWaiting: boolean;
 }
 
 export default class App extends React.Component<object, AppState> {
-  constructor(props: any) {
+  unsubscribe?: Func;
+  cancel?: NodeJS.Timeout;
+
+  constructor(props: object) {
     super(props);
 
-    this.onClickLogin = this.onClickLogin.bind(this);
+    this.state = {user: null, finishedWaiting: false};
 
-    this.state = {user: null, awaitingSaved: true, awaitingLogin: false};
+    this.onUserUpdate = this.onUserUpdate.bind(this);
   }
 
   componentDidMount() {
-    getSavedUserWithTimeout(2000).then((user) => {
-      this.setState({user, awaitingSaved: false});
-    });
+    if (!this.cancel && !this.state.finishedWaiting) {
+      this.cancel = setTimeout(() => {this.setState({finishedWaiting: true})}, 2000);
+    }
+
+    if (!this.unsubscribe) {
+      this.unsubscribe = subscribeToUserChanges(this.onUserUpdate);
+    }
   }
 
-  async onClickLogin() {
-    this.setState({awaitingLogin: true});
-    const user = await loginPopup();
-        /*}).catch((error) => {
-      const errorCode = error.code;
-      const errorMessage = error.message;
-    });*/
-    this.setState({user, awaitingLogin: false});
+  componentWillUnmount() {
+    if (this.cancel && !this.state.finishedWaiting) {
+      clearTimeout(this.cancel);
+      this.cancel = undefined;
+    }
+
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = undefined;
+    }
+  }
+
+  onUserUpdate(user: User | null) {
+    this.setState({user});
   }
 
   render() {
     let upper;
-    if (this.state.awaitingSaved) {
+    if (this.state.user) {
+      upper = <LoggedInApp user={this.state.user}/>;
+    } else if (!this.state.finishedWaiting) {
       upper = 'Loading...';
-    } else if (this.state.awaitingLogin) {
-      upper = <button disabled={true}>Login</button>;
-    } else if (this.state.user == null) {
-      upper = <button onClick={this.onClickLogin}>Login</button>;
     } else {
-      upper = <></>;
+      upper = <button onClick={loginPopup}>Login</button>;
     }
     return <main>
-      <h2>Recovery</h2><ErrorBoundary>
-      {upper}
-      {this.state.user ? <LoggedInApp user={this.state.user}/> : <hr/>}
-      </ErrorBoundary>
+      <h2>Recovery</h2>
+      {/*this.state.user && <button onClick={logout}>Logout</button>*/}
+      <ErrorBoundary>{upper}</ErrorBoundary>
+      {this.state.user ? null : <hr/>}
     </main>;
   }
 }

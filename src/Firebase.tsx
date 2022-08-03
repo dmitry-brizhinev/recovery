@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser } from "firebase/auth";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser, signOut } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
 
-import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event, PageMap, makeUserData, CalendarPageMap, CalendarEventMap } from './Data'
+import { User, UserData, PageId, PageIds, PageData, CalendarId, CalendarPageData, CalendarEventData, checkIdString, Event, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, Func, Callback } from './Data'
 
 import { Map as IMap } from 'immutable';
 
@@ -20,33 +20,33 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const firstUser : Promise<FUser> = new Promise((resolve) => onAuthStateChanged(auth, (user) => user && resolve(user)));
 
-function delay(millis : number) : Promise<null> {
-  return new Promise(resolve => setTimeout(() => resolve(null), millis));
+export function subscribeToUserChanges(callback: Callback<User | null>): Func {
+  const x = {sub: true};
+  const unsubscribe = onAuthStateChanged(auth, user => x.sub && callback(toUser(user)));
+  return () => {x.sub = false; unsubscribe();};
 }
 
-export async function getSavedUserWithTimeout(millis: number): Promise<User | null> {
-  const user = await Promise.race([delay(millis), firstUser]);
-  if (user == null) {
+export async function logout() {
+  await signOut(auth);
+}
+
+function toUser(user: FUser | null) : User | null {
+  return user && {name: user.email, uid: user.uid};
+}
+
+function getCurrentUidOrNull(): string | undefined {
+  return auth.currentUser?.uid;
+}
+
+export async function loginPopup(): Promise<User | null> {
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    return toUser(result.user);
+  } catch (e: any) {
     return null;
   }
-  return {name: user.email, uid: user.uid};
-}
-
-function getCurrentUidOrNull(): string | null {
-  const user = auth.currentUser;
-  if (user == null) {
-    return null;
-  }
-  return user.uid;
-}
-
-export async function loginPopup(): Promise<User> {
-  const provider = new GoogleAuthProvider();
-  const result = await signInWithPopup(auth, provider);
-  const user = result.user;
-  return {name: user.email, uid: user.uid};
 }
 
 export async function getData(): Promise<UserData> {
