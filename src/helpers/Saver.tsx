@@ -1,7 +1,5 @@
-import { CalendarId } from '../data/CalendarId';
-import { CalendarEventData, CalendarPageData, DataDiff, DataId, DataTypes, makeDataDiff, PageData, UserData } from '../data/Data';
+import { DataDiff, DataId, DataTypes, makeDataDiff, UserData } from '../data/Data';
 import { saveAll } from './Firebase';
-import { PageId } from '../data/PageId';
 import { Callback } from '../util/Utils';
 
 const enum SaverStatusString {
@@ -10,12 +8,12 @@ const enum SaverStatusString {
   Saved = ' [  Saved  ] ',
 }
 
-export interface Key<K extends DataId> {
+interface Key<K extends DataId> {
   readonly type: K;
   readonly key: DataTypes[K]['id'];
 }
 
-export class Saver {
+export default class Saver {
   private diffs: DataDiff = makeDataDiff();
   private static readonly delay = 2000;
   private timeout?: NodeJS.Timeout;

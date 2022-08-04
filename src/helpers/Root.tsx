@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { UserData, PageData, CalendarPageData } from '../data/Data';
-import { Saver, Key as SaverKey } from './Saver';
+import { UserData, DataId, UserDataKey, UserDataLeaf } from '../data/Data';
+import Saver from './Saver';
 import Event from '../data/Event';
 import { CalendarId, incrementId } from '../data/CalendarId';
 import { PageId } from '../data/PageId';
@@ -27,8 +27,6 @@ export class EmptyRoot extends Root {
   onCalendarEventUpdate() {}
 }
 
-type Key = readonly ['pages', PageId] | readonly ['calendarPages', CalendarId] | readonly ['calendarEvents', CalendarId, number];
-
 export class DataRoot extends Root {
   constructor(
     private data: UserData,
@@ -37,15 +35,12 @@ export class DataRoot extends Root {
     super();
   }
 
-  private onUpdate(key: readonly ['pages', PageId], value: PageData): void;
-  private onUpdate(key: readonly ['calendarPages', CalendarId], value: CalendarPageData): void;
-  private onUpdate(key: readonly ['calendarEvents', CalendarId, number], value: Event | null): void;
-  private onUpdate(key: Key, value: string | Event | null) {
+  private onUpdate<K extends DataId>(key: UserDataKey[K], value: UserDataLeaf[K] | null) {
     this.data = value ? this.data.setIn(key, value) : this.data.deleteIn(key);
     this.saver.logUpdate(this.data, {type: key[0], key: key[1]});
   }
 
-  private getEvent(key: readonly ['calendarEvents', CalendarId, number]): Event | undefined {
+  private getEvent(key: UserDataKey['calendarEvents']): Event | undefined {
     return this.data.getIn(key) as Event | undefined;
   }
 

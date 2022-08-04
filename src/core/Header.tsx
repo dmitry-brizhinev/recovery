@@ -4,7 +4,7 @@ import { subscribeToUserChanges, loginPopup, getData, logout } from '../helpers/
 import Calendar from './Calendar'
 import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext, Root, DataRoot } from '../helpers/Root'
-import { Saver } from '../helpers/Saver'
+import Saver from '../helpers/Saver'
 import Pages from './Pages'
 import { Func } from '../util/Utils';
 
