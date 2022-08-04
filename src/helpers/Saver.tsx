@@ -1,8 +1,8 @@
-import { CalendarId } from './CalendarId';
-import { CalendarEventData, CalendarPageData, PageData, UserData } from './Data';
+import { CalendarId } from '../data/CalendarId';
+import { CalendarEventData, CalendarPageData, PageData, UserData } from '../data/Data';
 import { saveAll } from './Firebase';
-import { PageId } from './PageId';
-import { Callback } from './Utils';
+import { PageId } from '../data/PageId';
+import { Callback } from '../util/Utils';
 
 const enum SaverStatusString {
   Unsaved = ' [Unsaved..] ',

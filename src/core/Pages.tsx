@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { PageData, PageMap } from './Data'
-import ErrorBoundary from './ErrorBoundary'
-import { RootContext } from './Root'
-import { PageId, PageIds, PageTitles } from './PageId';
+import { PageData, PageMap } from '../data/Data'
+import ErrorBoundary from '../util/ErrorBoundary'
+import { RootContext } from '../helpers/Root'
+import { PageId, PageIds, PageTitles } from '../data/PageId';
 
 interface PagesProps {
   pages: PageMap;

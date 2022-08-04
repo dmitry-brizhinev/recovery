@@ -1,5 +1,5 @@
-import { pad2 } from "./Utils";
-import { castToTypedef, StrongTypedef } from "./StrongTypedef";
+import { pad2 } from "../util/Utils";
+import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 
 declare const calendarid : unique symbol;
 export type CalendarId = StrongTypedef<string, typeof calendarid>;

@@ -1,16 +1,16 @@
 import * as React from 'react'
 
-import { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from './Data'
-import ErrorBoundary from './ErrorBoundary'
+import { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from '../data/Data'
+import ErrorBoundary from '../util/ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
 import EventInput from './CalendarEvents';
 
 import { Map as IMap } from 'immutable';
-import { RootContext } from './Root'
-import Event from './Event';
-import { CalendarId, dateToId, incrementId, idToNiceString } from './CalendarId';
-import { Func } from './Utils';
+import { RootContext } from '../helpers/Root'
+import Event from '../data/Event';
+import { CalendarId, dateToId, incrementId, idToNiceString } from '../data/CalendarId';
+import { Func } from '../util/Utils';
 
 
 interface CalendarProps {

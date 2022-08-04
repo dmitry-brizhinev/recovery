@@ -1,10 +1,10 @@
 import * as React from 'react'
-import { UserData, PageData, CalendarPageData } from './Data';
+import { UserData, PageData, CalendarPageData } from '../data/Data';
 import { Saver, Key as SaverKey } from './Saver';
-import Event from './Event';
-import { CalendarId, incrementId } from './CalendarId';
-import { PageId } from './PageId';
-import { Callback } from './Utils';
+import Event from '../data/Event';
+import { CalendarId, incrementId } from '../data/CalendarId';
+import { PageId } from '../data/PageId';
+import { Callback } from '../util/Utils';
 
 export interface EventUpdateOpts {
   reschedule?: boolean;

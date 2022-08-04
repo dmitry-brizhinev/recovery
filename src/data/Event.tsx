@@ -1,6 +1,6 @@
 import { CalendarId, idToDay } from "./CalendarId";
-import { pad2 } from "./Utils";
-import { castToTypedef, StrongTypedef } from "./StrongTypedef";
+import { pad2 } from "../util/Utils";
+import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 
 let lastMagicKey = 1;
 function getMagicKey(): number {

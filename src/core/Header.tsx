@@ -1,12 +1,12 @@
 import * as React from 'react'
-import { User, UserData } from './Data'
-import { subscribeToUserChanges, loginPopup, getData, logout } from './Firebase'
+import { User, UserData } from '../data/Data'
+import { subscribeToUserChanges, loginPopup, getData, logout } from '../helpers/Firebase'
 import Calendar from './Calendar'
-import ErrorBoundary from './ErrorBoundary'
-import { RootContext, Root, DataRoot } from './Root'
-import { Saver } from './Saver'
+import ErrorBoundary from '../util/ErrorBoundary'
+import { RootContext, Root, DataRoot } from '../helpers/Root'
+import { Saver } from '../helpers/Saver'
 import Pages from './Pages'
-import { Func } from './Utils';
+import { Func } from '../util/Utils';
 
 interface AppState {
   user: User | null;

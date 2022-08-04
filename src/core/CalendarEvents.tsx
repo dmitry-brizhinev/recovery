@@ -1,9 +1,9 @@
 import * as React from 'react'
-import { Callback, Func, pad2 } from './Utils';
-import ErrorBoundary from './ErrorBoundary';
-import { RootContext, EventUpdateOpts } from './Root';
-import { ValidComment, default as Event } from './Event';
-import { CalendarId } from './CalendarId';
+import { Callback, Func, pad2 } from '../util/Utils';
+import ErrorBoundary from '../util/ErrorBoundary';
+import { RootContext, EventUpdateOpts } from '../helpers/Root';
+import { ValidComment, default as Event } from '../data/Event';
+import { CalendarId } from '../data/CalendarId';
 
 interface EventInputProps {
   dayId: CalendarId;
