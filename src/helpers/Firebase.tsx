@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser, signOut } from "firebase/auth";
 import { getFirestore, setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
 
-import { User, UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap } from '../data/Data'
+import { User, UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff } from '../data/Data'
 import Event from '../data/Event';
 import { Map as IMap } from 'immutable';
 import { CalendarId, checkIdString } from '../data/CalendarId';
@@ -96,22 +96,19 @@ export async function getData(): Promise<UserData> {
     calendarEvents: events.asImmutable()});
 }
 
-export async function saveAll(
-  pages: Map<PageId, PageData | null>,
-  calendarPages: Map<CalendarId, CalendarPageData | null>,
-  calendarEvents: Map<CalendarId, CalendarEventData | null>) {
+export async function saveAll(diffs: DataDiff) {
   const uid = getCurrentUidOrNull();
   if (uid == null) {
     return;
   }
   const data: {[key: string]: string | FieldValue} = {};
-  for (const [key, value] of pages) {
+  for (const [key, value] of diffs.pages) {
     data[key] = value || deleteField();
   }
-  for (const [key, value] of calendarPages) {
+  for (const [key, value] of diffs.calendarPages) {
     data[key] = value || deleteField();
   }
-  for (const [key, value] of calendarEvents) {
+  for (const [key, value] of diffs.calendarEvents) {
     data['E' + key] = value?.map(Event.toString).join('\n') || deleteField();
   }
 

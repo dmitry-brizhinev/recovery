@@ -42,8 +42,7 @@ export class DataRoot extends Root {
   private onUpdate(key: readonly ['calendarEvents', CalendarId, number], value: Event | null): void;
   private onUpdate(key: Key, value: string | Event | null) {
     this.data = value ? this.data.setIn(key, value) : this.data.deleteIn(key);
-    const kk: SaverKey = key[0] === 'pages' ? {type: key[0], key: key[1]} : {type: key[0], key: key[1]};
-    this.saver.logUpdate(this.data, kk);
+    this.saver.logUpdate(this.data, {type: key[0], key: key[1]});
   }
 
   private getEvent(key: readonly ['calendarEvents', CalendarId, number]): Event | undefined {

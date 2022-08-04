@@ -120,11 +120,13 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   }
 
   onUpdate(data: UserData) {
-    this.setState({data});
+    if (this.mounted)
+      this.setState({data});
   }
 
   onSaverUpdate(saver: string) {
-    this.setState({saver});
+    if (this.mounted)
+      this.setState({saver});
   }
 
   render() {

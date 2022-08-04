@@ -1,5 +1,5 @@
 import { CalendarId } from '../data/CalendarId';
-import { CalendarEventData, CalendarPageData, PageData, UserData } from '../data/Data';
+import { CalendarEventData, CalendarPageData, DataDiff, DataId, DataTypes, makeDataDiff, PageData, UserData } from '../data/Data';
 import { saveAll } from './Firebase';
 import { PageId } from '../data/PageId';
 import { Callback } from '../util/Utils';
@@ -10,26 +10,17 @@ const enum SaverStatusString {
   Saved = ' [  Saved  ] ',
 }
 
-interface PageKey {
-  readonly type: 'pages';
-  readonly key: PageId;
+export interface Key<K extends DataId> {
+  readonly type: K;
+  readonly key: DataTypes[K]['id'];
 }
-
-interface CalendarKey {
-  readonly type: 'calendarPages' | 'calendarEvents';
-  readonly key: CalendarId;
-}
-
-export type Key = PageKey | CalendarKey;
 
 export class Saver {
-  private pages = new Map<PageId, PageData | null>();
-  private calendarPages = new Map<CalendarId, CalendarPageData | null>();
-  private calendarEvents = new Map<CalendarId, CalendarEventData | null>();
+  private diffs: DataDiff = makeDataDiff();
   private static readonly delay = 2000;
   private timeout?: NodeJS.Timeout;
 
-  constructor(private readonly onStatusUpdate: Callback<string>) {
+  constructor(private readonly onStatusUpdate: Callback<SaverStatusString>) {
     onStatusUpdate(SaverStatusString.Saved);
 
     this.saveNow = this.saveNow.bind(this);
@@ -38,12 +29,10 @@ export class Saver {
 
   private saveNow() {
     this.timeout = undefined;
-    const [a,b,c] = [this.pages, this.calendarPages, this.calendarEvents];
+    const diffs = this.diffs;
     this.onStatusUpdate(SaverStatusString.Saving);
-    this.pages = new Map();
-    this.calendarPages = new Map();
-    this.calendarEvents = new Map();
-    saveAll(a,b,c).then(this.saveDone);
+    this.diffs = makeDataDiff();
+    saveAll(diffs).then(this.saveDone);
   }
 
   private saveDone() {
@@ -52,25 +41,13 @@ export class Saver {
     }
   }
 
-  logUpdate(newData: UserData, key: Key) {
+  logUpdate<K extends DataId>(newData: UserData, key: Key<K>) {
     if (this.timeout) {
       clearTimeout(this.timeout);
     }
-    switch (key.type) {
-      case 'pages':
-        const x = newData.get(key.type).get(key.key, null);
-        this.pages.set(key.key, x);
-        break;
-      case 'calendarPages':
-        const y = newData.get(key.type).get(key.key, null);
-        this.calendarPages.set(key.key, y);
-        break;
-      case 'calendarEvents':
-        const z = newData.get(key.type).get(key.key, null);
-        this.calendarEvents.set(key.key, z);
-        break;
-    }
-
+    const diff = newData.get(key.type).get(key.key, null);
+    this.diffs.get(key.type).set(key.key, diff);
+  
     this.onStatusUpdate(SaverStatusString.Unsaved);
 
     this.timeout = setTimeout(this.saveNow, Saver.delay);
