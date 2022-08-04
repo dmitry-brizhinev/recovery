@@ -29,10 +29,8 @@ type PageTypes = {id: PageId, data: string};
 type CalendarPageTypes = {id: CalendarId, data: string};
 type CalendarEventTypes = {id: CalendarId, data: IMap<number, Event>, leaf: Event, key: [number]};
 
-const magic: unknown = undefined;
-const headings = {'pages': magic as PageTypes, 'calendarPages': magic as CalendarPageTypes, 'calendarEvents': magic as CalendarEventTypes} as const;
-type Headings = typeof headings;
-export type DataTypes = {-readonly [I in keyof Headings]: Headings[I]};
+// const headings = ['pages', 'calendarPages', 'calendarEvents'] as const;
+export type DataTypes = {pages: PageTypes, calendarPages: CalendarPageTypes, calendarEvents: CalendarEventTypes};
 export type DataId = keyof DataTypes;
 type UserDataType = {[T in DataId]: DMap<DataTypes[T]>};
 type UserDataDiff = {[T in DataId]: MMap<DataTypes[T]>};
@@ -42,5 +40,26 @@ export type UserDataKey = {[T in DataId]: readonly [T, DataTypes[T]['id'], ...KK
 export const makeUserData: Immutable.Record.Factory<UserDataType> = Immutable.Record<UserDataType>({pages: IMap(), calendarPages: IMap(), calendarEvents: IMap()});
 export type UserData = Immutable.RecordOf<UserDataType>;
 
-export const makeDataDiff: Immutable.Record.Factory<UserDataDiff> = Immutable.Record<UserDataDiff>({pages: new Map(), calendarPages: new Map(), calendarEvents: new Map()});
+const makeDataDiffInner: Immutable.Record.Factory<UserDataDiff> = Immutable.Record(MakeUserDataDiff());
 export type DataDiff = Immutable.RecordOf<UserDataDiff>;
+
+/*function MakeIMap<T extends DataType>(): DMap<T> {
+  return IMap();
+}
+
+function MakeUserDataType(): UserDataType {
+  const x = Object.fromEntries(headings.map(x => [x, MakeIMap<DataTypes[typeof x]>()]));
+  return x;
+}*/
+
+function MakeMap<T extends DataType>(): MMap<T> {
+  return new Map();
+}
+
+function MakeUserDataDiff(): UserDataDiff {
+  return {pages: MakeMap(), calendarPages: MakeMap(), calendarEvents: MakeMap()};
+}
+
+export function makeDataDiff(): DataDiff {
+  return makeDataDiffInner(MakeUserDataDiff());
+}

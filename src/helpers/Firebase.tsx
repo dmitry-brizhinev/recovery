@@ -64,7 +64,7 @@ export async function getData(): Promise<UserData> {
 
   if (data != null) {
     for (const id of PageIds) {
-      const text = data[id];
+      const text = data['P' + id];
       if (text == null) {
         pages.set(id, 'NO DATA');
       }
@@ -103,7 +103,7 @@ export async function saveAll(diffs: DataDiff) {
   }
   const data: {[key: string]: string | FieldValue} = {};
   for (const [key, value] of diffs.pages) {
-    data[key] = value || deleteField();
+    data['P' + key] = value || deleteField();
   }
   for (const [key, value] of diffs.calendarPages) {
     data[key] = value || deleteField();
