@@ -66,11 +66,11 @@ export default class Calendar extends React.Component<CalendarProps, CalendarSta
     const classname = this.state.formatting ? (x: CalendarTileProperties) => this.tileClassName(x) : this.tileClassName;
     const pageData = this.props.pages.get(this.state.id) ?? '';
     const eventData = this.props.events.get(this.state.id) ?? IMap<number, Event>();
-    return <ErrorBoundary><div className="calendar-wrapper">
+    return <div className="calendar-wrapper"><ErrorBoundary>
       <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
       <CalendarPage id={this.state.id} data={pageData}/>
       <CalendarEvents id={this.state.id} data={eventData} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay}/>
-    </div><hr/></ErrorBoundary>
+      </ErrorBoundary></div>
   }
 }
 

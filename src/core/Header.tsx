@@ -69,7 +69,6 @@ export default class App extends React.Component<AppProps, AppState> {
       <h2>Recovery</h2>
       {this.state.user && this.props.allowLogout && <button onClick={logout}>Logout</button>}
       <ErrorBoundary>{upper}</ErrorBoundary>
-      {this.state.user ? null : <hr/>}
     </main>;
   }
 }
@@ -133,10 +132,13 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
     return <ErrorBoundary>
       {this.props.user.name} --- {new Date().toLocaleString()}
       {this.state.root && this.state.data ?
+        <ErrorBoundary>
+          <br/>{this.state.saver}<Backup data={this.state.data}/>
         <RootContext.Provider value={this.state.root}>
-          <LoadedApp data={this.state.data} saver={this.state.saver}/>
-        </RootContext.Provider> :
-        <><hr/>Loading...</>
+          <LoadedApp data={this.state.data}/>
+        </RootContext.Provider>
+        </ErrorBoundary>
+        : <div>Loading...</div>
       }
     </ErrorBoundary>;
   }
@@ -144,12 +146,11 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
 
 interface LoadedAppProps {
   data: UserData;
-  saver: string;
 }
 
 class LoadedApp extends React.Component<LoadedAppProps, object> {
   render() {
-    return <ErrorBoundary><br/>{this.props.saver}<Backup data={this.props.data}/><hr/>
+    return <ErrorBoundary>
       <Calendar pages={this.props.data.calendarPages} events={this.props.data.calendarEvents}/>
       <Pages pages={this.props.data.pages}/>
     </ErrorBoundary>;

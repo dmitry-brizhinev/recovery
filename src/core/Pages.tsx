@@ -22,11 +22,8 @@ interface PageProps {
 function Page(props: PageProps) : React.ReactElement {
   const root = React.useContext(RootContext);
   const [title, text] = props.data;
-  return <label>
-    <ErrorBoundary>
-      {title}
-      <textarea className="page" value={text} onChange={event => root.onPageUpdate(props.id, title, event)}/>
-    </ErrorBoundary>
-    <hr/>
-  </label>;
+  return <div className="page"><ErrorBoundary>
+    {title}
+    <textarea className="page" value={text} onChange={event => root.onPageUpdate(props.id, title, event)}/>
+    </ErrorBoundary></div>;
 }

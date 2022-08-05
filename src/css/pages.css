@@ -4,3 +4,7 @@ textarea.page {
   height:5cm;
   box-sizing: border-box;
 }
+
+div.page {
+  margin-top: 15px;
+}
