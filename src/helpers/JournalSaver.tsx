@@ -1,5 +1,5 @@
-import { DataDiff, DataId, DataTypes, makeDataDiff, UserData } from '../data/Data';
-import { saveAll } from '../firebase/FirebaseStore';
+import { JournalData, JournalDiff, JournalId, makeJournalDiff } from '../data/Journal';
+import { saveJournals } from '../firebase/FirebaseStoreJournals';
 import { Callback } from '../util/Utils';
 
 const enum SaverStatusString {
@@ -8,13 +8,8 @@ const enum SaverStatusString {
   Saved = ' [  Saved  ] ',
 }
 
-interface Key<K extends DataId> {
-  readonly type: K;
-  readonly key: DataTypes[K]['id'];
-}
-
-export default class Saver {
-  private diffs: DataDiff = makeDataDiff();
+export default class JournalSaver {
+  private diffs: JournalDiff = makeJournalDiff();
   private static readonly delay = 2000;
   private timeout?: NodeJS.Timeout;
 
@@ -29,8 +24,8 @@ export default class Saver {
     this.timeout = undefined;
     const diffs = this.diffs;
     this.onStatusUpdate(SaverStatusString.Saving);
-    this.diffs = makeDataDiff();
-    saveAll(diffs).then(this.saveDone);
+    this.diffs = makeJournalDiff();
+    saveJournals(diffs).then(this.saveDone);
   }
 
   private saveDone() {
@@ -39,15 +34,15 @@ export default class Saver {
     }
   }
 
-  logUpdate<K extends DataId>(newData: UserData, key: Key<K>) {
+  logUpdate(newData: JournalData, key: JournalId) {
     if (this.timeout) {
       clearTimeout(this.timeout);
     }
-    const diff = newData.get(key.type).get(key.key, null);
-    this.diffs.get(key.type).set(key.key, diff);
+    const diff = newData.get(key, null);
+    this.diffs.set(key, diff);
   
     this.onStatusUpdate(SaverStatusString.Unsaved);
 
-    this.timeout = setTimeout(this.saveNow, Saver.delay);
+    this.timeout = setTimeout(this.saveNow, JournalSaver.delay);
   }
 }

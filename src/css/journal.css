@@ -1,0 +1,81 @@
+div.journals-wrapper {
+  max-width:900px;
+  margin:auto;
+  margin-top:15px;
+}
+
+div.journal-pages{
+  max-width:900px;
+  margin-top:15px;
+  margin-bottom: 15px;
+
+  display:flex;
+  overflow-x:clip;
+  align-items:stretch;
+  justify-content:center;
+}
+
+div.journal-pages-header {
+  width:300px;
+}
+
+button.journal-prev-day {
+  max-width:fit-content;
+  min-width:fit-content;
+  float:left;
+}
+
+button.journal-next-day {
+  max-width:fit-content;
+  min-width:fit-content;
+  float:right;
+}
+
+div.journal-yesterday {
+  mask-image: linear-gradient(to left, black, 30%, transparent);
+  float:left;
+  max-width:300px;
+  min-width:300px;
+}
+
+textarea.journal-page-yesterday {
+  max-width:300px;
+  min-width:300px;
+  box-sizing: border-box;
+  resize: none;
+  height: calc(100% - 25px);
+  overflow-y: hidden;
+  margin-top: 2px;
+}
+
+div.journal-today {
+  max-width:300px;
+  min-width:300px;
+}
+
+textarea.journal-page-today {
+  max-width:300px;
+  min-width:300px;
+  box-sizing: border-box;
+  resize: vertical;
+  overflow-y: hidden;
+  min-height: min-content;
+  height: 10cm;
+}
+
+div.journal-tomorrow {
+  mask-image: linear-gradient(to right, black, 30%, transparent);
+  float:right;
+  max-width:300px;
+  min-width:300px;
+}
+
+textarea.journal-page-tomorrow {
+  max-width:300px;
+  min-width:300px;
+  box-sizing: border-box;
+  resize: none;
+  height: calc(100% - 25px);
+  overflow-y: hidden;
+  margin-top: 2px;
+}

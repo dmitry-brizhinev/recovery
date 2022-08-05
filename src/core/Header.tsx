@@ -1,12 +1,16 @@
 import * as React from 'react'
-import { User, UserData } from '../data/Data'
-import { subscribeToUserChanges, loginPopup, getData, logout } from '../helpers/Firebase'
+import { PageMap, User, UserData } from '../data/Data'
+import { getData } from '../firebase/FirebaseStore'
+import { subscribeToUserChanges, loginPopup, logout } from '../firebase/FirebaseAuth'
 import Calendar from './Calendar'
 import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext, Root, DataRoot } from '../helpers/Root'
 import Saver from '../helpers/Saver'
 import Pages from './Pages'
 import { Func } from '../util/Utils';
+import { JournalsContainer } from './Journals'
+import Backup from '../util/Backup'
+import Loading from '../util/Loading'
 
 interface AppState {
   user: User | null;
@@ -61,7 +65,7 @@ export default class App extends React.Component<AppProps, AppState> {
     if (this.state.user) {
       upper = <LoggedInApp user={this.state.user}/>;
     } else if (!this.state.finishedWaiting) {
-      upper = 'Loading...';
+      upper = <Loading/>;
     } else {
       upper = <button onClick={loginPopup}>Login</button>;
     }
@@ -138,7 +142,7 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
           <LoadedApp data={this.state.data}/>
         </RootContext.Provider>
         </ErrorBoundary>
-        : <div>Loading...</div>
+        : <Loading/>
       }
     </ErrorBoundary>;
   }
@@ -152,16 +156,23 @@ class LoadedApp extends React.Component<LoadedAppProps, object> {
   render() {
     return <ErrorBoundary>
       <Calendar pages={this.props.data.calendarPages} events={this.props.data.calendarEvents}/>
-      <Pages pages={this.props.data.pages}/>
+      <Switcher pages={this.props.data.pages}/>
     </ErrorBoundary>;
   }
 }
 
-interface BackupProps {
-  data: UserData;
+interface SwitcherProps {
+  pages: PageMap;
 }
 
-function Backup(props: BackupProps): React.ReactElement {
-  const backup = React.useMemo(() => Root.getBackupString(props.data), [props.data]);
-  return <input type="text" readOnly={true} value={backup}/>
+function Switcher(props: SwitcherProps): React.ReactElement {
+  const [currentState, setState] = React.useState(false);
+  const onClick = React.useCallback(() => setState(state => !state), []);
+
+  const text = currentState ? 'Return to Notes' : 'Switch to Journal';
+
+  return <ErrorBoundary>
+    <button onClick={onClick}>{text}</button>
+    {currentState ? <JournalsContainer /> : <Pages pages={props.pages}/>}
+  </ErrorBoundary>;
 }

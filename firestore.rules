@@ -4,5 +4,8 @@ service cloud.firestore {
     match /users/{userID} {
       allow read, write: if request.auth.uid == userID;
     }
+    match /journals/{userID} {
+      allow read, write: if request.auth.uid == userID;
+    }
   }
 }

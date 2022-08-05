@@ -4,6 +4,7 @@ div.calendar-wrapper {
   margin-top: 15px;
   padding-top: 15px;
   border-top: thin solid;
+  justify-content: center;
 }
 
 div.react-calendar {
@@ -111,13 +112,15 @@ input.calendar-event.finished {
 }
 
 input.calendar-event-time {
-  min-width:97px;
-  max-width:97px;
+  min-width:102px;
+  max-width:102px;
+  box-sizing: border-box;
 }
 
 button.calendar-event-delete {
   min-width:102px;
   max-width:102px;
+  box-sizing: border-box;
 }
 
 input.calendar-event-recur {

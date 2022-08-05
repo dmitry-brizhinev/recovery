@@ -1,4 +1,4 @@
-import { pad2 } from "../util/Utils";
+import { Day, pad2 } from "../util/Utils";
 import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 
 declare const calendarid : unique symbol;
@@ -6,13 +6,7 @@ export type CalendarId = StrongTypedef<string, typeof calendarid>;
 
 const CalendarIdRegex = /^C(20\d\d)-([01]\d)-([0123]\d)$/;
 
-interface Day {
-  year: number;
-  month: number;
-  day: number;
-}
-
-export function checkIdString(id: string): CalendarId | null {
+export function checkCalendarId(id: string): CalendarId | null {
   if (!CalendarIdRegex.test(id)) return null;
   
   const cid = castToTypedef<CalendarId, typeof calendarid>(id);
@@ -34,7 +28,7 @@ export function dateToId(date: Date): CalendarId {
   const year = date.getFullYear();
   const month = pad2(date.getMonth() + 1);
   const day = pad2(date.getDate());
-  const id = checkIdString(`C${year}-${month}-${day}`);
+  const id = checkCalendarId(`C${year}-${month}-${day}`);
   if (!id) throw new Error(`Failed constructing CalendarId with date ${date}`);
   return id;
 }

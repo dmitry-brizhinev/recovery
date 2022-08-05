@@ -1,5 +1,5 @@
 import { CalendarId, idToDay } from "./CalendarId";
-import { pad2 } from "../util/Utils";
+import { pad2, extractNamedGroups } from "../util/Utils";
 import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 
 let lastMagicKey = 1;
@@ -152,13 +152,6 @@ export default class Event {
 }
 
 const EventRegex = /^(?<time>\d\d:\d\d)\|\|(?<title>[^|\n]+)\|(?<comment>[^|\n]*)\|(?<recur>\d*)\|(?<marked>F?)$/;
-
-type NamedGroups = {[key: string]: string | undefined};
-function extractNamedGroups(regex: RegExp, match: string): NamedGroups | undefined {
-  const result = regex.exec(match);
-  if (!result) return undefined;
-  return result.groups || {};
-}
 
 function maybeParse(value: string | undefined, mult?: number): number {
   return Number.parseInt(value || '0') * (mult ?? 1);

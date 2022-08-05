@@ -12,10 +12,6 @@ export interface EventUpdateOpts {
 }
 
 export abstract class Root {
-  static getBackupString(data: UserData): string {
-    return JSON.stringify(data);
-  }
-
   abstract onPageUpdate(id: PageId, title: string, event: React.ChangeEvent<HTMLTextAreaElement>): void;
   abstract onCalendarPageUpdate(id: CalendarId, event: React.ChangeEvent<HTMLTextAreaElement>): void;
   abstract onCalendarEventUpdate(id: CalendarId, event: Event, opts?: EventUpdateOpts): void;
