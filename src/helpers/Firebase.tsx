@@ -6,7 +6,7 @@ import { User, UserData, PageData, CalendarPageData, CalendarEventData, PageMap,
 import Event from '../data/Event';
 import { Map as IMap } from 'immutable';
 import { CalendarId, checkIdString } from '../data/CalendarId';
-import { PageId, PageIds } from '../data/PageId';
+import { checkPageId, PageId } from '../data/PageId';
 import { Callback, Func } from '../util/Utils';
 
 const firebaseConfig = {
@@ -63,19 +63,24 @@ export async function getData(): Promise<UserData> {
   const events: CalendarEventMap = IMap<CalendarId, CalendarEventData>().asMutable();
 
   if (data != null) {
-    for (const id of PageIds) {
-      const text = data['P' + id];
-      if (text == null) {
-        pages.set(id, 'NO DATA');
-      }
-      else if (typeof text !== 'string') {
-        pages.set(id, `WRONG TYPE ${typeof text}`);
-      } else {
-        pages.set(id, text);
-      }
-    }
-
     for (const [key, valuex] of Object.entries(data)) {
+      const isPage = key.startsWith('P');
+      if (isPage) {
+        const id = checkPageId(key);
+        if (typeof valuex !== 'string' || !id) {
+          continue;
+        } else {
+          const split = valuex.indexOf('\n');
+          if (split === -1) {
+            pages.set(id, [valuex, '']);
+          } else {
+            const title = valuex.substring(0,split);
+            const body = valuex.substring(split+1);
+            pages.set(id, [title, body]);
+          }
+          continue;
+        }
+      }
       const isEvent = key.startsWith('EC20');
       const cid = checkIdString(isEvent ? key.substring(1) : key);
       if (!cid) {
@@ -103,7 +108,7 @@ export async function saveAll(diffs: DataDiff) {
   }
   const data: {[key: string]: string | FieldValue} = {};
   for (const [key, value] of diffs.pages) {
-    data['P' + key] = value || deleteField();
+    data[key] = value?.join('\n') || deleteField();
   }
   for (const [key, value] of diffs.calendarPages) {
     data[key] = value || deleteField();

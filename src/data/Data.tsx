@@ -25,7 +25,7 @@ type MMap<T extends DataType> = Map<T['id'], T['data'] | null>;
 type Leaf<T extends DataType> = unknown extends T['leaf'] ? T['data'] : T['leaf'];
 type KKey<T extends DataType> = T['key'] extends unknown[] ? T['key'] : [];
 
-type PageTypes = {id: PageId, data: string};
+type PageTypes = {id: PageId, data: readonly [string, string]};
 type CalendarPageTypes = {id: CalendarId, data: string};
 type CalendarEventTypes = {id: CalendarId, data: IMap<number, Event>, leaf: Event, key: [number]};
 

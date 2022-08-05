@@ -16,7 +16,7 @@ export abstract class Root {
     return JSON.stringify(data);
   }
 
-  abstract onPageUpdate(id: PageId, event: React.ChangeEvent<HTMLTextAreaElement>): void;
+  abstract onPageUpdate(id: PageId, title: string, event: React.ChangeEvent<HTMLTextAreaElement>): void;
   abstract onCalendarPageUpdate(id: CalendarId, event: React.ChangeEvent<HTMLTextAreaElement>): void;
   abstract onCalendarEventUpdate(id: CalendarId, event: Event, opts?: EventUpdateOpts): void;
 }
@@ -44,17 +44,17 @@ export class DataRoot extends Root {
     return this.data.getIn(key) as Event | undefined;
   }
 
-  onPageUpdate(id: PageId, event: React.ChangeEvent<HTMLTextAreaElement>) {
+  onPageUpdate(id: PageId, title: string, event: React.ChangeEvent<HTMLTextAreaElement>) {
     const key = ['pages', id] as const;
     const text = event.target.value;
-    this.onUpdate(key, text);
+    this.onUpdate<typeof key[0]>(key, [title, text]);
     this.subscriber(this.data);
   }
 
   onCalendarPageUpdate(id: CalendarId, event: React.ChangeEvent<HTMLTextAreaElement>) {
     const key = ['calendarPages', id] as const;
     const text = event.target.value;
-    this.onUpdate(key, text);
+    this.onUpdate<typeof key[0]>(key, text);
     this.subscriber(this.data);
   }
 
@@ -67,14 +67,14 @@ export class DataRoot extends Root {
         const newEvent = oldEvent.withUpdate({regenKey: true});
         const newId = incrementId(id, oldEvent.recurDays);
         const newKey = ['calendarEvents', newId, newEvent.magicKey] as const;
-        this.onUpdate(newKey, newEvent);
+        this.onUpdate<typeof key[0]>(newKey, newEvent);
       }
     }
 
     if (opts?.delete) {
-      this.onUpdate(key, null);
+      this.onUpdate<typeof key[0]>(key, null);
     } else {
-      this.onUpdate(key, event);
+      this.onUpdate<typeof key[0]>(key, event);
     }
     this.subscriber(this.data);
   }

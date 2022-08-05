@@ -2,7 +2,7 @@ import * as React from 'react'
 import { PageData, PageMap } from '../data/Data'
 import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext } from '../helpers/Root'
-import { PageId, PageIds, PageTitles } from '../data/PageId';
+import { PageId } from '../data/PageId';
 
 interface PagesProps {
   pages: PageMap;
@@ -10,21 +10,22 @@ interface PagesProps {
 
 export default function Pages(props: PagesProps): React.ReactElement {
   return <div className="pages">
-    {PageIds.map(id => <Page key={id} id={id} text={props.pages.get(id, '')}/>)}
+    {props.pages.entrySeq().sortBy(entry => entry[0]).map(([id, data]) => <Page key={id} id={id} data={data}/>)}
   </div>;
 }
 
 interface PageProps {
   id: PageId;
-  text: PageData;
+  data: PageData;
 }
 
 function Page(props: PageProps) : React.ReactElement {
   const root = React.useContext(RootContext);
+  const [title, text] = props.data;
   return <label>
     <ErrorBoundary>
-      {PageTitles[props.id]}
-      <textarea className="page" value={props.text} onChange={event => root.onPageUpdate(props.id, event)}/>
+      {title}
+      <textarea className="page" value={text} onChange={event => root.onPageUpdate(props.id, title, event)}/>
     </ErrorBoundary>
     <hr/>
   </label>;
