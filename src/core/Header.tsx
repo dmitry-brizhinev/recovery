@@ -8,9 +8,12 @@ import { RootContext, Root, DataRoot } from '../helpers/Root'
 import Saver from '../helpers/Saver'
 import Pages from './Pages'
 import { Func } from '../util/Utils';
-import { JournalsContainer } from './Journals'
 import Backup from '../util/Backup'
 import Loading from '../util/Loading'
+import { LazyTest } from '../util/Lazy'
+
+const JournalsContainer = React.lazy(() => import('./Journals'));
+const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
 
 interface AppState {
   user: User | null;
@@ -72,6 +75,7 @@ export default class App extends React.Component<AppProps, AppState> {
     return <main>
       <h2>Recovery</h2>
       {this.state.user && this.props.allowLogout && <button onClick={logout}>Logout</button>}
+      <LazyTest/>
       <ErrorBoundary>{upper}</ErrorBoundary>
     </main>;
   }
@@ -142,7 +146,7 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
           <LoadedApp data={this.state.data}/>
         </RootContext.Provider>
         </ErrorBoundary>
-        : <Loading/>
+        : <Assimilation/> // <Loading/>
       }
     </ErrorBoundary>;
   }
@@ -165,14 +169,35 @@ interface SwitcherProps {
   pages: PageMap;
 }
 
-function Switcher(props: SwitcherProps): React.ReactElement {
-  const [currentState, setState] = React.useState(false);
-  const onClick = React.useCallback(() => setState(state => !state), []);
+const enum SwitcherState {
+  Notes = 'Notes',
+  Journal = 'Journal',
+  Game = 'Game',
+}
 
-  const text = currentState ? 'Return to Notes' : 'Switch to Journal';
+function Switcher(props: SwitcherProps): React.ReactElement {
+  const [currentState, setState] = React.useState(SwitcherState.Game);
+  const clickNotes = React.useCallback(() => setState(SwitcherState.Notes), []);
+  const clickJournal = React.useCallback(() => setState(SwitcherState.Journal), []);
+  const clickGame = React.useCallback(() => setState(SwitcherState.Game), []);
+
+  let inner;
+  switch (currentState) {
+    case SwitcherState.Notes:
+      inner = <Pages pages={props.pages}/>;
+      break;
+    case SwitcherState.Journal:
+      inner = <React.Suspense fallback={<Loading/>}><JournalsContainer/></React.Suspense>;
+      break;
+    case SwitcherState.Game:
+      inner = <React.Suspense fallback={<Loading/>}><Assimilation/></React.Suspense>;
+      break;
+  }
 
   return <ErrorBoundary>
-    <button onClick={onClick}>{text}</button>
-    {currentState ? <JournalsContainer /> : <Pages pages={props.pages}/>}
+    <button disabled={currentState === SwitcherState.Notes} onClick={clickNotes}>{SwitcherState.Notes}</button>
+    <button disabled={currentState === SwitcherState.Journal} onClick={clickJournal}>{SwitcherState.Journal}</button>
+    <button disabled={currentState === SwitcherState.Game} onClick={clickGame}>{SwitcherState.Game}</button>
+    <ErrorBoundary>{inner}</ErrorBoundary>
   </ErrorBoundary>;
 }

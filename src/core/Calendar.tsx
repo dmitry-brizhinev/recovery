@@ -11,6 +11,7 @@ import { RootContext } from '../helpers/Root'
 import Event from '../data/Event';
 import { CalendarId, dateToId, incrementId, idToNiceString } from '../data/CalendarId';
 import { Func } from '../util/Utils';
+import Textarea from '../util/Textarea';
 
 
 interface CalendarProps {
@@ -79,15 +80,14 @@ interface CalendarPageProps {
   data: CalendarPageData;
 }
 
-class CalendarPage extends React.Component<CalendarPageProps, object> {
-  static contextType = RootContext;
-  context!: React.ContextType<typeof RootContext>;
-  render() {
-    return <ErrorBoundary><div className="calendar-page">
-      {this.props.id.substring(1)}
-      <textarea className="calendar" value={this.props.data} onChange={event => this.context.onCalendarPageUpdate(this.props.id, event)}/>
-    </div></ErrorBoundary>;
-  }
+function CalendarPage(props: CalendarPageProps): React.ReactElement {
+  const root = React.useContext(RootContext);
+  const onChange = React.useCallback((data: string) => root.onCalendarPageUpdate(props.id, data), [root, props.id]);
+
+  return <ErrorBoundary><div className="calendar-page">
+    {props.id.substring(1)}
+    <Textarea className="calendar" value={props.data} onChange={onChange}/>
+  </div></ErrorBoundary>;
 }
 
 interface CalendarEventProps {
@@ -107,7 +107,8 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
   }
 
   onEventCreate() {
-    this.context.onCalendarEventUpdate(this.props.id, Event.makeEmpty());
+    const newEvent = Event.makeEmpty();
+    this.context.onCalendarEventUpdate(this.props.id, newEvent.magicKey, newEvent);
   }
 
   makeBox(event: Event): React.ReactNode {

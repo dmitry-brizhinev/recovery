@@ -3,6 +3,7 @@ import { PageData, PageMap } from '../data/Data'
 import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext } from '../helpers/Root'
 import { PageId } from '../data/PageId';
+import Textarea from '../util/Textarea';
 
 interface PagesProps {
   pages: PageMap;
@@ -22,8 +23,9 @@ interface PageProps {
 function Page(props: PageProps) : React.ReactElement {
   const root = React.useContext(RootContext);
   const [title, text] = props.data;
+  const onChange = React.useCallback((text: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, title]);
   return <div className="page"><ErrorBoundary>
     {title}
-    <textarea className="page" value={text} onChange={event => root.onPageUpdate(props.id, title, event)}/>
+    <Textarea className="page" value={text} onChange={onChange}/>
     </ErrorBoundary></div>;
 }

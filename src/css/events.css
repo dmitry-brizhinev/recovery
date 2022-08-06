@@ -3,6 +3,7 @@ div.calendar-wrapper {
   overflow-x:auto;
   margin-top: 15px;
   padding-top: 15px;
+  margin-bottom: 15px;
   border-top: thin solid;
   justify-content: center;
 }

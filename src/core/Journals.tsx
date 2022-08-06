@@ -9,6 +9,7 @@ import ErrorBoundary from '../util/ErrorBoundary';
 
 import '../css/journal.css';
 import Loading from '../util/Loading';
+import Textarea from '../util/Textarea';
 
 interface JournalsContainerState {
   root: JournalRoot | null;
@@ -16,7 +17,7 @@ interface JournalsContainerState {
   saver: string;
 }
 
-export class JournalsContainer extends React.Component<object, JournalsContainerState> {
+export default class JournalsContainer extends React.Component<object, JournalsContainerState> {
   waitingForData = false;
   mounted = false;
 
@@ -89,9 +90,14 @@ function Journals(props: JournalsProps): React.ReactElement {
   const yester = incrementJId(today, -1);
   const tomorr = incrementJId(today, 1);
 
+  const emptyJournal = React.useMemo(() => new Journal(''), []);
+
   const yesterday = props.data.get(yester);
-  const todaydata = props.data.get(today) || new Journal('');
+  const todaydata = props.data.get(today) || emptyJournal;
   const tomorrrow = props.data.get(tomorr);
+
+  const onUpdate = React.useCallback((data: string) => root.onJournalUpdate(today, todaydata.withUpdate(data)), [root, today, todaydata]);
+
   return <ErrorBoundary><div className="journal-pages">
     <div className="journal-yesterday">{yester.substring(1)}<textarea readOnly={true} className="journal-page-yesterday" value={yesterday?.main ?? ''}/></div>
     <div className="journal-today"><div className="journal-pages-header">
@@ -99,7 +105,7 @@ function Journals(props: JournalsProps): React.ReactElement {
       {today.substring(1)}
       <button className="journal-next-day" onClick={onClickNextDay}>&gt;</button>
     </div>
-      <textarea className="journal-page-today" value={todaydata.main} onChange={event => root.onJournalUpdate(today, todaydata.withUpdate(event.target.value))}/>
+      <Textarea className="journal-page-today" value={todaydata.main} onChange={onUpdate}/>
     </div>
     <div className="journal-tomorrow">{tomorr.substring(1)}<textarea readOnly={true} className="journal-page-tomorrow" value={tomorrrow?.main ?? ''}/></div>
   </div></ErrorBoundary>;

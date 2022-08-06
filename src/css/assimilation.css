@@ -1,0 +1,70 @@
+div.game-wrapper {
+  border:thick solid black;
+  width:fit-content;
+  margin:auto;
+}
+
+use.space {
+  stroke-width: 4px;
+  fill:white;
+  stroke:black;
+}
+
+use.piece {
+  stroke-width: 4px;
+}
+
+use.piece.ghost {
+  fill-opacity: 0.5;
+  stroke-opacity: 0.5;
+}
+
+use.piece.red {
+  fill:red;
+  stroke:darkred;
+}
+
+use.piece.red:hover {
+  stroke:white;
+}
+
+use.piece.red:active {
+  stroke:black;
+}
+
+use.piece.blue {
+  fill:aqua;
+  stroke:blue;
+}
+
+use.piece.green {
+  fill:greenyellow;
+  stroke:green;
+}
+
+use.piece.orange {
+  fill:orange;
+  stroke:goldenrod;
+}
+
+rect.team-display {
+  fill:none;
+  stroke-opacity:0.2;
+  stroke-width:20px;
+}
+
+rect.team-display.red {
+  stroke:red;
+}
+
+rect.team-display.blue {
+  stroke:blue;
+}
+
+rect.team-display.green {
+  stroke:green;
+}
+
+rect.team-display.orange {
+  stroke:orange;
+}

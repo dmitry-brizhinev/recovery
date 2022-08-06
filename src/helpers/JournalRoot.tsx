@@ -22,11 +22,11 @@ export class JournalDataRoot extends JournalRoot {
   private onUpdate(key: JournalId, value: Journal | null) {
     this.data = value ? this.data.set(key, value) : this.data.delete(key);
     this.saver.logUpdate(this.data, key);
+    this.subscriber(this.data);
   }
 
   onJournalUpdate(id: JournalId, data: Journal | null) {
     this.onUpdate(id, data);
-    this.subscriber(this.data);
   }
 }
 

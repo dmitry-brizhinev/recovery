@@ -1,9 +1,10 @@
 import * as React from 'react'
 import { Callback, Func, pad2 } from '../util/Utils';
 import ErrorBoundary from '../util/ErrorBoundary';
-import { RootContext, EventUpdateOpts } from '../helpers/Root';
+import { RootContext } from '../helpers/Root';
 import { ValidComment, default as Event } from '../data/Event';
-import { CalendarId } from '../data/CalendarId';
+import { CalendarId, incrementId } from '../data/CalendarId';
+import Textarea from '../util/Textarea';
 
 interface EventInputProps {
   dayId: CalendarId;
@@ -12,6 +13,11 @@ interface EventInputProps {
 
 interface EventInputState {
   open: boolean;
+}
+
+interface EventUpdateOpts {
+  reschedule?: boolean;
+  delete?: boolean;
 }
 
 export default class EventInput extends React.PureComponent<EventInputProps, EventInputState> {
@@ -44,7 +50,16 @@ export default class EventInput extends React.PureComponent<EventInputProps, Eve
   }
 
   onChange(newValue: Event, opts?: EventUpdateOpts) {
-    this.context.onCalendarEventUpdate(this.props.dayId, newValue, opts);
+    if (opts?.reschedule) {
+      const oldEvent = this.props.event;
+      if (oldEvent.recurDays) {
+        const newEvent = oldEvent.withUpdate({regenKey: true});
+        const newId = incrementId(this.props.dayId, oldEvent.recurDays);
+        this.context.onCalendarEventUpdate(newId, newEvent.magicKey, newEvent);
+      }
+    }
+
+    this.context.onCalendarEventUpdate(this.props.dayId, newValue.magicKey, opts?.delete ? null : newValue);
   }
 
   render() {
@@ -97,8 +112,8 @@ class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState
     this.props.onReschedule(this.state.unsavedComment);
   }
 
-  onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
-    this.setState({unsavedComment: Event.sanitizeComment(event.target.value)});
+  onChange(unsavedComment: string) {
+    this.setState({unsavedComment: Event.sanitizeComment(unsavedComment)});
   }
 
   render() {
@@ -106,7 +121,7 @@ class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState
     const rescheduleDays = canReschedule ? ` ${this.props.event.recurDays}d` : '';
 
     return <div className="event-detail">
-      <textarea className="event-detail-comment" value={this.state.unsavedComment} onChange={this.onChange}/>
+      <Textarea className="event-detail-comment" value={this.state.unsavedComment} onChange={this.onChange}/>
       <div className="event-detail-buttons">
         <button className="event-detail-button" onClick={this.props.onCancel}>Cancel</button>
         <button className="event-detail-button" onClick={this.onSave}>Save</button>
