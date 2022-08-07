@@ -1,18 +1,19 @@
 import * as React from 'react'
 
 import '../css/assimilation.css';
-import { Callback } from '../util/Utils';
-import { donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState } from './Board';
-import { GRID, WIDTH, HEIGHT, SCALE, SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM } from './Constants';
+import { Callback, Func } from '../util/Utils';
+import { Board, countPlayers, currentPlayerHasValidMove, donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState } from './Board';
+import { SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE } from './Constants';
+import { FilterDefinitions, FilterId } from './Filter';
 import { makeMove } from './Player';
 
-export default function Assimilation(): React.ReactElement {
-  return <div className="game-wrapper"><Game/></div>;
+export default function Assimilation(props: {image?: string}): React.ReactElement {
+  return <div className="game-wrapper"><Game image={props.image ?? '/ripple.png'}/></div>;
 }
 
-function Game(): React.ReactElement {
-  return <svg xmlns="http://www.w3.org/2000/svg" tabIndex={-1} width={GRID * WIDTH * SCALE} height={GRID * HEIGHT * SCALE} viewBox={`0 0 ${GRID * WIDTH} ${GRID * HEIGHT}`}>
-    <defs></defs>
+function Game(props: {image: string}): React.ReactElement {
+  return <svg xmlns="http://www.w3.org/2000/svg" tabIndex={-1} onContextMenu={e => e.preventDefault()} width={SIZE} height={VSIZE} viewBox={`0 0 ${SIZE} ${VSIZE}`}>
+    <defs><FilterDefinitions image={props.image}/></defs>
     <SymbolDeclarations/>
     <GameBoard startingBoard={donutBoard}/>
   </svg>;
@@ -23,53 +24,157 @@ interface GameBoardProps {
 }
 
 function GameBoard(props: GameBoardProps): React.ReactElement {
-  const [state, dispatch] = React.useReducer(reduceGameState, props.startingBoard, initialiseGameState);
-  const [dragged, setDragged] = React.useState<GridCoords | undefined>(undefined);
-  const dragDisplay = React.useCallback<DragDisplay>(move => moveResult(state, move), [state]);
+  const [state, onMove] = React.useReducer(reduceGameState, props.startingBoard, initialiseGameState);
+  const reset = React.useCallback(() => onMove(null), [onMove]);
+  const useFilter = state.team === Team.Empty;
+  return <g filter={useFilter ? `url(#${FilterId})`: undefined}>
+    <rect width={SIZE} height={VSIZE} rx={15} className={`team-display ${TeamColours[state.team]}`}/>
+    <Victory state={state} onClick={reset}/>
+    <Backdrop board={state.board}/>
+    <TeamPlayer team={Team.Blue} state={state} onMove={onMove}/>
+    <TeamPlayer team={Team.Orange} state={state} onMove={onMove}/>
+    <TeamPlayer team={Team.Green} state={state} onMove={onMove}/>
+    <TeamPlayer team={Team.Red} state={state} onMove={onMove}/>
+  </g>;
+}
+
+const Backdrop = React.memo((props: {board: Board}) => {
+  // TODO: optimise by using initialBoard, which never changes
   const elements: React.ReactElement[] = []
-  const elements2: React.ReactElement[] = [];
-  const elements3: React.ReactElement[] = [];
-  for (const [r, row] of state.board.entries()) {
+  for (const [r, row] of props.board.entries()) {
     for (const [c, b] of row.entries()) {
       if (b == null) {
         continue;
       }
-      elements.push(<Space key={c*1000 + r} pos={{c,r}}/>);
-      if (b) {
-        const key = -(c*1000 + r);
-        const isDragged = dragged?.c === c && dragged.r === r;
-        const elem = isDragged ? elements3 : elements2;
-        elem.push(<Piece key={key} team={b} initialPos={svgFromGrid({c,r})} dragDisplay={dragDisplay} onDrag={setDragged} onMove={dispatch}/>);
-      }
+      elements.push(<Symbol key={c*1000 + r} name={SymbolName.Space} pos={svgFromGrid({c,r})}/>);
     }
   }
-  return <>
-    <AutoPlayer state={state} onMove={dispatch}/>
-    <rect width={WIDTH * GRID} height={HEIGHT * GRID} rx={15} className={`team-display ${TeamColours[state.team]}`}/>
-    {elements}
-    {elements2.concat(elements3)}
-  </>;
+  return <g>{elements}</g>;
+});
+
+function Victory(props: {state: GameState, onClick: Func}): React.ReactElement {
+  if (props.state.team !== Team.Empty) {
+    return <g/>;
+  }
+  const counts = countPlayers(props.state.board);
+  let team = Team.Empty;
+  for (const [t, c] of counts.entries()) {
+    if (t !== Team.Empty && c > 0) {
+      team = t;
+    }
+  }
+  return <text x={SIZE / 2} y={VSIZE / 2} dominantBaseline="central" className={`victory ${TeamColours[team]}`} onClick={props.onClick}>{team ? 'WINNER!!' : 'ALL GONE??'}</text>
 }
 
-function Space(props: {pos: GridCoords}) {
-  return <Symbol name={SymbolName.Space} pos={svgFromGrid(props.pos)}/>
+interface TeamPlayerProps {
+  team: Team;
+  state: GameState;
+  onMove: Callback<Move | null>;
+}
+
+function TeamPlayer(props: TeamPlayerProps): React.ReactElement {
+  const [dragged, setDragged] = React.useState<GridCoords | undefined>(undefined);
+  const dragDisplay = React.useCallback<DragDisplay>(move => moveResult(props.state, move), [props.state]);
+  const [pendingMove, setPendingMove] = React.useState<Move | undefined>(undefined);
+
+  const onMove = props.onMove;
+  const completePendingMove = React.useCallback<Callback<Move>>(move => { setPendingMove(undefined); onMove(move); }, [setPendingMove, onMove]);
+
+  const human = props.team === PLAYER_TEAM;
+
+  const elements2: React.ReactElement[] = [];
+  const elements3: React.ReactElement[] = [];
+  for (const [r, row] of props.state.board.entries()) {
+    for (const [c, b] of row.entries()) {
+      if (b !== props.team) {
+        continue;
+      }
+      const key = c*1000 + r;
+      const pos = svgFromGrid({c,r});
+      const beingMoved = pendingMove && pendingMove.from.c === c && pendingMove.from.r === r;
+      const beingDragged = dragged?.c === c && dragged.r === r;
+
+      const piece = human ? 
+      <Piece key={key} team={props.team} initialPos={pos} dragDisplay={dragDisplay} onDrag={setDragged} onMove={props.onMove}/>
+      : (beingMoved ?
+      <MovingPiece key={'mover'} team={props.team} move={pendingMove} dragDisplay={dragDisplay} onDoneMove={completePendingMove}/>
+      : <Symbol key={key} className={TeamColours[props.team]} pos={pos} name={SymbolName.Piece}/>);
+      
+      (beingDragged || beingMoved ? elements3 : elements2).push(piece);
+    }
+  }
+  return <g>
+    {human ? <AutoSurrender team={props.team} state={props.state} onSurrender={props.onMove}/> : <AutoPlayer team={props.team} state={props.state} onMove={setPendingMove} onSurrender={props.onMove}/>}
+    {elements2.concat(elements3)}
+  </g>;
+}
+
+function delay(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 1000));
+}
+
+function AutoSurrender(props: {team: Team, state: GameState, onSurrender: Callback<null>}): React.ReactElement {
+  const {state, onSurrender} = props;
+  const active = state.team === props.team;
+  React.useEffect(() => {
+    if (!active) return;
+    const x = {proceed: true};
+    delay().then(() => x.proceed && !currentPlayerHasValidMove(state) && onSurrender(null));
+    return () => { x.proceed = false; };
+  }, [state, active, onSurrender]);
+  return <g/>;
 }
 
 interface AutoPlayerProps {
+  team: Team;
   state: GameState;
   onMove: Callback<Move>;
+  onSurrender: Callback<null>;
 }
 
 function AutoPlayer(props: AutoPlayerProps): React.ReactElement {
-  const {state, onMove} = props;
-  const player = state.team === PLAYER_TEAM;
+  const {state, onMove, onSurrender} = props;
+  const active = state.team === props.team;
   React.useEffect(() => {
-    if (player) return;
+    if (!active) return;
     const x = {proceed: true};
-    makeMove(state).then(move => move && x.proceed && onMove(move));
+    makeMove(state).then(move => x.proceed && move ? onMove(move) : onSurrender(null));
     return () => { x.proceed = false; };
-  }, [state, player, onMove]);
-  return <g></g>;
+  }, [state, active, onMove, onSurrender]);
+  return <g/>;
+}
+
+interface MovingPieceProps {
+  team: Team;
+  move: Move;
+  dragDisplay: DragDisplay;
+  onDoneMove: Callback<Move>;
+}
+
+function MovingPiece(props: MovingPieceProps): React.ReactElement {
+  const {move, onDoneMove} = props;
+
+  const startAnimationRef = React.useCallback((dom: any) => dom?.beginElement(), []);
+  const startAnimationRef2 = React.useCallback((dom: any) => dom?.beginElement(), []);
+
+  const keepOrigin = props.dragDisplay(move) !== MoveResult.Move;
+
+  React.useEffect(() => {
+    const x = {proceed: true};
+    setTimeout(() => {x.proceed && onDoneMove(move)}, 480);
+    return () => { x.proceed = false; };
+  }, [move, onDoneMove]);
+
+  const from = svgFromGrid(move.from);
+  const to = svgFromGrid(move.to);
+  const className = `${SymbolName.Piece} ${TeamColours[props.team]}`;
+  return <>
+  {keepOrigin && <use href={'#' + SymbolName.Piece} x={from.x} y={from.y} className={className}/>}
+  <use href={'#' + SymbolName.Piece} x={from.x} y={from.y} className={className}>
+    <animate ref={startAnimationRef} attributeName="x" begin="indefinite" from={from.x} to={to.x} dur={'500ms'} repeatCount="1" />
+    <animate ref={startAnimationRef2} attributeName="y" begin="indefinite" from={from.y} to={to.y} dur={'500ms'} repeatCount="1" />
+  </use>
+  </>;
 }
 
 interface SymbolProps {
@@ -80,11 +185,6 @@ interface SymbolProps {
 
 class Symbol extends React.Component<SymbolProps, object> {
   render() {
-    /*let maybeAnimate = null;
-    if (this.props.selected) {
-      maybeAnimate = <animate attributeName="stroke-width" values="1;2;1" dur="1s" repeatCount="indefinite" />;
-    }*/
-    //<use ...>{maybeAnimate}</use>;
     const className = this.props.name + (this.props.className ? ` ${this.props.className}` : '');
     return <use href={'#' + this.props.name} x={this.props.pos.x} y={this.props.pos.y} className={className}/>;
   }
@@ -150,8 +250,8 @@ onPointerLeave - end hover
       case 'pointermove':
         this.setState(({initialMousePos}) => {
           if (!initialMousePos) return {draggedPos: null};
-          const x = e.clientX + this.props.initialPos.x - initialMousePos.x;
-          const y = e.clientY + this.props.initialPos.y - initialMousePos.y;
+          const x = this.props.initialPos.x + (e.clientX - initialMousePos.x); //  / SCALE;
+          const y = this.props.initialPos.y + (e.clientY - initialMousePos.y); //  / SCALE;
           return {draggedPos: {x,y}};
         });
         break;

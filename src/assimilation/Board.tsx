@@ -1,4 +1,4 @@
-import { GridCoords, HEIGHT, PLAYER_TEAM, Team, WIDTH } from "./Constants";
+import { GridCoords, HEIGHT, Team, WIDTH } from "./Constants";
 import { List, Range } from 'immutable';
 
 export const MAX_ROWS = Math.trunc(HEIGHT / Math.sqrt(3/4));
@@ -37,7 +37,7 @@ function corners(spot: GridCoords): Team {
 }
 
 export function donutBoard(spot: GridCoords): Team | undefined {
-  if (Math.abs(spot.r - MAX_ROWS/2) < 3 && Math.abs(spot.c - MAX_COLUMNS(spot.r)/2) < 3) {
+  if (Math.abs(spot.r - (MAX_ROWS-1)/2) < 3 && Math.abs(spot.c - (MAX_COLUMNS(spot.r)-1)/2) < 3) {
     return undefined;
   }
   return fullBoard(spot);
@@ -79,6 +79,42 @@ function reachable(m: Move): boolean {
          (absRowDiff === 1 && colDiff === (even ? -2 : 2));
 }
 
+export function currentPlayerHasValidMove(state: GameState) {
+  let result = false;
+  for (const move of enumerateMoves(state)) {
+    result = !!move;
+    break;
+  }
+  return result;
+}
+
+export function* enumerateMoves(state: GameState): Generator<Move, void, undefined> {
+  for (const [r, row] of state.board.entries()) {
+    for (const [c, team] of row.entries()) {
+      if (team !== state.team) continue;
+
+      for (const to of neighbours({r,c})) {
+        const target = atPos(state.board, to);
+        if (target === Team.Empty) {
+          yield {from:{r,c}, to};
+        }
+      }
+    }
+  }
+}
+
+function* closeNeighbours(pos: GridCoords): Generator<GridCoords, void, undefined> {
+  const even = pos.r % 2 === 0;
+  const c = pos.c;
+  const r = pos.r;
+  yield {r,c:c-1};
+  yield {r,c:c+1};
+  for (const r of [pos.r - 1, pos.r + 1]) {
+    yield {r,c};
+    yield {r,c:c + (even ? 1 : -1)};
+  }
+}
+
 export function* neighbours(pos: GridCoords): Generator<GridCoords, void, undefined> {
   const even = pos.r % 2 === 0;
   const c = pos.c;
@@ -93,8 +129,24 @@ export function* neighbours(pos: GridCoords): Generator<GridCoords, void, undefi
     yield {r,c};
   }
   for (const r of [pos.r - 1, pos.r + 1]) {
-    yield {r,c:c + (even ? -2 : 2)};
+    yield {r,c:c + (even ? 2 : -2)};
   }
+}
+
+function surrender(state: GameState): Board {
+  if (!state.team) {
+    return initialiseBoard(donutBoard);
+  }
+
+  const diffs: BoardChange[] = [];
+  for (const [r,row] of state.board.entries()) {
+    for (const [c,t] of row.entries()) {
+      if (t === state.team) {
+        diffs.push({pos:{r,c}, team:Team.Empty});
+      }
+    }
+  }
+  return setAll(state.board, diffs);
 }
 
 function move(board: Board, m: Move): Board | null {
@@ -103,9 +155,15 @@ function move(board: Board, m: Move): Board | null {
   if (!f) return null;
   const t = atPos(board, m.to);
   if (t !== Team.Empty) return null;
-  const destination: BoardChange = {pos:m.to, team:f};
-  const origin: BoardChange | null = adjacent(m) ? null : {pos:m.from, team:Team.Empty};
-  return setAll(board, origin ? [origin, destination] : [destination]);
+  const diffs: BoardChange[] = [{pos:m.to, team:f}];
+  if(!adjacent(m)) diffs.push({pos:m.from, team:Team.Empty});
+  for (const n of closeNeighbours(m.to)) {
+    const e = atPos(board, n);
+    if (e && e !== f) {
+      diffs.push({pos:n, team:f});
+    }
+  }
+  return setAll(board, diffs);
 }
 
 export function moveResult(state: GameState, move: Move): MoveResult {
@@ -124,18 +182,32 @@ export function moveResult(state: GameState, move: Move): MoveResult {
   return adjacent(move) ? MoveResult.Copy : MoveResult.Move;
 }
 
-export function reduceGameState(state: GameState, action: Move): GameState {
-  const board = move(state.board, action);
+export function reduceGameState(state: GameState, action: Move | null): GameState {
+  const board = action ? move(state.board, action) : surrender(state);
   if (!board) return state;
   const team = nextTeam(board, state.team);
-  if (team && team !== PLAYER_TEAM) {
-
-  }
   return {board, team};
 }
 
+export function countPlayers(board: Board): number[] {
+  const result = [0,0,0,0,0];
+  for (const row of board) {
+    for (const t of row) {
+      t && ++result[t];
+    }
+  }
+  return result;
+}
+
 function nextTeam(board: Board, team: Team): Team {
-  return incrementTeam(team);
+  const counts = countPlayers(board);
+  counts[Team.Empty] = 0;
+  if (counts.map(x => x && (1 as number)).reduce((a,b)=>a+b) <= 1)
+    return Team.Empty;
+  do {
+    team = incrementTeam(team);
+  } while (!counts[team]);
+  return team;
 }
 
 function incrementTeam(team: Team): Team {

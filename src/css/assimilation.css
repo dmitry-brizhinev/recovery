@@ -1,6 +1,7 @@
 div.game-wrapper {
   border:thick solid black;
   width:fit-content;
+  height:600px;
   margin:auto;
 }
 
@@ -67,4 +68,29 @@ rect.team-display.green {
 
 rect.team-display.orange {
   stroke:orange;
+}
+
+text.victory {
+  font-size: xx-large;
+  text-anchor:middle;
+}
+
+text.victory.empty {
+  fill:black;
+}
+
+text.victory.red {
+  fill:red;
+}
+
+text.victory.blue {
+  fill:blue;
+}
+
+text.victory.green {
+  fill:green;
+}
+
+text.victory.orange {
+  fill:orange;
 }

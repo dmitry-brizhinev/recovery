@@ -14,6 +14,7 @@ import { LazyTest } from '../util/Lazy'
 
 const JournalsContainer = React.lazy(() => import('./Journals'));
 const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
+const ImageMaker = React.lazy(() => import('../assimilation/Image'));
 
 interface AppState {
   user: User | null;
@@ -66,19 +67,29 @@ export default class App extends React.Component<AppProps, AppState> {
   render() {
     let upper;
     if (this.state.user) {
-      upper = <LoggedInApp user={this.state.user}/>;
+      // prod: <LoggedInApp user={this.state.user}/>
+      // dev:  <MaybeGame user={this.state.user}/>
+      upper = <MaybeGame user={this.state.user}/>;
     } else if (!this.state.finishedWaiting) {
       upper = <Loading/>;
     } else {
       upper = <button onClick={loginPopup}>Login</button>;
     }
+    // prod: '';
+    // dev: <LazyTest/>;
+    const lazyTest = <LazyTest/>;
     return <main>
       <h2>Recovery</h2>
       {this.state.user && this.props.allowLogout && <button onClick={logout}>Logout</button>}
-      <LazyTest/>
+      {lazyTest}
       <ErrorBoundary>{upper}</ErrorBoundary>
     </main>;
   }
+}
+
+function MaybeGame(props: {user: User}): React.ReactElement {
+  const [closed, setClosed] = React.useState<object | null>(null);
+  return !closed ? <div><button onClick={setClosed}>Close Game</button><Assimilation/></div> : <LoggedInApp user={props.user}/>;
 }
 
 interface LoggedInAppProps {
@@ -91,7 +102,7 @@ interface LoggedInAppState {
   saver: string;
 }
 
-class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
+export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
   waitingForData = false;
   mounted = false;
 
@@ -146,7 +157,7 @@ class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppState> {
           <LoadedApp data={this.state.data}/>
         </RootContext.Provider>
         </ErrorBoundary>
-        : <Assimilation/> // <Loading/>
+        : <Loading/>
       }
     </ErrorBoundary>;
   }
@@ -173,13 +184,15 @@ const enum SwitcherState {
   Notes = 'Notes',
   Journal = 'Journal',
   Game = 'Game',
+  Image = 'Image',
 }
 
 function Switcher(props: SwitcherProps): React.ReactElement {
-  const [currentState, setState] = React.useState(SwitcherState.Game);
+  const [currentState, setState] = React.useState(SwitcherState.Notes);
   const clickNotes = React.useCallback(() => setState(SwitcherState.Notes), []);
   const clickJournal = React.useCallback(() => setState(SwitcherState.Journal), []);
   const clickGame = React.useCallback(() => setState(SwitcherState.Game), []);
+  const clickImage = React.useCallback(() => setState(SwitcherState.Image), []);
 
   let inner;
   switch (currentState) {
@@ -192,12 +205,16 @@ function Switcher(props: SwitcherProps): React.ReactElement {
     case SwitcherState.Game:
       inner = <React.Suspense fallback={<Loading/>}><Assimilation/></React.Suspense>;
       break;
+    case SwitcherState.Image:
+      inner = <React.Suspense fallback={<Loading/>}><ImageMaker /></React.Suspense>;
+      break;
   }
 
   return <ErrorBoundary>
     <button disabled={currentState === SwitcherState.Notes} onClick={clickNotes}>{SwitcherState.Notes}</button>
     <button disabled={currentState === SwitcherState.Journal} onClick={clickJournal}>{SwitcherState.Journal}</button>
     <button disabled={currentState === SwitcherState.Game} onClick={clickGame}>{SwitcherState.Game}</button>
+    <button disabled={currentState === SwitcherState.Image} onClick={clickImage}>{SwitcherState.Image}</button>
     <ErrorBoundary>{inner}</ErrorBoundary>
   </ErrorBoundary>;
 }

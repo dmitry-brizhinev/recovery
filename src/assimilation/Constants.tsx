@@ -3,13 +3,13 @@ import * as React from 'react'
 
 export const enum Team {
   Empty = 0,
-  Blue = 1,
+  Red = 1,
   Green = 2,
   Orange = 3,
-  Red = 4,
+  Blue = 4,
 }
 
-export const TeamColours = ['empty', 'blue', 'green', 'orange', 'red'] as const;
+export const TeamColours = ['empty', 'red', 'green', 'orange', 'blue'] as const;
 
 export const PLAYER_TEAM = Team.Red;
 
@@ -18,10 +18,11 @@ export const enum SymbolName {
   Piece = 'piece',
 }
 
-export const GRID = 40;
-export const WIDTH = 15;
-export const HEIGHT = 15;
-export const SCALE = 1; // 1 pixel in SVG land = SCALE pixels displayed on the page
+export const SIZE = 600;
+export const WIDTH = 10;
+export const HEIGHT = 10;
+export const GRID = SIZE / WIDTH;
+export const VSIZE = HEIGHT * GRID;
 
 export function SymbolDeclarations(): React.ReactElement {
   return <>
