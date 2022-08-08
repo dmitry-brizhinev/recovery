@@ -6,5 +6,5 @@ textarea.page {
 }
 
 div.page {
-  margin-top: 15px;
+  margin-top: var(--margin);
 }

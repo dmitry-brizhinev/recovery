@@ -12,25 +12,30 @@ import Backup from '../util/Backup'
 import Loading from '../util/Loading'
 import { LazyTest } from '../util/Lazy'
 
+import '../css/pages.css';
+import 'react-calendar/dist/Calendar.css';
+import '../css/events.css';
+import '../css/calendar.css';
+
 const JournalsContainer = React.lazy(() => import('./Journals'));
 const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
 const ImageMaker = React.lazy(() => import('../assimilation/Image'));
 
-interface AppState {
+interface HeaderState {
   user: User | null;
   finishedWaiting: boolean;
 }
 
-interface AppProps {
+interface HeaderProps {
   allowLogout?: boolean;
   loginDelay?: number;
 }
 
-export default class App extends React.Component<AppProps, AppState> {
+export default class Header extends React.Component<HeaderProps, HeaderState> {
   unsubscribe?: Func;
   cancel?: NodeJS.Timeout;
 
-  constructor(props: AppProps) {
+  constructor(props: HeaderProps) {
     super(props);
 
     this.state = {user: null, finishedWaiting: false};
@@ -78,12 +83,11 @@ export default class App extends React.Component<AppProps, AppState> {
     // prod: '';
     // dev: <LazyTest/>;
     const lazyTest = <LazyTest/>;
-    return <main>
-      <h2>Recovery</h2>
+    return <ErrorBoundary>
       {this.state.user && this.props.allowLogout && <button onClick={logout}>Logout</button>}
       {lazyTest}
-      <ErrorBoundary>{upper}</ErrorBoundary>
-    </main>;
+      {upper}
+    </ErrorBoundary>;
   }
 }
 

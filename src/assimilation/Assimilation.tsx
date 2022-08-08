@@ -1,10 +1,11 @@
+import Immutable from 'immutable';
 import * as React from 'react'
 
 import '../css/assimilation.css';
 import { Callback, Func } from '../util/Utils';
 import { Board, countPlayers, currentPlayerHasValidMove, donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState } from './Board';
-import { SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE } from './Constants';
-import { FilterDefinitions, FilterId } from './Filter';
+import { SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE, GRID } from './Constants';
+import { FilterDefinitions, FilterId, SimpleRipple } from './Filter';
 import { makeMove } from './Player';
 
 export default function Assimilation(props: {image?: string}): React.ReactElement {
@@ -23,18 +24,52 @@ interface GameBoardProps {
   startingBoard: InitialBoard;
 }
 
+interface LastMove {
+  move: Move | null;
+  num: number;
+}
+
 function GameBoard(props: GameBoardProps): React.ReactElement {
-  const [state, onMove] = React.useReducer(reduceGameState, props.startingBoard, initialiseGameState);
+  const [state, dispatch] = React.useReducer(reduceGameState, props.startingBoard, initialiseGameState);
+  const [lastMove, setLastMove] = React.useState<LastMove>({move: null, num:0});
+  const onMove = React.useCallback<typeof dispatch>(move => {dispatch(move); setLastMove(({num})=>{return {move,num:num+1};});}, [dispatch]);
   const reset = React.useCallback(() => onMove(null), [onMove]);
   const useFilter = state.team === Team.Empty;
   return <g filter={useFilter ? `url(#${FilterId})`: undefined}>
     <rect width={SIZE} height={VSIZE} rx={15} className={`team-display ${TeamColours[state.team]}`}/>
     <Victory state={state} onClick={reset}/>
     <Backdrop board={state.board}/>
+    <RippleDisplay lastMove={lastMove}/>;
     <TeamPlayer team={Team.Blue} state={state} onMove={onMove}/>
     <TeamPlayer team={Team.Orange} state={state} onMove={onMove}/>
     <TeamPlayer team={Team.Green} state={state} onMove={onMove}/>
     <TeamPlayer team={Team.Red} state={state} onMove={onMove}/>
+  </g>;
+}
+
+function createRipple(move: Move): Ripple {
+  const {x,y} = svgFromGrid(move.to);
+  const pos = {x: x + GRID/2, y: y + GRID/2};
+  return {pos, done:false};
+}
+
+interface Ripple {
+  pos: SvgCoords;
+  done: boolean;
+}
+
+function RippleDisplay(props: {lastMove: LastMove}): React.ReactElement {
+  const [ripples, setRipples] = React.useState(Immutable.Map<number, Ripple>());
+  const onDone = React.useCallback<Callback<number>>(n => setRipples(rip => rip.set(n, {pos:{x:0,y:0}, done:true})), [setRipples]);
+  const {move, num} = props.lastMove;
+  if (!move) return <g/>;
+
+  if (!ripples.has(num)) {
+    setRipples(ripples.set(num, createRipple(move)));
+  }
+
+  return <g>
+    {ripples.entrySeq().filter(([,r]) => !r.done).map(([n,r]) => <SimpleRipple key={n} id={n} pos={r.pos} duration={1} onDone={onDone}/>)}
   </g>;
 }
 
@@ -55,6 +90,10 @@ const Backdrop = React.memo((props: {board: Board}) => {
 function Victory(props: {state: GameState, onClick: Func}): React.ReactElement {
   if (props.state.team !== Team.Empty) {
     return <g/>;
+    //return <>
+    //  <text x={SIZE / 2} y={VSIZE / 2 - 20} dominantBaseline="central" className={`victory empty`}>BULGE</text>
+    //  <text x={SIZE / 2} y={VSIZE / 2 + 20} dominantBaseline="central" className={`victory empty`}>TEST</text>
+    //  </>;
   }
   const counts = countPlayers(props.state.board);
   let team = Team.Empty;

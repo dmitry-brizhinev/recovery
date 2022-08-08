@@ -1,13 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './core/Header';
+import App from './core/App';
 import reportWebVitals from './reportWebVitals';
-
-import './css/index.css';
-import './css/pages.css';
-import 'react-calendar/dist/Calendar.css';
-import './css/events.css';
-import './css/calendar.css';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

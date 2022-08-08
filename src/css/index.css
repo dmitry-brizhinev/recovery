@@ -1,3 +1,7 @@
+:root {
+  --margin: 15px;
+}
+
 main {
   text-align: center;
   vertical-align: center;

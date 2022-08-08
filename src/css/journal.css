@@ -1,13 +1,13 @@
 div.journals-wrapper {
   max-width:900px;
   margin:auto;
-  margin-top:15px;
+  margin-top:var(--margin);
 }
 
 div.journal-pages{
   max-width:900px;
-  margin-top:15px;
-  margin-bottom: 15px;
+  margin-top:var(--margin);
+  margin-bottom:var(--margin);
 
   display:flex;
   overflow-x:clip;
