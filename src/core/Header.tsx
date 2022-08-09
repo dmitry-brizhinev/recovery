@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { PageMap, User, UserData } from '../data/Data'
+import type { PageMap, User, UserData } from '../data/Data'
 import { getData } from '../firebase/FirebaseStore'
 import { subscribeToUserChanges, loginPopup, logout } from '../firebase/FirebaseAuth'
 import Calendar from './Calendar'
@@ -7,7 +7,7 @@ import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext, Root, DataRoot } from '../helpers/Root'
 import Saver from '../helpers/Saver'
 import Pages from './Pages'
-import { Func } from '../util/Utils';
+import type { Func } from '../util/Utils';
 import Backup from '../util/Backup'
 import Loading from '../util/Loading'
 import { LazyTest } from '../util/Lazy'

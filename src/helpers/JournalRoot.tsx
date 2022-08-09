@@ -1,7 +1,7 @@
 import * as React from 'react'
-import JournalSaver from './JournalSaver';
-import { Callback } from '../util/Utils';
-import { Journal, JournalData, JournalId } from '../data/Journal';
+import type JournalSaver from './JournalSaver';
+import type { Callback } from '../util/Utils';
+import type { Journal, JournalData, JournalId } from '../data/Journal';
 
 export abstract class JournalRoot {
   abstract onJournalUpdate(id: JournalId, data: Journal | null): void;

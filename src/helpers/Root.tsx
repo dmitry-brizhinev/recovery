@@ -1,10 +1,10 @@
 import * as React from 'react'
-import { UserData, DataId, UserDataKey, UserDataLeaf, CalendarPageData, PageData } from '../data/Data';
-import Saver from './Saver';
-import Event from '../data/Event';
-import { CalendarId } from '../data/CalendarId';
-import { PageId } from '../data/PageId';
-import { Callback } from '../util/Utils';
+import type { UserData, DataId, UserDataKey, UserDataLeaf, CalendarPageData, PageData } from '../data/Data';
+import type Saver from './Saver';
+import type Event from '../data/Event';
+import type { CalendarId } from '../data/CalendarId';
+import type { PageId } from '../data/PageId';
+import type { Callback } from '../util/Utils';
 
 export abstract class Root {
   abstract onPageUpdate(id: PageId, data: PageData | null): void;

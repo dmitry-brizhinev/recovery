@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Callback } from '../util/Utils';
+import type { Callback } from '../util/Utils';
 import { VSIZE, SIZE, SvgCoords, GRID } from './Constants';
 
 export const FilterId = 'RippleFilter';

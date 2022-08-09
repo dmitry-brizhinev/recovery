@@ -2,7 +2,7 @@ import Immutable from 'immutable';
 import * as React from 'react'
 
 import '../css/assimilation.css';
-import { Callback, Func } from '../util/Utils';
+import type { Callback, Func } from '../util/Utils';
 import { Board, countPlayers, currentPlayerHasValidMove, donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState } from './Board';
 import { SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE, GRID } from './Constants';
 import { FilterDefinitions, FilterId, SimpleRipple } from './Filter';

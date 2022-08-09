@@ -1,0 +1,15 @@
+div.lazy-test {
+    border: thin solid black;
+    height: 300px;
+    text-align: center;
+}
+
+div.lazy-inner {
+    border: thick solid gray;
+    height: 200px;
+    width: 80%;
+    margin: auto;
+    margin-top: 15px;
+    text-align: center;
+    line-height: 200px;
+}

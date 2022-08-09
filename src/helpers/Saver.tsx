@@ -1,6 +1,6 @@
 import { DataDiff, DataId, DataTypes, makeDataDiff, UserData } from '../data/Data';
 import { saveAll } from '../firebase/FirebaseStore';
-import { Callback } from '../util/Utils';
+import type { Callback } from '../util/Utils';
 
 const enum SaverStatusString {
   Unsaved = ' [Unsaved..] ',

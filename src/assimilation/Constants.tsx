@@ -1,5 +1,5 @@
 
-import * as React from 'react'
+import type * as React from 'react'
 
 export const enum Team {
   Empty = 0,

@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-import { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from '../data/Data'
+import type { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from '../data/Data'
 import ErrorBoundary from '../util/ErrorBoundary'
 
 import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
@@ -10,7 +10,7 @@ import { Map as IMap } from 'immutable';
 import { RootContext } from '../helpers/Root'
 import Event from '../data/Event';
 import { CalendarId, dateToId, incrementId, idToNiceString } from '../data/CalendarId';
-import { Func } from '../util/Utils';
+import type { Func } from '../util/Utils';
 import Textarea from '../util/Textarea';
 
 

@@ -2,7 +2,7 @@ import Assimilation from "./Assimilation";
 import * as React from 'react'
 import Immutable from "immutable";
 import { SIZE, VSIZE } from "./Constants";
-import { Callback } from "../util/Utils";
+import type { Callback } from "../util/Utils";
 
 const CANVASWIDTH = SIZE;
 const CANVASHEIGHT = VSIZE;

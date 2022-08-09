@@ -1,10 +1,10 @@
 import Immutable from 'immutable';
 
 import { Map as IMap } from 'immutable';
-import { CalendarId } from './CalendarId';
+import type { CalendarId } from './CalendarId';
 
-import Event from './Event';
-import { PageId } from './PageId';
+import type Event from './Event';
+import type { PageId } from './PageId';
 
 export interface User {
   readonly name: string | null;

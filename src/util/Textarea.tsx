@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Callback } from './Utils';
+import type { Callback } from './Utils';
 
 interface TextareaProps {
   className?: string;

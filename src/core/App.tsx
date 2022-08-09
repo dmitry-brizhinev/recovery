@@ -9,6 +9,6 @@ const Header = React.lazy(() => import('./Header'));
 export default function App(): React.ReactElement {
   return <main>
     <h2>Recovery</h2>
-    <ErrorBoundary><React.Suspense fallback={<Loading/>}><Header/></React.Suspense></ErrorBoundary>;
+    <ErrorBoundary><React.Suspense fallback={<Loading/>}><Header/></React.Suspense></ErrorBoundary>
   </main>;
 }

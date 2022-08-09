@@ -1,6 +1,6 @@
 import { JournalData, JournalDiff, JournalId, makeJournalDiff } from '../data/Journal';
 import { saveJournals } from '../firebase/FirebaseStoreJournals';
-import { Callback } from '../util/Utils';
+import type { Callback } from '../util/Utils';
 
 const enum SaverStatusString {
   Unsaved = ' [Unsaved..] ',

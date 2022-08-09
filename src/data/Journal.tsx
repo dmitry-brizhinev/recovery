@@ -1,6 +1,6 @@
 import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 import { Day, extractNamedGroups, pad2 } from "../util/Utils";
-import { Map as IMap } from 'immutable';
+import type { Map as IMap } from 'immutable';
 
 export type JournalData = IMap<JournalId, Journal>;
 export type JournalDiff = Map<JournalId, Journal | null>;

@@ -1,26 +1,84 @@
 import * as React from 'react'
 import ErrorBoundary from './ErrorBoundary';
-
+import '../css/lazy.css';
+import type { Callback } from './Utils';
 
 export function LazyTest(): React.ReactElement {
-  return <ErrorBoundary><span>LA[{
-    <React.Suspense fallback={'waiting'}><LLLL/></React.Suspense>
-  }]ZY<br/><br/></span></ErrorBoundary>;
+  const [faststate, setFast] = React.useState<LazyType>('a');
+  const slowstate = React.useDeferredValue(faststate);
+  const onClick = (t: LazyType) => {
+    //startTransition(() => setSlow(t));
+    setFast(t);
+  }
+  return <div className="lazy-test"><ErrorBoundary>
+    <React.Suspense fallback={'Suspended...'}>
+      <div className="lazy-buttons">
+        <LazyTestButton type={'a'} onClick={onClick}/>
+        <LazyTestButton type={'b'} onClick={onClick}/>
+        <LazyTestButton type={'c'} onClick={onClick}/>
+      </div>
+      <LazyTestWrapper type={slowstate} target={faststate}/>
+    </React.Suspense>
+  </ErrorBoundary></div>;
+}
+
+function LazyTestButton(props: {type: LazyType, onClick: Callback<LazyType>}): React.ReactElement {
+  return <button onClick={() => props.onClick(props.type)}>{props.type}</button>
+}
+
+type LazyType = 'a'|'b'|'c';
+
+function LazyTestWrapper(props: {type: LazyType, target: LazyType}): React.ReactElement {
+  return <div className="lazy-inner">
+    <LazyTestInner type={props.type}/>, {props.target} {props.type}
+  </div>;
+}
+
+function LazyTestInner(props: {type: LazyType}): React.ReactElement {
+  switch(props.type) {
+    case 'a':
+      return <LLA/>;
+    case 'b':
+      return <LLB/>;
+    case 'c':
+      return <LLC/>;
+  }
+}
+
+function LA() {
+  return <React.Suspense fallback={'Suspended A...'}><LLA/></React.Suspense>;
+}
+
+function LB() {
+  return <React.Suspense fallback={'Suspended B...'}><LLB/></React.Suspense>;
+}
+
+function LC() {
+  return <React.Suspense fallback={'Suspended C...'}><LLC/></React.Suspense>;
 }
 
 
 function getFactory<T>(x: T) {
-  return () => new Promise<{default: T}>(resolve => setTimeout(() => resolve({default: x}), 6000));
+  return () => new Promise<{default: T}>(resolve => setTimeout(() => resolve({default: x}), 2000));
 }
 
 function getLazy<T extends React.ComponentType<any>>(x:T) {
   return React.lazy(getFactory<T>(x));
 }
 
-function LazyInner() {
-  return <span>Done!!</span>;
+function LazyInnerA() {
+  return <span>AAA!!</span>;
 }
-const LLLL = getLazy(LazyInner);
+function LazyInnerB() {
+  return <span>BBB!!</span>;
+}
+function LazyInnerC() {
+  return <span>CCC!!</span>;
+}
+
+const LLA = getLazy(LazyInnerA);
+const LLB = getLazy(LazyInnerB);
+const LLC = getLazy(LazyInnerC);
 /*
 function lazy<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>

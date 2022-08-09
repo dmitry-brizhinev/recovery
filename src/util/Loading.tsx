@@ -1,4 +1,4 @@
-import * as React from 'react'
+import type * as React from 'react'
 
 export default function Loading(): React.ReactElement {
   return <div>Loading...</div>;

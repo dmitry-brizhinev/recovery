@@ -1,7 +1,7 @@
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser, signOut } from "firebase/auth";
 
-import { User } from '../data/Data'
-import { Callback, Func } from '../util/Utils';
+import type { User } from '../data/Data'
+import type { Callback, Func } from '../util/Utils';
 import { auth } from './FirebaseCore';
 
 
