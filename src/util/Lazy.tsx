@@ -2,6 +2,7 @@ import * as React from 'react'
 import ErrorBoundary from './ErrorBoundary';
 import '../css/lazy.css';
 import type { Callback } from './Utils';
+import { isPromise } from 'util/types';
 
 export function LazyTest(): React.ReactElement {
   const [faststate, setFast] = React.useState<LazyType>('a');
@@ -34,29 +35,18 @@ function LazyTestWrapper(props: {type: LazyType, target: LazyType}): React.React
   </div>;
 }
 
+
 function LazyTestInner(props: {type: LazyType}): React.ReactElement {
+  
   switch(props.type) {
     case 'a':
-      return <LLA/>;
+      return <LLA extra="extra" />;
     case 'b':
       return <LLB/>;
     case 'c':
       return <LLC/>;
   }
 }
-
-function LA() {
-  return <React.Suspense fallback={'Suspended A...'}><LLA/></React.Suspense>;
-}
-
-function LB() {
-  return <React.Suspense fallback={'Suspended B...'}><LLB/></React.Suspense>;
-}
-
-function LC() {
-  return <React.Suspense fallback={'Suspended C...'}><LLC/></React.Suspense>;
-}
-
 
 function getFactory<T>(x: T) {
   return () => new Promise<{default: T}>(resolve => setTimeout(() => resolve({default: x}), 2000));
@@ -76,9 +66,34 @@ function LazyInnerC() {
   return <span>CCC!!</span>;
 }
 
-const LLA = getLazy(LazyInnerA);
+type TestData = {id: string, payload: string};
+
+async function getData(id: string): Promise<TestData> {
+  await new Promise<void>(resolve => setTimeout(resolve, 2000));
+  return {id, payload:`DATA[${id}]`};
+}
+
+function DataDisplay(props: {extra: string, data: TestData}) {
+  return <span>{`E:${props.extra}, D:${props.data.payload}`}</span>;
+}
+
+
+function Unwrapper(Component: typeof DataDisplay, data: TestData, props: any): React.ReactElement {
+  return <Component data={data} {...props}/>;
+}
+
+type FC<T> = (props: T) => React.ReactElement;
+
+async function unwrap(component: typeof DataDisplay, id: string): Promise<{default: FC<any>}> {
+  const promise = getData(id);
+  const data = await promise;
+  return { default: (Unwrapper).bind(undefined, component, data) };
+}
+
+const LLA = React.lazy(() => unwrap(DataDisplay, 'id'));
 const LLB = getLazy(LazyInnerB);
 const LLC = getLazy(LazyInnerC);
+
 /*
 function lazy<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
