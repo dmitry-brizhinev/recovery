@@ -7,7 +7,7 @@ import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext, Root, DataRoot } from '../helpers/Root'
 import Saver from '../helpers/Saver'
 import Pages from './Pages'
-import type { Func } from '../util/Utils';
+import type { Callback, Func } from '../util/Utils';
 import Backup from '../util/Backup'
 import Loading from '../util/Loading'
 import { LazyTest } from '../util/Lazy'
@@ -20,6 +20,7 @@ import '../css/calendar.css';
 const JournalsContainer = React.lazy(() => import('./Journals'));
 const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
 const ImageMaker = React.lazy(() => import('../assimilation/Image'));
+const LispMiner = React.lazy(() => import('../lispminer/LispMiner'));
 
 interface HeaderState {
   user: User | null;
@@ -82,7 +83,7 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
     }
     // prod: '';
     // dev: <LazyTest/>;
-    const lazyTest = <LazyTest/>;
+    const lazyTest = '';//<LazyTest/>;
     return <ErrorBoundary>
       {this.state.user && this.props.allowLogout && <button onClick={logout}>Logout</button>}
       {lazyTest}
@@ -93,7 +94,7 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
 
 function MaybeGame(props: {user: User}): React.ReactElement {
   const [closed, setClosed] = React.useState<object | null>(null);
-  return !closed ? <div><button onClick={setClosed}>Close Game</button><Assimilation/></div> : <LoggedInApp user={props.user}/>;
+  return !closed ? <div><button onClick={setClosed}>Close Game</button><LispMiner/></div> : <LoggedInApp user={props.user}/>;
 }
 
 interface LoggedInAppProps {
@@ -189,36 +190,43 @@ const enum SwitcherState {
   Journal = 'Journal',
   Game = 'Game',
   Image = 'Image',
+  Miner = 'Miner',
 }
 
 function Switcher(props: SwitcherProps): React.ReactElement {
-  const [currentState, setState] = React.useState(SwitcherState.Notes);
-  const clickNotes = React.useCallback(() => setState(SwitcherState.Notes), []);
-  const clickJournal = React.useCallback(() => setState(SwitcherState.Journal), []);
-  const clickGame = React.useCallback(() => setState(SwitcherState.Game), []);
-  const clickImage = React.useCallback(() => setState(SwitcherState.Image), []);
+  const [state, setState] = React.useState(SwitcherState.Notes);
 
   let inner;
-  switch (currentState) {
+  switch (state) {
     case SwitcherState.Notes:
       inner = <Pages pages={props.pages}/>;
       break;
     case SwitcherState.Journal:
-      inner = <React.Suspense fallback={<Loading/>}><JournalsContainer/></React.Suspense>;
+      inner = <JournalsContainer/>;
       break;
     case SwitcherState.Game:
-      inner = <React.Suspense fallback={<Loading/>}><Assimilation/></React.Suspense>;
+      inner = <Assimilation/>;
       break;
     case SwitcherState.Image:
-      inner = <React.Suspense fallback={<Loading/>}><ImageMaker /></React.Suspense>;
+      inner = <ImageMaker />;
+      break;
+    case SwitcherState.Miner:
+      inner = <LispMiner />;
       break;
   }
 
   return <ErrorBoundary>
-    <button disabled={currentState === SwitcherState.Notes} onClick={clickNotes}>{SwitcherState.Notes}</button>
-    <button disabled={currentState === SwitcherState.Journal} onClick={clickJournal}>{SwitcherState.Journal}</button>
-    <button disabled={currentState === SwitcherState.Game} onClick={clickGame}>{SwitcherState.Game}</button>
-    <button disabled={currentState === SwitcherState.Image} onClick={clickImage}>{SwitcherState.Image}</button>
-    <ErrorBoundary>{inner}</ErrorBoundary>
+    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Notes}</SwitcherButton>
+    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Journal}</SwitcherButton>
+    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Game}</SwitcherButton>
+    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Image}</SwitcherButton>
+    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Miner}</SwitcherButton>
+    <React.Suspense fallback={<Loading/>}><ErrorBoundary>{inner}</ErrorBoundary></React.Suspense>;
   </ErrorBoundary>;
+}
+
+function SwitcherButton(props: {children: SwitcherState, current: SwitcherState, onClick: Callback<SwitcherState>}): React.ReactElement {
+  const {children, current, onClick} = props;
+  const click = React.useCallback(() => onClick(children), [children, onClick]);
+  return <button disabled={children === current} onClick={click}>{children}</button>
 }

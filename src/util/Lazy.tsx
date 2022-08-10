@@ -2,7 +2,6 @@ import * as React from 'react'
 import ErrorBoundary from './ErrorBoundary';
 import '../css/lazy.css';
 import type { Callback } from './Utils';
-import { isPromise } from 'util/types';
 
 export function LazyTest(): React.ReactElement {
   const [faststate, setFast] = React.useState<LazyType>('a');
@@ -93,6 +92,24 @@ async function unwrap(component: typeof DataDisplay, id: string): Promise<{defau
 const LLA = React.lazy(() => unwrap(DataDisplay, 'id'));
 const LLB = getLazy(LazyInnerB);
 const LLC = getLazy(LazyInnerC);
+
+
+type ValueOf<T> = T[keyof T];
+
+type MapTo<T, U> = {
+    [P in keyof T]: U
+}
+
+function mapObject<T extends object, U>(mappingFn: (v: ValueOf<T>) => U, obj: T): MapTo<T, U> {
+    const newObj = {} as MapTo<T, U>;
+    for (const i in obj) {
+        if (obj.hasOwnProperty(i)) {
+            const oldValue = obj[i];
+            newObj[i] = mappingFn(oldValue);
+        }
+    }
+    return newObj;
+}
 
 /*
 function lazy<T extends React.ComponentType<any>>(

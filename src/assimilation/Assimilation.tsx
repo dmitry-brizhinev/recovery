@@ -9,7 +9,7 @@ import { FilterDefinitions, FilterId, SimpleRipple } from './Filter';
 import { makeMove } from './Player';
 
 export default function Assimilation(props: {image?: string}): React.ReactElement {
-  return <div className="game-wrapper"><Game image={props.image ?? '/ripple.png'}/></div>;
+  return <div className="a-game-wrapper"><Game image={props.image ?? '/ripple.png'}/></div>;
 }
 
 function Game(props: {image: string}): React.ReactElement {
