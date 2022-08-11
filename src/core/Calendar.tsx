@@ -3,7 +3,7 @@ import * as React from 'react'
 import type { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from '../data/Data'
 import ErrorBoundary from '../util/ErrorBoundary'
 
-import { CalendarTileProperties, default as ReactCalendar } from 'react-calendar';
+import type { CalendarTileProperties } from 'react-calendar';
 import EventInput from './CalendarEvents';
 
 import { Map as IMap } from 'immutable';
@@ -12,6 +12,7 @@ import Event from '../data/Event';
 import { CalendarId, dateToId, incrementId, idToNiceString } from '../data/CalendarId';
 import type { Func } from '../util/Utils';
 import Textarea from '../util/Textarea';
+import MyCalendar from './MyCalendar';
 
 
 interface CalendarProps {
@@ -68,7 +69,7 @@ export default class Calendar extends React.Component<CalendarProps, CalendarSta
     const pageData = this.props.pages.get(this.state.id) ?? '';
     const eventData = this.props.events.get(this.state.id) ?? IMap<number, Event>();
     return <div className="calendar-wrapper"><ErrorBoundary>
-      <ReactCalendar minDetail="month" onClickDay={this.onClickDay} tileClassName={classname} next2Label={null} prev2Label={null}/>
+      <MyCalendar id={this.state.id} onClickDay={this.onClickDay} tileClassName={classname}/>
       <CalendarPage id={this.state.id} data={pageData}/>
       <CalendarEvents id={this.state.id} data={eventData} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay}/>
       </ErrorBoundary></div>

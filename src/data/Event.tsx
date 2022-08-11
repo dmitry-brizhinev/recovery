@@ -1,4 +1,4 @@
-import { CalendarId, idToDay } from "./CalendarId";
+import { CalendarId, idToDate } from "./CalendarId";
 import { pad2, extractNamedGroups } from "../util/Utils";
 import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 
@@ -49,8 +49,9 @@ export default class Event {
   }
 
   getScheduledDate(dayId: CalendarId): Date {
-    const {year, month, day} = idToDay(dayId);
-    return new Date(year, month-1, day, 0, this.isValid() ? this.timeMinutes : 0);
+    const date = idToDate(dayId);
+    date.setMinutes(this.isValid() ? this.timeMinutes : 0);
+    return date;
   }
 
   static makeEmpty(): Event {

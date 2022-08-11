@@ -2,7 +2,7 @@ import * as React from 'react'
 
 import '../css/lispminer.css';
 import type { Callback } from '../util/Utils';
-import { COLS, DefaultGameContext, GameContext, GRID, HEIGHT, project, ROWS, svgFromWorld, WIDTH, WorldCoords } from './Context';
+import { COLS, DefaultGameContext, GameContext, GRID, HEIGHT, project, ROWS, WIDTH, WorldCoords } from './Context';
 import { Cell, Entities, Entity, GameAction, GameState, initialiseGameState, Move, reduceGameState, SYMBOL_CASTLE, SYMBOL_MINE, SYMBOL_PLAYER, World } from './GameState';
 
 export default function LispMiner(): React.ReactElement {

@@ -34,8 +34,9 @@ export function dateToId(date: Date): CalendarId {
 }
 
 export function incrementId(id: CalendarId, incrementDays: number): CalendarId {
-  const {year, month, day} = idToDay(id);
-  return dateToId(new Date(year, month-1, day + incrementDays));
+  const date = idToDate(id);
+  date.setDate(date.getDate() + incrementDays);
+  return dateToId(date);
 }
 
 export function idToDay(id: CalendarId): Day {
@@ -45,15 +46,22 @@ export function idToDay(id: CalendarId): Day {
   return {year, month, day};
 }
 
+export function idToDate(id: CalendarId): Date {
+  const {year, month, day} = idToDay(id);
+  return new Date(year, month-1, day);
+}
+
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', {weekday: 'long'});
+const monthFormatter = new Intl.DateTimeFormat('en-US', {month: 'short'});
+
 export function idToNiceString(id: CalendarId): string {
-  const d = idToDay(id);
-  const idDate = new Date(d.year, d.month-1, d.day);
+  const idDate = idToDate(id);
   const toDate = new Date(); toDate.setHours(0, 0, 0, 0);
   
 
   const dayDiff = Math.round((toDate.getTime() - idDate.getTime()) / (1000*60*60*24));
 
-  let weekday = new Intl.DateTimeFormat('en-US', {weekday: 'long'}).format(idDate);
+  let weekday = weekdayFormatter.format(idDate);
 
   if (dayDiff === 0) weekday = 'Today';
   else if (dayDiff === 1) weekday = 'Yesterday';
@@ -62,7 +70,7 @@ export function idToNiceString(id: CalendarId): string {
     weekday = dayDiff < 0 ? `Next ${weekday}` : `Last ${weekday}`;
   }
 
-  const month = new Intl.DateTimeFormat('en-US', {month: 'short'}).format(idDate);
+  const month = monthFormatter.format(idDate);
   const day = pad2(idDate.getDate());
 
   if (idDate.getFullYear() === toDate.getFullYear()) {

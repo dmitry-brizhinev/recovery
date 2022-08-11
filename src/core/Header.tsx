@@ -13,9 +13,7 @@ import Loading from '../util/Loading'
 import { LazyTest } from '../util/Lazy'
 
 import '../css/pages.css';
-import 'react-calendar/dist/Calendar.css';
 import '../css/events.css';
-import '../css/calendar.css';
 
 const JournalsContainer = React.lazy(() => import('./Journals'));
 const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
@@ -75,7 +73,7 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
     if (this.state.user) {
       // prod: <LoggedInApp user={this.state.user}/>
       // dev:  <MaybeGame user={this.state.user}/>
-      upper = <MaybeGame user={this.state.user}/>;
+      upper = <LoggedInApp user={this.state.user}/>;
     } else if (!this.state.finishedWaiting) {
       upper = <Loading/>;
     } else {
@@ -221,7 +219,7 @@ function Switcher(props: SwitcherProps): React.ReactElement {
     <SwitcherButton current={state} onClick={setState}>{SwitcherState.Game}</SwitcherButton>
     <SwitcherButton current={state} onClick={setState}>{SwitcherState.Image}</SwitcherButton>
     <SwitcherButton current={state} onClick={setState}>{SwitcherState.Miner}</SwitcherButton>
-    <React.Suspense fallback={<Loading/>}><ErrorBoundary>{inner}</ErrorBoundary></React.Suspense>;
+    <React.Suspense fallback={<Loading/>}><ErrorBoundary>{inner}</ErrorBoundary></React.Suspense>
   </ErrorBoundary>;
 }
 
