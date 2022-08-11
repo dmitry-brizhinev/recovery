@@ -8,6 +8,8 @@ export const ANGLE = 45;
 export const COLS = 20;
 export const ROWS = 20;
 
+const PERSPECTIVE = 500;
+
 interface GameValues {
   readonly height: number;
   readonly width: number;
@@ -44,21 +46,20 @@ export function svgFromWorld({c,r}: WorldCoords): SvgCoords {
   return {x,y};
 }
 
-export function project({c,r}: WorldCoords): SvgCoords {
-  const d = 500;
+export function project(view: WorldCoords, {c,r}: WorldCoords): {pos: SvgCoords, scale: SvgCoords} {
+  const d = PERSPECTIVE;
 
-  let x = c * GRID;
-  let y = r * GRID;
-  let z = 0;
+  const ix = (c - view.c) * GRID;
+  const iy = (r - view.r) * GRID;
 
   // rotate:
-  z = y/Math.SQRT2;
-  y = z;
+  let z = iy/Math.SQRT2;
+  let y = iy/Math.SQRT2;
 
-  x = x/(1-z/d);
-  y = y/(1-z/d);
+  let x = ix/(1-z/d);
+      y = y/(1-z/d);
 
-  return {x,y};
+  return {pos:{x,y}, scale:{x:x/ix, y:y/iy}};
 }
 
 /*

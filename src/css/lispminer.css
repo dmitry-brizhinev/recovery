@@ -33,6 +33,12 @@ rect.world-display-water {
   fill:aqua;
 }
 
+rect.world-display-grass {
+  stroke:green;
+  stroke-width: 2px;
+  fill:greenyellow;
+}
+
 div.game-foreground-wrapper {
   width:400px;
   height:600px;
