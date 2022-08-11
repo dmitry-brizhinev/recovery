@@ -31,7 +31,7 @@ function genWorld(): World {
 }
 
 function genEntities(world: World): Entities {
-  return Immutable.Map([
+  return Entities.init([
     [{c:5,r:5},{type: 'castle'}],
     [{c:5,r:6},{type: 'player'}],
     [{c:7,r:7},{type: 'mine'}],
@@ -67,7 +67,38 @@ export interface Mine {
 
 export type Entity = Castle | Player | Mine;
 
-export type Entities = Immutable.Map<WorldCoords, Entity>;
+export class Entities {
+  constructor(private readonly map: Immutable.Map<number, Entity> = Immutable.Map()) {}
+  static init(es: [WorldCoords, Entity][]): Entities {
+    return new Entities(Immutable.Map(es.map(([pos, e]) => [Entities.c(pos), e])));
+  }
+  get(pos: WorldCoords): Entity | undefined {
+    return this.map.get(Entities.c(pos));
+  }
+  has(pos: WorldCoords): boolean {
+    return this.map.has(Entities.c(pos));
+  }
+  move({from,to}: {from: WorldCoords, to: WorldCoords}): Entities {
+    const f = Entities.c(from);
+    const t = Entities.c(to);
+    const e = this.map.get(f);
+    if (!e) return this;
+    return new Entities(this.map.withMutations(
+      m => m.delete(f).set(t, e)
+    ));
+  }
+  entrySeq(): Immutable.Seq.Indexed<[WorldCoords, Entity]> {
+    return this.map.entrySeq().map(([n,e]) => [Entities.unC(n),e]);
+  }
+  private static c({c,r}: WorldCoords): number {
+    return c*100000 + r;
+  }
+  private static unC(n: number): WorldCoords {
+    const r = n % 100000;
+    const c = Math.round((n - r) / 100000);
+    return {c,r};
+  }
+}
 
 export interface GameState {
   readonly world: World;
@@ -109,7 +140,7 @@ function doMove(world: World, entities: Entities, move: Move): Entities {
   if (entities.has(move.to) || world.get(move.to) !== Cell.Grass || !adjacent(move)) {
     return entities;
   }
-  return entities.delete(move.from).set(move.to, p);
+  return entities.move(move);
 }
 
 export function reduceGameState({world, entities}: GameState, action: GameAction): GameState {

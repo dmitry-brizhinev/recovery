@@ -2,7 +2,7 @@ import * as React from 'react'
 
 import '../css/lispminer.css';
 import type { Callback } from '../util/Utils';
-import { COLS, DefaultGameContext, GameContext, GRID, HEIGHT, ROWS, svgFromWorld, WIDTH, WorldCoords } from './Context';
+import { COLS, DefaultGameContext, GameContext, GRID, HEIGHT, project, ROWS, svgFromWorld, WIDTH, WorldCoords } from './Context';
 import { Cell, Entities, Entity, GameAction, GameState, initialiseGameState, Move, reduceGameState, SYMBOL_CASTLE, SYMBOL_MINE, SYMBOL_PLAYER, World } from './GameState';
 
 export default function LispMiner(): React.ReactElement {
@@ -69,7 +69,7 @@ function movePos({c,r}: WorldCoords, direction: Direction): WorldCoords {
 }
 
 function movePlayer(entities: Entities, direction: Direction): Move | undefined {
-  for (const [pos, e] of entities) {
+  for (const [pos, e] of entities.entrySeq()) {
     if (e.type === 'player') {
       return {type:'move', from:pos, to:movePos(pos, direction)};
     }
@@ -149,13 +149,21 @@ function GameWorld(props: GameWorldProps): React.ReactElement {
 
 function EntityDisplay({entities}: {entities: Entities}): React.ReactElement {
   return <g>
+    {[[1,1],[1,5],[5,1],[5,5]].map(([c,r]) => drawPoint({c,r}))}
     {entities.entrySeq().map(drawEntity)}
   </g>;
 }
 
+function drawPoint(pos: WorldCoords) {
+  const p = true;
+  const f = p ? project : svgFromWorld;
+  const {x,y} = f(pos);
+  return <circle cx={x} cy={y} r={4} fill={'red'}/>
+}
+
 function drawEntity([pos, entity]: [WorldCoords, Entity]) {
   const {x,y} = svgFromWorld(pos);
-  return <use href={'#' + entity.type} x={x} y={y} className={entity.type}/>;
+  return <use key={`${pos.c} ${pos.r}`} href={'#' + entity.type} x={x} y={y} className={entity.type}/>;
 }
 
 /*

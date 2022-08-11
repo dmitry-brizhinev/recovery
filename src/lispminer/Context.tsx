@@ -43,3 +43,47 @@ export function svgFromWorld({c,r}: WorldCoords): SvgCoords {
   const y = r * GRID;
   return {x,y};
 }
+
+export function project({c,r}: WorldCoords): SvgCoords {
+  const d = 500;
+
+  let x = c * GRID;
+  let y = r * GRID;
+  let z = 0;
+
+  // rotate:
+  z = y/Math.SQRT2;
+  y = z;
+
+  x = x/(1-z/d);
+  y = y/(1-z/d);
+
+  return {x,y};
+}
+
+/*
+
+x
+y
+z
+1
+
+
+1	0	0	tx
+0	1	0	ty
+0	0	1	tz  =  x+tx,y+ty,z+tz,1
+0	0	0	1
+
+
+1	 0	    0	  0
+0	c(a) -s(a)	0  = x, y*ca, y*sa, 1 = x, y/sqrt(2), y/sqrt(2), 1
+0	s(a)	c(a)	0
+0	 0	    0	  1
+
+
+
+1	0	    0	  0
+0	1	    0	  0   =  x/(1-z/d), y/(1-z/d), z/(1-z/d), 1
+0	0	    1	  0
+0	0	  −1/d	1 
+*/
