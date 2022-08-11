@@ -170,7 +170,7 @@ function drawPoint(view: WorldCoords, pos: WorldCoords) {
 
 function drawEntity(this: WorldCoords, [pos, entity]: [WorldCoords, Entity]) {
   const {pos:{x,y}, scale:{x:sx,y:sy}} = project(this, pos);
-  return <use key={`${pos.c} ${pos.r}`} href={'#' + entity.type} x={x} y={y} width={sx * GRID} className={entity.type}/>;
+  return <use key={`${pos.c} ${pos.r}`} href={'#' + entity.type} x={x} y={y} width={sx * GRID} height={sy * GRID} className={entity.type}/>;
 }
 
 /*
