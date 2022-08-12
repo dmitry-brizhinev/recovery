@@ -1,20 +1,20 @@
 import * as React from 'react'
-import type { PageMap, User, UserData } from '../data/Data'
+import type { User, UserData } from '../data/Data'
 import { getData } from '../firebase/FirebaseStore'
 import { subscribeToUserChanges, loginPopup, logout } from '../firebase/FirebaseAuth'
-import Calendar from './Calendar'
 import ErrorBoundary from '../util/ErrorBoundary'
 import { RootContext, Root, DataRoot } from '../helpers/Root'
 import Saver from '../helpers/Saver'
-import Pages from './Pages'
-import type { Callback, Func } from '../util/Utils';
+import type { Func } from '../util/Utils';
 import Backup from '../util/Backup'
 import Loading from '../util/Loading'
 import { LazyTest } from '../util/Lazy'
 
 import '../css/pages.css';
 import '../css/events.css';
+import Switcher, { SwitcherData } from '../util/Switcher'
 
+const CalendarAndPages = React.lazy(() => import('./Pages'));
 const JournalsContainer = React.lazy(() => import('./Journals'));
 const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
 const ImageMaker = React.lazy(() => import('../assimilation/Image'));
@@ -155,7 +155,7 @@ export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppSt
       {this.props.user.name} --- {new Date().toLocaleString()}
       {this.state.root && this.state.data ?
         <ErrorBoundary>
-          <br/>{this.state.saver}<Backup data={this.state.data}/>
+          <br/>{this.state.saver}<Backup data={this.state.data}/><br/>
         <RootContext.Provider value={this.state.root}>
           <LoadedApp data={this.state.data}/>
         </RootContext.Provider>
@@ -170,61 +170,14 @@ interface LoadedAppProps {
   data: UserData;
 }
 
-class LoadedApp extends React.Component<LoadedAppProps, object> {
-  render() {
-    return <ErrorBoundary>
-      <Calendar pages={this.props.data.calendarPages} events={this.props.data.calendarEvents}/>
-      <Switcher pages={this.props.data.pages}/>
-    </ErrorBoundary>;
-  }
-}
+function LoadedApp({data}: LoadedAppProps) {
+  const switchData = React.useMemo<SwitcherData>(() => [
+    ['Notes', () => <CalendarAndPages data={data} />],
+    ['Journal', () => <JournalsContainer />],
+    ['Game', () => <Assimilation />],
+    ['Image', () => <ImageMaker />],
+    ['Miner', () => <LispMiner />],
+  ], [data]);
 
-interface SwitcherProps {
-  pages: PageMap;
-}
-
-const enum SwitcherState {
-  Notes = 'Notes',
-  Journal = 'Journal',
-  Game = 'Game',
-  Image = 'Image',
-  Miner = 'Miner',
-}
-
-function Switcher(props: SwitcherProps): React.ReactElement {
-  const [state, setState] = React.useState(SwitcherState.Notes);
-
-  let inner;
-  switch (state) {
-    case SwitcherState.Notes:
-      inner = <Pages pages={props.pages}/>;
-      break;
-    case SwitcherState.Journal:
-      inner = <JournalsContainer/>;
-      break;
-    case SwitcherState.Game:
-      inner = <Assimilation/>;
-      break;
-    case SwitcherState.Image:
-      inner = <ImageMaker />;
-      break;
-    case SwitcherState.Miner:
-      inner = <LispMiner />;
-      break;
-  }
-
-  return <ErrorBoundary>
-    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Notes}</SwitcherButton>
-    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Journal}</SwitcherButton>
-    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Game}</SwitcherButton>
-    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Image}</SwitcherButton>
-    <SwitcherButton current={state} onClick={setState}>{SwitcherState.Miner}</SwitcherButton>
-    <React.Suspense fallback={<Loading/>}><ErrorBoundary>{inner}</ErrorBoundary></React.Suspense>
-  </ErrorBoundary>;
-}
-
-function SwitcherButton(props: {children: SwitcherState, current: SwitcherState, onClick: Callback<SwitcherState>}): React.ReactElement {
-  const {children, current, onClick} = props;
-  const click = React.useCallback(() => onClick(children), [children, onClick]);
-  return <button disabled={children === current} onClick={click}>{children}</button>
+  return <Switcher data={switchData}/>;
 }

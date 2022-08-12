@@ -7,12 +7,26 @@ import type { Callback } from "../util/Utils";
 const CANVASWIDTH = SIZE;
 const CANVASHEIGHT = VSIZE;
 
+interface TimedImage {
+  url?: string;
+  time?: number;
+  last: number;
+}
+
+function reduce({last}: TimedImage, url: string | undefined): TimedImage {
+  if (!url) return {last};
+  const next = new Date().getTime();
+  const time = next - last;
+  return {url, time, last:next};
+}
+
 export default function ImageMaker(): React.ReactElement {
-  const [imageURL, setImage] = React.useState<string | undefined>(undefined);
-  const regenerateImage = React.useCallback<Callback<HTMLCanvasElement>>(canvas => setImage(genImage(canvas)), [setImage]);
+  const [image, setImage] = React.useReducer(reduce, {last: new Date().getTime()});
+  const regenerateImage = React.useCallback<Callback<HTMLCanvasElement>>(canvas => genImage(canvas).then(setImage), [setImage]);
   return <div>
+    {image.time ? `took ${image.time}ms` : 'loading...'}<br/>
     <canvas ref={regenerateImage} id="ripple" width={CANVASWIDTH} height={CANVASHEIGHT} style={{border: '1px solid black'}}></canvas>
-    <Assimilation image={imageURL}/>
+    {image.url && <Assimilation image={image.url}/>}
   </div>;
 }
 
@@ -36,49 +50,47 @@ function verticalRipple(pos: number): string {
 
 // Nice bulge when set to scale=50
 function roundBulge(x:number, y:number): [number, number] {
-  const [right, up] = roundBulgeRaw(x, y);
+  const [right, up] = roundBulgeRaw(2*x-1, 2*y-1);
   return col(right, up);
 }
 
 function roundBulgeRaw(x:number, y:number) : [number, number] {
-  x = 2*x - 1;
-  y = 2*y - 1;
-  const R = 1; // If R is bigger I think it will need to be asin(r/R) / asin(1/R) or something??
+  // const R = 1; // If R is bigger I think it will need to be asin(r/R) / asin(1/R) or something??
   const rr = Math.hypot(x, y);
   const r = Math.min(rr, 1);
-  const m = Math.asin(r/R) * 2 / Math.PI - r;
+  // const m = Math.asin(r/R) * 2 / Math.PI - r;
+  const m = Math.asin(r) * 2 / Math.PI - r;
   const right = -x * m / rr;
   const up = -y * m / rr;
   return [right,up];
 }
 
+function m(r:number) {
+  return r >= 1 ? 0 : Math.asin(r) * 2 / Math.PI - r;
+}
+
+function roundRipple(xx: number, yy: number): [number, number] {
+  const rr = Math.hypot(xx,yy);
+  const mm = m(rr) - m(rr * 4/3) + m(rr * 2) - m(rr * 4);
+  const right = -xx * mm / rr;
+  const up = -yy * mm / rr;
+  return col(right,up);
+}
+
 // Excellent ripple
-export function addRoundRipple(ctx:CanvasRenderingContext2D, start:number, gradientWidth: number) {
+async function addRoundRipple(ctx:CanvasRenderingContext2D, start:number, gradientWidth: number) {
   const image = ctx.createImageData(gradientWidth, gradientWidth);
   const data = image.data;
   for (const y of Immutable.Range(0, gradientWidth)) {
     for (const x of Immutable.Range(0, gradientWidth)) {
-      let right = 0;
-      let up = 0;
-      const [xx, yy] = [x/gradientWidth, y/gradientWidth];
-      const [x2, y2] = [xx * 4/3 - 1/6, yy * 4/3 - 1/6];
-      const [x3, y3] = [xx * 2 - 0.5, yy * 2 - 0.5];
-      const [x4, y4] = [xx * 4 - 1.5, yy * 4 - 1.5];
-
-      const [rn, un] = roundBulgeRaw(xx, yy);
-      const [r2, u2] = roundBulgeRaw(x2, y2);
-      const [r3, u3] = roundBulgeRaw(x3, y3);
-      const [r4, u4] = roundBulgeRaw(x4, y4);
-      right = rn - r2 + r3 - r4;
-      up = un - u2 + u3 - u4;
-
-      const [r,g] = col(right,up);
+      const [r,g] = roundRipple(2*x/gradientWidth - 1, 2*y/gradientWidth - 1);
       const i = 4*(x + y*gradientWidth);
       data[i] = r;
       data[i+1] = g;
-      data[i+2] = 0;
+      //data[i+2] = 0;
       data[i+3] = 255;
     }
+    await (async () => {})();
   }
   ctx.putImageData(image, start, start);
 }
@@ -109,7 +121,7 @@ export function addVerticalRipple(ctx:CanvasRenderingContext2D, start: number, g
   ctx.fillRect(start, 0, gradientWidth, CANVASHEIGHT);
 }
 
-function genImage(canvas: HTMLCanvasElement): string | undefined {
+async function genImage(canvas: HTMLCanvasElement): Promise<string | undefined> {
   if (!canvas) return undefined;
   const ctx = canvas?.getContext('2d');
   if (!ctx) return undefined;
@@ -119,7 +131,7 @@ function genImage(canvas: HTMLCanvasElement): string | undefined {
 
   //addVerticalRipple(ctx, 0, SIZE * 0.1);
   //addRoundBulge(ctx, 0, SIZE);
-  addRoundRipple(ctx, 0, SIZE);
+  await addRoundRipple(ctx, 0, SIZE);
 
   // 
   // const grad = ctx.createRadialGradient(SIZE / 2, VSIZE / 2, r, SIZE / 2, VSIZE / 2, r + gradientWidth);

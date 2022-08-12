@@ -1,4 +1,4 @@
-import { setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
+import { setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore/lite";
 
 import { Map as IMap } from 'immutable';
 import { checkJournalId, Journal, JournalId, JournalData, JournalDiff } from '../data/Journal';

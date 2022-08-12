@@ -1,4 +1,4 @@
-import { setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore";
+import { setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore/lite";
 
 import { UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff } from '../data/Data'
 import Event from '../data/Event';

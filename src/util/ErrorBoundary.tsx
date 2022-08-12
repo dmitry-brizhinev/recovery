@@ -16,7 +16,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   static getDerivedStateFromError(error: any) {
     // Update state so the next render will show the fallback UI.
-    return { error: error || '(no message)' };
+    return { error: error?.message || '(no message)' };
   }
   
   render() {

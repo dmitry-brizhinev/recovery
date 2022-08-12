@@ -165,7 +165,7 @@ function EntityDisplay({entities, view}: {entities: Entities, view: WorldCoords}
 
 function drawPoint(view: WorldCoords, pos: WorldCoords) {
   const {pos:{x,y},scale:{x:sx,y:sy}} = project(view, pos);
-  return <circle cx={0} cy={0} r={4} fill={'red'} transform={`translate(${x} ${y}) scale(${sx},${sy})`}/>
+  return <circle key={`${x} ${y}`} cx={0} cy={0} r={4} fill={'red'} transform={`translate(${x} ${y}) scale(${sx},${sy})`}/>
 }
 
 function drawEntity(this: WorldCoords, [pos, entity]: [WorldCoords, Entity]) {

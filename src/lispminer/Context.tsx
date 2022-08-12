@@ -59,7 +59,10 @@ export function project(view: WorldCoords, {c,r}: WorldCoords): {pos: SvgCoords,
   let x = ix/(1-z/d);
       y = y/(1-z/d);
 
-  return {pos:{x,y}, scale:{x:x/ix, y:y/iy}};
+  const sx = Number.isFinite(x/ix) ? Math.abs(x/ix) : 1;
+  const sy = Number.isFinite(y/iy) ? Math.abs(y/iy) : 1;
+
+  return {pos:{x,y}, scale:{x:sx, y:sy}};
 }
 
 /*
