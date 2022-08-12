@@ -8,7 +8,7 @@ div.calendar-wrapper {
   justify-content: center;
 }
 
-div.react-calendar {
+div.mycalendar {
   min-width: 300px;
   width: 350px;
   max-width: 350px;
@@ -54,7 +54,7 @@ div.calendar-events {
       border-top: none;
   }
   
-  div.react-calendar {
+  div.mycalendar {
       order: 3;
   }
   
