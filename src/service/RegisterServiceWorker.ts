@@ -37,6 +37,14 @@ function registerValidSW(swUrl: string) {
     });
 }
 
+export async function getRegistration() {
+  if ('serviceWorker' in navigator) {
+    const r = await navigator.serviceWorker.ready;
+    return r;  
+  }
+  return null;
+}
+
 export function unregister() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready
