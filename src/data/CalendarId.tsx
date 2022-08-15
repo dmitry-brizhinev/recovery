@@ -1,4 +1,4 @@
-import { Day, pad2 } from "../util/Utils";
+import { assert, Day, pad2 } from "../util/Utils";
 import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
 
 declare const calendarid : unique symbol;
@@ -29,7 +29,7 @@ export function dateToId(date: Date): CalendarId {
   const month = pad2(date.getMonth() + 1);
   const day = pad2(date.getDate());
   const id = checkCalendarId(`C${year}-${month}-${day}`);
-  if (!id) throw new Error(`Failed constructing CalendarId with date ${date}`);
+  assert(id, `Failed constructing CalendarId with date ${date}`);
   return id;
 }
 

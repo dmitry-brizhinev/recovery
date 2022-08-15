@@ -18,3 +18,17 @@ export interface Day {
   readonly month: number;
   readonly day: number;
 }
+
+export function unreachable(x: never): never {
+  throw new Error(`Unreachable code reached! ${x}`);
+}
+
+export function assert(x: unknown, message?: string, extraData?: unknown): asserts x {
+  if (x) return;
+  const m = (message ?? `Assertion failed; ${x} is falsy `) + JSON.stringify(extraData ?? '');
+  throw new Error(m);
+}
+
+export function assertNonNull(x: unknown, message?: string): asserts x is {} {
+  assert(x != null, message);
+}

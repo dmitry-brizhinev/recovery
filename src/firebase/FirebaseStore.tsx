@@ -7,12 +7,11 @@ import { CalendarId, checkCalendarId } from '../data/CalendarId';
 import { checkPageId, PageId } from '../data/PageId';
 import { getCurrentUidOrNull } from "./FirebaseAuth";
 import { db } from "./FirebaseCore";
+import { assertNonNull } from "../util/Utils";
 
 export async function getData(): Promise<UserData> {
   const uid = getCurrentUidOrNull();
-  if (uid == null) {
-    throw new Error('No logged-in user');
-  }
+  assertNonNull(uid, 'No logged-in user');
   const data = (await getDoc(doc(db, 'users', uid))).data();
   const pages: PageMap = IMap<PageId, PageData>().asMutable();
   const calendarPages: CalendarPageMap = IMap<CalendarId, CalendarPageData>().asMutable();

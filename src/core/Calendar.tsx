@@ -13,6 +13,7 @@ import type { Func } from '../util/Utils';
 import Textarea from '../util/Textarea';
 import MyCalendar from './MyCalendar';
 
+import '../css/events.css';
 
 interface CalendarProps {
   pages: CalendarPageMap;

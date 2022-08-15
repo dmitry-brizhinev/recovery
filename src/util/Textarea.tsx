@@ -5,15 +5,15 @@ interface TextareaProps {
   className?: string;
   value: string;
   onChange: Callback<string>;
+  spellCheck?: boolean
 }
 
 function fromEvent(event: React.ChangeEvent<HTMLTextAreaElement>): string {
   return event.target.value;
 }
 
-export default function Textarea(props: TextareaProps): React.ReactElement {
-  const onChange = props.onChange;
+export default function Textarea({className, value, onChange, spellCheck}: TextareaProps): React.ReactElement {
   const oonChange = React.useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(fromEvent(e)), [onChange]);
-  return <textarea className={props.className} value={props.value} onChange={oonChange}/>;
+  return <textarea className={className} value={value} onChange={oonChange} spellCheck={spellCheck ?? true}/>;
 }
 

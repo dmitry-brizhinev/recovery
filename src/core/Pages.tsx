@@ -6,6 +6,8 @@ import { genNewId, PageId } from '../data/PageId';
 import Textarea from '../util/Textarea';
 import Calendar from './Calendar';
 
+import '../css/pages.css';
+
 export default function CalendarAndPages({data}: {data: UserData}): React.ReactElement {
   return <ErrorBoundary>
     <Calendar pages={data.calendarPages} events={data.calendarEvents} />

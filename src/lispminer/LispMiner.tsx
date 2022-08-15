@@ -1,7 +1,7 @@
 import * as React from 'react'
 
 import '../css/lispminer.css';
-import type { Callback } from '../util/Utils';
+import { Callback, unreachable } from '../util/Utils';
 import { COLS, DefaultGameContext, GameContext, GRID, HEIGHT, project, ROWS, WIDTH, WorldCoords } from './Context';
 import { Cell, Entities, Entity, GameAction, GameState, initialiseGameState, Move, reduceGameState, SYMBOL_CASTLE, SYMBOL_MINE, SYMBOL_PLAYER, World } from './GameState';
 
@@ -65,6 +65,7 @@ function movePos({c,r}: WorldCoords, direction: Direction): WorldCoords {
     case Direction.Right: return {c:c+1,r};
     case Direction.Up: return {c,r:r-1};
     case Direction.Down: return {c,r:r+1};
+    default: return unreachable(direction);
   }
 }
 

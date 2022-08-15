@@ -2,15 +2,14 @@ import { setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore
 
 import { Map as IMap } from 'immutable';
 import { checkJournalId, Journal, JournalId, JournalData, JournalDiff } from '../data/Journal';
+import { assertNonNull } from "../util/Utils";
 import { getCurrentUidOrNull } from "./FirebaseAuth";
 import { db } from "./FirebaseCore";
 
 
 export async function getJournals(): Promise<JournalData> {
   const uid = getCurrentUidOrNull();
-  if (uid == null) {
-    throw new Error('No logged-in user');
-  }
+  assertNonNull(uid, 'No logged-in user');
   const data = (await getDoc(doc(db, 'journals', uid))).data();
   const journals: JournalData = IMap<JournalId, Journal>().asMutable();
 

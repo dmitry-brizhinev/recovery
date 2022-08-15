@@ -8,10 +8,7 @@ import Saver from '../helpers/Saver'
 import type { Func } from '../util/Utils';
 import Backup from '../util/Backup'
 import Loading from '../util/Loading'
-import { LazyTest } from '../util/Lazy'
 
-import '../css/pages.css';
-import '../css/events.css';
 import Switcher, { SwitcherData } from '../util/Switcher'
 
 const CalendarAndPages = React.lazy(() => import('./Pages'));
@@ -19,6 +16,7 @@ const JournalsContainer = React.lazy(() => import('./Journals'));
 const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
 const ImageMaker = React.lazy(() => import('../assimilation/Image'));
 const LispMiner = React.lazy(() => import('../lispminer/LispMiner'));
+const Program = React.lazy(() => import('../program/Program'));
 
 interface HeaderState {
   user: User | null;
@@ -71,8 +69,6 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
   render() {
     let upper;
     if (this.state.user) {
-      // prod: <LoggedInApp user={this.state.user}/>
-      // dev:  <MaybeGame user={this.state.user}/>
       upper = <LoggedInApp user={this.state.user}/>;
     } else if (!this.state.finishedWaiting) {
       upper = <Loading/>;
@@ -88,11 +84,6 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
       {upper}
     </ErrorBoundary>;
   }
-}
-
-function MaybeGame(props: {user: User}): React.ReactElement {
-  const [closed, setClosed] = React.useState<object | null>(null);
-  return !closed ? <div><button onClick={setClosed}>Close Game</button><LispMiner/></div> : <LoggedInApp user={props.user}/>;
 }
 
 interface LoggedInAppProps {
@@ -177,7 +168,8 @@ function LoadedApp({data}: LoadedAppProps) {
     ['Game', () => <Assimilation />],
     ['Image', () => <ImageMaker />],
     ['Miner', () => <LispMiner />],
+    ['Program', () => <Program />],
   ], [data]);
 
-  return <Switcher data={switchData}/>;
+  return <Switcher data={switchData} initial={'Program'}/>;
 }

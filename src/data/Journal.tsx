@@ -1,5 +1,5 @@
 import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
-import { Day, extractNamedGroups, pad2 } from "../util/Utils";
+import { assert, Day, extractNamedGroups, pad2 } from "../util/Utils";
 import type { Map as IMap } from 'immutable';
 
 export type JournalData = IMap<JournalId, Journal>;
@@ -27,7 +27,7 @@ export function dateToJId(date: Date): JournalId {
   const month = pad2(date.getMonth() + 1);
   const day = pad2(date.getDate());
   const id = checkJournalId(`J${year}-${month}-${day}`);
-  if (!id) throw new Error(`Failed constructing JournalId with date ${date}`);
+  assert(id, `Failed constructing JournalId with date ${date}`);
   return id;
 }
 
