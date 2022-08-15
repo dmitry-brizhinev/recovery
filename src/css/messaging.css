@@ -1,0 +1,9 @@
+div.message-wrapper {
+  margin: var(--margin) auto;
+  padding: var(--margin);
+  border: thin solid black;
+}
+
+button.message-initialize {
+  font-size: xx-large;
+}

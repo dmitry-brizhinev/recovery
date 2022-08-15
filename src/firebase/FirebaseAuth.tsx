@@ -1,9 +1,11 @@
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser, signOut } from "firebase/auth";
 
+import { getAuth } from "firebase/auth";
 import type { User } from '../data/Data'
 import type { Callback, Func } from '../util/Utils';
-import { auth } from './FirebaseCore';
+import { app } from './FirebaseCore';
 
+const auth = getAuth(app);
 
 export function subscribeToUserChanges(callback: Callback<User | null>): Func {
   const x = {sub: true};

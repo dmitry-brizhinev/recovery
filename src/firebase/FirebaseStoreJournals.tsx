@@ -4,7 +4,7 @@ import { Map as IMap } from 'immutable';
 import { checkJournalId, Journal, JournalId, JournalData, JournalDiff } from '../data/Journal';
 import { assertNonNull } from "../util/Utils";
 import { getCurrentUidOrNull } from "./FirebaseAuth";
-import { db } from "./FirebaseCore";
+import { db } from "./FirebaseStore";
 
 
 export async function getJournals(): Promise<JournalData> {

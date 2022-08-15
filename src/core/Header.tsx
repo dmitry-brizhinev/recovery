@@ -17,6 +17,7 @@ const Assimilation = React.lazy(() => import('../assimilation/Assimilation'));
 const ImageMaker = React.lazy(() => import('../assimilation/Image'));
 const LispMiner = React.lazy(() => import('../lispminer/LispMiner'));
 const Program = React.lazy(() => import('../program/Program'));
+const Messaging = React.lazy(() => import('../service/Messaging'));
 
 interface HeaderState {
   user: User | null;
@@ -169,6 +170,7 @@ function LoadedApp({data}: LoadedAppProps) {
     ['Image', () => <ImageMaker />],
     ['Miner', () => <LispMiner />],
     ['Program', () => <Program />],
+    ['Messaging', () => <Messaging />],
   ], [data]);
 
   return <Switcher data={switchData} initial={'Program'}/>;

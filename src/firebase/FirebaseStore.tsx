@@ -1,13 +1,14 @@
-import { setDoc, doc, getDoc, deleteField, FieldValue } from "firebase/firestore/lite";
-
+import { setDoc, doc, getDoc, deleteField, FieldValue, getFirestore } from "firebase/firestore/lite";
 import { UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff } from '../data/Data'
 import Event from '../data/Event';
 import { Map as IMap } from 'immutable';
 import { CalendarId, checkCalendarId } from '../data/CalendarId';
 import { checkPageId, PageId } from '../data/PageId';
 import { getCurrentUidOrNull } from "./FirebaseAuth";
-import { db } from "./FirebaseCore";
+import { app } from "./FirebaseCore";
 import { assertNonNull } from "../util/Utils";
+
+export const db = getFirestore(app);
 
 export async function getData(): Promise<UserData> {
   const uid = getCurrentUidOrNull();
