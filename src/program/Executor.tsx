@@ -1,11 +1,15 @@
 
 import { assert, unreachable } from '../util/Utils';
-import type { Op, Sc, ValueType as PrimType, Vr } from './CustomLexer';
+import type { Op, Sc, NumType, StrType, Vr } from './CustomLexer';
 import type { Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec } from './CustomParser';
 
-interface Prim {
-  readonly type: PrimType;
+interface Num {
+  readonly type: NumType;
   readonly value: number;
+}
+interface Str {
+  readonly type: StrType;
+  readonly value: string;
 }
 interface Fun {
   readonly type: 'f';
@@ -13,7 +17,7 @@ interface Fun {
   readonly applied: Value[];
   readonly ret: Exp;
 }
-type Value = Prim | Fun;
+type Value = Num | Str | Fun;
 
 class ExecContext {
   constructor(private readonly parent: ExecContext | undefined) {}
@@ -26,28 +30,28 @@ class ExecContext {
     return this.parent.getVar(vr);
   }
   setVar(vr: Vr, val: Value) {
-    val.type === 'f' ? checkFuncType(vr, val) : checkPrimType(vr, val);
+    checkType(vr, val);
     this.vars.set(vr.value, val);
   }
 }
 
-function checkPrimType(vr: Vr, val: Prim) {
+function checkType(vr: Vr, val: Value) {
   assert(vr.value.charAt(0) === val.type, `${vr.value} cannot be assigned a value of type ${val.type}`);
-}
-
-function checkFuncType(vr: Vr, fun: Fun) {
-  assert(vr.value.charAt(0) === 'f', `${vr.value} cannot be assigned a function`);
 }
 
 function checkf(val: Value): asserts val is Fun {
   assert(val.type === 'f', `${val.type} is not a function`);
 }
 
-function checknf(val: Value): asserts val is Prim {
-  assert(val.type !== 'f', `${val.type} is a function`);
+function checks(val: Value): asserts val is Str {
+  assert(val.type === 's' || val.type === 'c', `${val.type} is not stringy`);
 }
 
-function checkb(val: Value): asserts val is Prim {
+function checkn(val: Value): asserts val is Num {
+  assert(val.type === 'b' || val.type === 'i' || val.type === 'd', `${val.type} is not numeric`);
+}
+
+function checkb(val: Value): asserts val is Num {
   assert(val.type === 'b', `${val.type} is not a boolean`);
 }
 
@@ -129,6 +133,10 @@ export default class Executor {
         return {type: 'b', value: 1};
       } else if (vcf.value === 'false') {
         return {type: 'b', value: 0};
+      } else if (vcf.value.startsWith('"')) {
+        return {type: 's', value: vcf.value.slice(1,-1)};
+      } else if (vcf.value.startsWith("'")) {
+        return {type: vcf.value.length === 3 ? 'c' : 's', value: vcf.value.slice(1,-1)};
       } else if (vcf.value.includes('.')) {
         return {type:'d', value: Number.parseFloat(vcf.value)};
       } else {
@@ -158,37 +166,45 @@ export default class Executor {
     if (op.value === ':') {
       checkf(left);
       return this.partApply(left, right);
+    } else if (op.value === '+' && (left.type === 's' || left.type === 'c')) {
+      checks(right);
+      return {type: 's', value: left.value + right.value};
     } else {
-      checknf(left);
-      checknf(right);
-      return this.doPrimOp(op, left, right);
+      checkn(left);
+      checkn(right);
+      return this.doNumOp(op, left, right);
     }
   }
 
-  private doPrimOp(op: Op, left: Prim, right: Prim): Prim {
+  private doNumOp(op: Op, left: Num, right: Num): Num {
     const type = this.doOpTypes(op.value, left.type, right.type);
     assert(type, `Error: type ${left.type} cannot ${op.value} with type ${right.type}`);
     const value = this.doOpValues(op.value, left.value, right.value);
     return {type, value};
   }
 
-  private doOpTypes(op: Op['value'], l: PrimType, r: PrimType): PrimType | undefined {
+  private doOpTypes(op: Op['value'], l: NumType, r: NumType): NumType | undefined {
     assert(op !== ':');
+    type T = NumType;
+
+    const not = (l: T, ...ts: T[]) => ts.every(t => t !== l);
+    const one = (l: T, ...ts: T[]) => ts.some(t => t === l);
+
     switch (op) {
-      case '+':
+      case '+':  return l === r && not(l, 'b') ? l : undefined;
       case '-':
-      case '*':  return l === r && l !== 'b' ? l : undefined;
-      case '/':  return l === r && l === 'd' ? l : undefined;
+      case '*':  return l === r && not(l, 'b') ? l : undefined;
+      case '/':  return l === r && one(l, 'd') ? l : undefined;
       case '//': 
-      case '%':  return l === r && l === 'i' ? l : undefined;
+      case '%':  return l === r && one(l, 'i') ? l : undefined;
       case '!=':
       case '==': return l === r ? 'b' : undefined;
       case '<<':
       case '>>':
       case '<=':
-      case '>=': return l === r && l !== 'b' ? 'b' : undefined;
+      case '>=': return l === r && not(l, 'b') ? 'b' : undefined;
       case '&&':
-      case '||': return l === r && l === 'b' ? l : undefined;
+      case '||': return l === r && one(l, 'b') ? l : undefined;
       default: return unreachable(op);  
     }
   }
@@ -214,6 +230,14 @@ export default class Executor {
     }
   }
 }
+/*
+Todos:
+Abstract roots, join and split them, shared? saver and top-level data
+Parser type checking
+Static type checking
+Fix function closure context
+Tuples, lists, structs + method calls, Maybe and Either types, exceptions
+*/
 /*
 fiSPooky = -> iX + iY
 iX = 4

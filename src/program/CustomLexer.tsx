@@ -25,8 +25,8 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   kw:     kwrx,
   ms:     /  +/,
   os:     ' ',
-  vr:     /f?[idb][A-Z]\w*/,
-  cnst:   /(?:\d+(?:\.\d+)?|true|false)/,
+  vr:     /[f]?[idbsc][A-Z]\w*/,
+  cnst:   /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
   //word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
   //times:  /\*/,
 };
@@ -37,7 +37,10 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-export type ValueType = 'i' | 'd' | 'b';
+export type ValueType = StrType | NumType;
+export type StrType = 's' | 'c';
+export type NumType = 'i' | 'd' | 'b';
+export type ComplexType = 'f';// | 'r' | 't' | 'a';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
 export const FilteredLexerNames = ['nl' , 'os' , 'ms' , 'kw', 'rt', 'eq'] as const;
@@ -45,7 +48,7 @@ export type FilteredLexerName = typeof FilteredLexerNames[number];
 export type DirtyLexerName = LexerName | FilteredLexerName;
 export interface Vr {
   type: 'vr';
-  value: `${'f' | ''}${ValueType}${string}`;
+  value: `${ComplexType | ''}${ValueType}${string}`;
 }
 interface Eq {
   type: 'eq';
