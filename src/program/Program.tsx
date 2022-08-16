@@ -20,15 +20,21 @@ export default function Program(): React.ReactElement {
   </div>;
 }
 
+function useCancellable<T>(request: () => Promise<T>, handler: Callback<T>, deps: React.DependencyList) {
+  React.useEffect(() => {
+    let x = {active: true};
+    request().then(response => x.active && handler(response));
+    return () => {x.active = false};
+  }, deps);
+}
+
 function ProgramDataWrapper() {
   const [saver, setSaver] = React.useState('');
   const [data, setData] = React.useState<CodeData>();
   const [root, setRoot] = React.useState<ProgramRoot>();
-  React.useEffect(() => {
-    let x = {active: true};
-    getCode().then(data => { if (!x.active) return; setData(data); setRoot(new ProgramRoot(data, setData, new ProgramSaver(setSaver))); })
-    return () => {x.active = false};
-  }, [setData, setRoot, setSaver]);
+  useCancellable(getCode,
+    data => {setData(data); setRoot(new ProgramRoot(data, setData, new ProgramSaver(setSaver)));},
+    [setData, setRoot, setSaver]);
 
   const switchData = React.useMemo<SwitcherData>(() => (data && root) ? [
     ['Code', () => <ProgramCode data={data} root={root}/>],
