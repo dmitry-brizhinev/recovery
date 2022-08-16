@@ -1,6 +1,13 @@
 import * as React from 'react'
 
 import '../css/program.css';
+import type { CodeData } from '../data/Code';
+import { getCode } from '../firebase/FirebaseProgram';
+import ProgramRoot from '../helpers/ProgramRoot';
+import ProgramSaver from '../helpers/ProgramSaver';
+import Loading from '../util/Loading';
+import type { SwitcherData } from '../util/Switcher';
+import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
 import { assert, Callback, unreachable } from '../util/Utils';
 import type { Op, Sc, ValueType as PrimType, Vr } from './CustomLexer';
@@ -8,11 +15,37 @@ import type { Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec } from './CustomParser';
 import parse, { visualiseNode } from './Parser';
 
 export default function Program(): React.ReactElement {
+  return <div className="program-wrapper">
+    <ProgramDataWrapper />
+  </div>;
+}
+
+function ProgramDataWrapper() {
+  const [saver, setSaver] = React.useState('');
+  const [data, setData] = React.useState<CodeData>();
+  const [root, setRoot] = React.useState<ProgramRoot>();
+  React.useEffect(() => {
+    let x = {active: true};
+    getCode().then(data => { if (!x.active) return; setData(data); setRoot(new ProgramRoot(data, setData, new ProgramSaver(setSaver))); })
+    return () => {x.active = false};
+  }, [setData, setRoot, setSaver]);
+
+  const switchData = React.useMemo<SwitcherData>(() => (data && root) ? [
+    ['Code', () => <ProgramCode data={data} root={root}/>],
+    ['Tests', () => <ProgramCode data={data} root={root} test/>],
+  ] : [['AAAAAA', ()=>'AAAAAH']], [data, root]);
+
+  return (data && root) ? 
+   <>{saver}<Switcher data={switchData} initial={'Code'}/></>
+  : <Loading/>;
+}
+
+function ProgramCode(props: {test?: boolean, data: CodeData, root: ProgramRoot}) {
   const [text, setText] = React.useState('');
   const [result, setResult] = React.useState('');
   const runCode = React.useCallback(() => run(text, setResult), [text, setResult]);
   
-  return <div className="program-wrapper">
+  return <div className="program-code">
     <Textarea className="program-text" value={text} onChange={setText} spellCheck={false}/>
     <div><button className="program-run" onClick={runCode}>Run</button></div>
     <div className="program-output">{result}</div>

@@ -4,7 +4,7 @@ import type { Map as IMap } from 'immutable';
 
 export type JournalData = IMap<JournalId, Journal>;
 export type JournalDiff = Map<JournalId, Journal | null>;
-export const makeJournalDiff = () => new Map();
+export const makeJournalDiff: () => JournalDiff = () => new Map();
 // type JournalTypes = {id: JournalId, data: Journal};
 
 declare const journalid : unique symbol;

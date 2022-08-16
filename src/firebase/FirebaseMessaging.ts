@@ -27,6 +27,7 @@ export default async function initialize() {
   } else {
     // Show permission request UI
     console.log('No registration token available. Request permission to generate one.');
+    requestPermission();
   }
 
   } catch(err) {
