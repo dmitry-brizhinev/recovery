@@ -1,9 +1,9 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { getRegistration } from "../service/RegisterServiceWorker";
-import { app } from "./FirebaseCore";
+import { getApp } from "./FirebaseCore";
 
 export default async function initialize() {
-  const messaging = getMessaging(app);
+  const messaging = getMessaging(getApp());
 
   try {
 

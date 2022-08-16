@@ -1,7 +1,7 @@
 import * as React from 'react'
 import type { PageData, PageMap, UserData } from '../data/Data'
 import ErrorBoundary from '../util/ErrorBoundary'
-import { RootContext } from '../helpers/Root'
+import { DataRootContext } from '../helpers/DataRoot'
 import { genNewId, PageId } from '../data/PageId';
 import Textarea from '../util/Textarea';
 import Calendar from './Calendar';
@@ -20,7 +20,7 @@ interface PagesProps {
 }
 
 function Pages(props: PagesProps): React.ReactElement {
-  const root = React.useContext(RootContext);
+  const root = React.useContext(DataRootContext);
   const onCreate = React.useCallback(() => {
     root.onPageUpdate(genNewId(props.pages), ['Title', 'Content']);
   }, [root, props.pages]);
@@ -36,7 +36,7 @@ interface PageProps {
 }
 
 function Page(props: PageProps) : React.ReactElement {
-  const root = React.useContext(RootContext);
+  const root = React.useContext(DataRootContext);
   const [editing, setEditing] = React.useState(false);
   const [title, text] = props.data;
   const onChange = React.useCallback((text: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, title]);

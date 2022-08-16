@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Callback, Func, pad2 } from '../util/Utils';
 import ErrorBoundary from '../util/ErrorBoundary';
-import { RootContext } from '../helpers/Root';
+import { DataRootContext } from '../helpers/DataRoot';
 import { ValidComment, default as Event } from '../data/Event';
 import { CalendarId, incrementId } from '../data/CalendarId';
 import Textarea from '../util/Textarea';
@@ -21,8 +21,8 @@ interface EventUpdateOpts {
 }
 
 export default class EventInput extends React.PureComponent<EventInputProps, EventInputState> {
-  static contextType = RootContext;
-  context!: React.ContextType<typeof RootContext>;
+  static contextType = DataRootContext;
+  context!: React.ContextType<typeof DataRootContext>;
   constructor(props: EventInputProps) {
     super(props);
 

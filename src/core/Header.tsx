@@ -1,11 +1,10 @@
 import * as React from 'react'
 import type { User, UserData } from '../data/Data'
-import { getData } from '../firebase/FirebaseStore'
+import { getData } from '../firebase/FirestoreData'
 import { subscribeToUserChanges, loginPopup, logout } from '../firebase/FirebaseAuth'
 import ErrorBoundary from '../util/ErrorBoundary'
-import { RootContext, Root, DataRoot } from '../helpers/Root'
-import Saver from '../helpers/Saver'
-import type { Func } from '../util/Utils';
+import { DataRootContext, DataRootImpl } from '../helpers/DataRoot'
+import { cancellableDelay, Func } from '../util/Utils';
 import Backup from '../util/Backup'
 import Loading from '../util/Loading'
 
@@ -31,7 +30,7 @@ interface HeaderProps {
 
 export default class Header extends React.Component<HeaderProps, HeaderState> {
   unsubscribe?: Func;
-  cancel?: NodeJS.Timeout;
+  cancel?: Func;
 
   constructor(props: HeaderProps) {
     super(props);
@@ -43,7 +42,7 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
 
   componentDidMount() {
     if (!this.cancel && !this.state.finishedWaiting) {
-      this.cancel = setTimeout(() => {this.setState({finishedWaiting: true})}, this.props.loginDelay ?? 2000);
+      this.cancel = cancellableDelay(() => {this.setState({finishedWaiting: true})}, this.props.loginDelay ?? 2000);
     }
 
     if (!this.unsubscribe) {
@@ -53,7 +52,7 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
 
   componentWillUnmount() {
     if (this.cancel && !this.state.finishedWaiting) {
-      clearTimeout(this.cancel);
+      this.cancel();
       this.cancel = undefined;
     }
 
@@ -92,7 +91,7 @@ interface LoggedInAppProps {
 }
 
 interface LoggedInAppState {
-  root: Root | null;
+  root: DataRootImpl | null;
   data: UserData | null;
   saver: string;
 }
@@ -128,7 +127,7 @@ export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppSt
     if (!this.mounted) {
       return;
     }
-    const root = new DataRoot(data, this.onUpdate, new Saver(this.onSaverUpdate));
+    const root = new DataRootImpl(data, this.onUpdate, this.onSaverUpdate);
     this.setState({root, data});
   }
 
@@ -148,9 +147,9 @@ export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppSt
       {this.state.root && this.state.data ?
         <ErrorBoundary>
           <br/>{this.state.saver}<Backup data={this.state.data}/><br/>
-        <RootContext.Provider value={this.state.root}>
+        <DataRootContext.Provider value={this.state.root}>
           <LoadedApp data={this.state.data}/>
-        </RootContext.Provider>
+        </DataRootContext.Provider>
         </ErrorBoundary>
         : <Loading/>
       }

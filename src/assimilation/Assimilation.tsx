@@ -2,6 +2,7 @@ import Immutable from 'immutable';
 import * as React from 'react'
 
 import '../css/assimilation.css';
+import { useCancellable, useCancellableDelay } from '../util/Hooks';
 import type { Callback, Func } from '../util/Utils';
 import { Board, countPlayers, currentPlayerHasValidMove, donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState } from './Board';
 import { SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE, GRID } from './Constants';
@@ -148,19 +149,11 @@ function TeamPlayer(props: TeamPlayerProps): React.ReactElement {
   </g>;
 }
 
-function delay(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, 1000));
-}
-
 function AutoSurrender(props: {team: Team, state: GameState, onSurrender: Callback<null>}): React.ReactElement {
   const {state, onSurrender} = props;
   const active = state.team === props.team;
-  React.useEffect(() => {
-    if (!active) return;
-    const x = {proceed: true};
-    delay().then(() => x.proceed && !currentPlayerHasValidMove(state) && onSurrender(null));
-    return () => { x.proceed = false; };
-  }, [state, active, onSurrender]);
+  const maybeSurrender = React.useCallback(() => currentPlayerHasValidMove(state) || onSurrender(null), [state, onSurrender]);
+  useCancellableDelay(maybeSurrender, 1000, active);
   return <g/>;
 }
 
@@ -174,12 +167,9 @@ interface AutoPlayerProps {
 function AutoPlayer(props: AutoPlayerProps): React.ReactElement {
   const {state, onMove, onSurrender} = props;
   const active = state.team === props.team;
-  React.useEffect(() => {
-    if (!active) return;
-    const x = {proceed: true};
-    makeMove(state).then(move => x.proceed && move ? onMove(move) : onSurrender(null));
-    return () => { x.proceed = false; };
-  }, [state, active, onMove, onSurrender]);
+  const computeMove = React.useCallback(() => makeMove(state), [state]);
+  const playMove = React.useCallback<Callback<Move | null>>(move => move ? onMove(move) : onSurrender(null), [onMove, onSurrender]);
+  useCancellable(computeMove, playMove, active);
   return <g/>;
 }
 
@@ -192,17 +182,13 @@ interface MovingPieceProps {
 
 function MovingPiece(props: MovingPieceProps): React.ReactElement {
   const {move, onDoneMove} = props;
+  const onDone = React.useCallback(() => onDoneMove(move), [move, onDoneMove]);
+  useCancellableDelay(onDone, 480);
 
   const startAnimationRef = React.useCallback((dom: any) => dom?.beginElement(), []);
   const startAnimationRef2 = React.useCallback((dom: any) => dom?.beginElement(), []);
 
   const keepOrigin = props.dragDisplay(move) !== MoveResult.Move;
-
-  React.useEffect(() => {
-    const x = {proceed: true};
-    setTimeout(() => {x.proceed && onDoneMove(move)}, 480);
-    return () => { x.proceed = false; };
-  }, [move, onDoneMove]);
 
   const from = svgFromGrid(move.from);
   const to = svgFromGrid(move.to);

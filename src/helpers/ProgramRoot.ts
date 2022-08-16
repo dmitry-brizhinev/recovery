@@ -1,13 +1,15 @@
-import type ProgramSaver from './ProgramSaver';
+import ProgramSaver from './ProgramSaver';
 import type { Callback } from '../util/Utils';
 import type { CodeData, Code, CodeId } from '../data/Code';
 
 
 export default class ProgramRoot {
+  private readonly saver: ProgramSaver;
   constructor(
     private data: CodeData,
     private readonly subscriber: Callback<CodeData>,
-    private readonly saver: ProgramSaver) {
+    onSaverUpdate: Callback<string>) {
+      this.saver = new ProgramSaver(onSaverUpdate);
   }
 
   private onUpdate(key: CodeId, value: Code | null) {

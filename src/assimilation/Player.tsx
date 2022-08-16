@@ -1,3 +1,4 @@
+import { delay } from "../util/Utils";
 import { countPlayers, enumerateMoves, GameState, Move, reduceGameState } from "./Board";
 
 function evaluateMove(state: GameState, move: Move): number {
@@ -20,6 +21,6 @@ export async function makeMove(state: GameState): Promise<Move | null> {
       bestMoves.push(move);
     }
   }
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await delay(100);
   return bestMoves[Math.floor(Math.random() * bestMoves.length)] || null;
 }

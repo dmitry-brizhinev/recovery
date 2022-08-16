@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useCancellableDelay } from '../util/Hooks';
 import type { Callback } from '../util/Utils';
 import { VSIZE, SIZE, SvgCoords, GRID } from './Constants';
 
@@ -42,10 +43,8 @@ export function SimpleRipple(props: {pos: SvgCoords, id: number, radius?: number
   const onDone = props.onDone;
   const r = props.radius ?? 2*GRID;
   const dur = props.duration ?? 1;
-  React.useEffect(() => {
-    const timer = setTimeout(() => onDone(props.id), dur * 950);
-    return () => clearTimeout(timer);
-  }, [dur, onDone, props.id]);
+  const done = React.useCallback(() => onDone(props.id), [onDone, props.id]);
+  useCancellableDelay(done, dur * 950);
   const d = `${dur}s`;
   const gradName = `rippleGradient${props.id}`;
 

@@ -1,19 +1,13 @@
-import { setDoc, doc, getDoc, deleteField, FieldValue, getFirestore } from "firebase/firestore/lite";
+import { deleteField, FieldValue } from "firebase/firestore/lite";
 import { UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff } from '../data/Data'
 import Event from '../data/Event';
 import { Map as IMap } from 'immutable';
 import { CalendarId, checkCalendarId } from '../data/CalendarId';
 import { checkPageId, PageId } from '../data/PageId';
-import { getCurrentUidOrNull } from "./FirebaseAuth";
-import { app } from "./FirebaseCore";
-import { assertNonNull } from "../util/Utils";
-
-export const db = getFirestore(app);
+import { getDocument, writeDocument } from "./Firestore";
 
 export async function getData(): Promise<UserData> {
-  const uid = getCurrentUidOrNull();
-  assertNonNull(uid, 'No logged-in user');
-  const data = (await getDoc(doc(db, 'users', uid))).data();
+  const data = await getDocument('users');
   const pages: PageMap = IMap<PageId, PageData>().asMutable();
   const calendarPages: CalendarPageMap = IMap<CalendarId, CalendarPageData>().asMutable();
   const events: CalendarEventMap = IMap<CalendarId, CalendarEventData>().asMutable();
@@ -58,10 +52,6 @@ export async function getData(): Promise<UserData> {
 }
 
 export async function saveAll(diffs: DataDiff) {
-  const uid = getCurrentUidOrNull();
-  if (uid == null) {
-    return;
-  }
   const data: {[key: string]: string | FieldValue} = {};
   for (const [key, value] of diffs.pages) {
     data[key] = value?.join('\n') || deleteField();
@@ -72,6 +62,5 @@ export async function saveAll(diffs: DataDiff) {
   for (const [key, value] of diffs.calendarEvents) {
     data['E' + key] = value?.map(Event.toString).join('\n') || deleteField();
   }
-
-  await setDoc(doc(db, 'users', uid), data, {merge: true});
+  await writeDocument('users', data);
 }

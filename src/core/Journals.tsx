@@ -1,9 +1,8 @@
 import * as React from 'react'
 
 import { dateToJId, incrementJId, Journal, JournalData } from '../data/Journal';
-import { getJournals } from '../firebase/FirebaseStoreJournals';
+import { getJournals } from '../firebase/FirestoreJournals';
 import { JournalRoot, JournalDataRoot, JournalRootContext } from '../helpers/JournalRoot';
-import JournalSaver from '../helpers/JournalSaver';
 import Backup from '../util/Backup';
 import ErrorBoundary from '../util/ErrorBoundary';
 
@@ -48,7 +47,7 @@ export default class JournalsContainer extends React.Component<object, JournalsC
     if (!this.mounted) {
       return;
     }
-    const root = new JournalDataRoot(data, this.onUpdate, new JournalSaver(this.onSaverUpdate));
+    const root = new JournalDataRoot(data, this.onUpdate, this.onSaverUpdate);
     this.setState({root, data});
   }
 

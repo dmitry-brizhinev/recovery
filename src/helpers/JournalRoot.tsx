@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type JournalSaver from './JournalSaver';
+import JournalSaver from './JournalSaver';
 import type { Callback } from '../util/Utils';
 import type { Journal, JournalData, JournalId } from '../data/Journal';
 
@@ -12,11 +12,13 @@ export class JournalEmptyRoot extends JournalRoot {
 }
 
 export class JournalDataRoot extends JournalRoot {
+  private readonly saver: JournalSaver;
   constructor(
     private data: JournalData,
     private readonly subscriber: Callback<JournalData>,
-    private readonly saver: JournalSaver) {
+    onSaverUpdate: Callback<string>) {
     super();
+    this.saver = new JournalSaver(onSaverUpdate);
   }
 
   private onUpdate(key: JournalId, value: Journal | null) {

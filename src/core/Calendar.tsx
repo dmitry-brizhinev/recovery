@@ -6,7 +6,7 @@ import ErrorBoundary from '../util/ErrorBoundary'
 import EventInput from './CalendarEvents';
 
 import { Map as IMap } from 'immutable';
-import { RootContext } from '../helpers/Root'
+import { DataRootContext } from '../helpers/DataRoot'
 import Event from '../data/Event';
 import { CalendarId, dateToId, incrementId, idToNiceString } from '../data/CalendarId';
 import type { Func } from '../util/Utils';
@@ -71,7 +71,7 @@ interface CalendarPageProps {
 }
 
 function CalendarPage(props: CalendarPageProps): React.ReactElement {
-  const root = React.useContext(RootContext);
+  const root = React.useContext(DataRootContext);
   const onChange = React.useCallback((data: string) => root.onCalendarPageUpdate(props.id, data), [root, props.id]);
 
   return <ErrorBoundary><div className="calendar-page">
@@ -88,8 +88,8 @@ interface CalendarEventProps {
 }
 
 class CalendarEvents extends React.Component<CalendarEventProps, object> {
-  static contextType = RootContext;
-  context!: React.ContextType<typeof RootContext>;
+  static contextType = DataRootContext;
+  context!: React.ContextType<typeof DataRootContext>;
   constructor(props: CalendarEventProps) {
     super(props);
     this.makeBox = this.makeBox.bind(this);

@@ -1,29 +1,26 @@
 import * as React from 'react'
 import type { UserData, DataId, UserDataKey, UserDataLeaf, CalendarPageData, PageData } from '../data/Data';
-import type Saver from './Saver';
+import DataSaver from './DataSaver';
 import type Event from '../data/Event';
 import type { CalendarId } from '../data/CalendarId';
 import type { PageId } from '../data/PageId';
 import type { Callback } from '../util/Utils';
 
-export abstract class Root {
-  abstract onPageUpdate(id: PageId, data: PageData | null): void;
-  abstract onCalendarPageUpdate(id: CalendarId, data: CalendarPageData | null): void;
-  abstract onCalendarEventUpdate(id: CalendarId, magicKey: number, event: Event | null): void;
+class DataRoot {
+  onPageUpdate(id: PageId, data: PageData | null): void {}
+  onCalendarPageUpdate(id: CalendarId, data: CalendarPageData | null): void {}
+  onCalendarEventUpdate(id: CalendarId, magicKey: number, event: Event | null): void {}
 }
 
-export class EmptyRoot extends Root {
-  onPageUpdate() {}
-  onCalendarPageUpdate() {}
-  onCalendarEventUpdate() {}
-}
-
-export class DataRoot extends Root {
+export class DataRootImpl extends DataRoot {
+  private readonly saver: DataSaver;
   constructor(
     private data: UserData,
     private readonly subscriber: Callback<UserData>,
-    private readonly saver: Saver) {
+    onSaverUpdate: Callback<string>,
+    ) {
     super();
+    this.saver = new DataSaver(onSaverUpdate);
   }
 
   private onUpdate<K extends DataId>(key: UserDataKey[K], value: UserDataLeaf[K] | null) {
@@ -48,4 +45,4 @@ export class DataRoot extends Root {
   }
 }
 
-export const RootContext = React.createContext<Root>(new EmptyRoot());
+export const DataRootContext = React.createContext<DataRoot>(new DataRoot());

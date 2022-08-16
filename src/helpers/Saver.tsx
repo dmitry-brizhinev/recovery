@@ -1,6 +1,4 @@
-import { DataDiff, DataId, DataTypes, makeDataDiff, UserData } from '../data/Data';
-import { saveAll } from '../firebase/FirebaseStore';
-import type { Callback } from '../util/Utils';
+import { Callback, cancellableDelay, Func } from '../util/Utils';
 
 const enum SaverStatusString {
   Unsaved = ' [Unsaved..] ',
@@ -8,17 +6,16 @@ const enum SaverStatusString {
   Saved = ' [  Saved  ] ',
 }
 
-interface Key<K extends DataId> {
-  readonly type: K;
-  readonly key: DataTypes[K]['id'];
-}
+export default class Saver<T> {
+  private diffs: T = this.make();
+  private cancel?: Func;
 
-export default class Saver {
-  private diffs: DataDiff = makeDataDiff();
-  private static readonly delay = 2000;
-  private timeout?: NodeJS.Timeout;
-
-  constructor(private readonly onStatusUpdate: Callback<SaverStatusString>) {
+  constructor(
+    private readonly onStatusUpdate: Callback<SaverStatusString>,
+    private readonly make: () => T,
+    private readonly save: (diff: T) => Promise<void>,
+    private readonly delay = 2000
+    ) {
     onStatusUpdate(SaverStatusString.Saved);
 
     this.saveNow = this.saveNow.bind(this);
@@ -26,28 +23,27 @@ export default class Saver {
   }
 
   private saveNow() {
-    this.timeout = undefined;
+    this.cancel = undefined;
     const diffs = this.diffs;
     this.onStatusUpdate(SaverStatusString.Saving);
-    this.diffs = makeDataDiff();
-    saveAll(diffs).then(this.saveDone);
+    this.diffs = this.make();
+    this.save(diffs).then(this.saveDone);
   }
 
   private saveDone() {
-    if (!this.timeout) {
+    if (!this.cancel) {
       this.onStatusUpdate(SaverStatusString.Saved);
     }
   }
 
-  logUpdate<K extends DataId>(newData: UserData, key: Key<K>) {
-    if (this.timeout) {
-      clearTimeout(this.timeout);
+  logUpdate(updater: (diff: T) => T) {
+    if (this.cancel) {
+      this.cancel();
     }
-    const diff = newData.get(key.type).get(key.key, null);
-    this.diffs.get(key.type).set(key.key, diff);
+    this.diffs = updater(this.diffs);
   
     this.onStatusUpdate(SaverStatusString.Unsaved);
 
-    this.timeout = setTimeout(this.saveNow, Saver.delay);
+    this.cancel = cancellableDelay(this.saveNow, this.delay);
   }
 }

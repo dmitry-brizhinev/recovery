@@ -1,7 +1,7 @@
 import * as React from 'react'
 import ErrorBoundary from './ErrorBoundary';
 import '../css/lazy.css';
-import type { Callback } from './Utils';
+import { Callback, delay, delayRet } from './Utils';
 
 export function LazyTest(): React.ReactElement {
   const [faststate, setFast] = React.useState<LazyType>('a');
@@ -48,7 +48,7 @@ function LazyTestInner(props: {type: LazyType}): React.ReactElement {
 }
 
 function getFactory<T>(x: T) {
-  return () => new Promise<{default: T}>(resolve => setTimeout(() => resolve({default: x}), 2000));
+  return () => delayRet(2000, {default: x});
 }
 
 function getLazy<T extends React.ComponentType<any>>(x:T) {
@@ -68,7 +68,7 @@ function LazyInnerC() {
 type TestData = {id: string, payload: string};
 
 async function getData(id: string): Promise<TestData> {
-  await new Promise<void>(resolve => setTimeout(resolve, 2000));
+  await delay(2000);
   return {id, payload:`DATA[${id}]`};
 }
 
