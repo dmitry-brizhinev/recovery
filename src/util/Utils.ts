@@ -62,3 +62,7 @@ export function makeLazySingleton<T>(initialiser: Getter<T>): Getter<T> {
   const x: L<T> = () => x.v ?? (x.v = initialiser());
   return x;
 }
+
+export function errorString(e: unknown): string {
+  return e instanceof Error ? `${e.name} - ${e.message}`: JSON.stringify(e);
+}

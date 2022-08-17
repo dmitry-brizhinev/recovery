@@ -1,0 +1,76 @@
+div.wrapper {
+  margin: var(--margin) auto;
+  padding: var(--margin);
+  border: thin solid black;
+  width: fit-content;
+}
+
+div.header {
+  margin-bottom: var(--margin);
+}
+
+/*
+div.body {
+
+}
+*/
+
+div.files {
+  border: thin solid black;
+}
+
+div.filenames {
+  border: thin solid black;
+}
+
+button.filename {
+  background:none;
+  border:none;
+  padding:0;
+  font-size:18px;
+  color:rgba(0, 0, 0, 0.54);
+}
+button.filename:disabled {
+  color: rgba(0, 0, 0, 0.26);
+}
+button.filename:enabled:hover {
+  background:rgb(230,230,230);
+}
+
+input.filename {
+  font-weight: bold;
+}
+
+input.filename.valid {
+  color:black;
+}
+input.filename.invalid {
+  color:red;
+}
+
+div.code {
+  border: thin solid black;
+}
+
+textarea.text {
+  width: 600px;
+  height: 10cm;
+  white-space: pre;
+  min-width: 400px;
+  min-height: 10cm;
+}
+
+button.run {
+  margin: var(--margin) auto;
+}
+
+div.output {
+  background-color: field;
+  border: thin solid rgb(118, 118, 118);
+  padding: 2px;
+  text-align: start;
+  font-family: 'Courier New', Courier, monospace;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+}

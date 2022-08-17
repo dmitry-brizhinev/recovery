@@ -1,9 +1,5 @@
 @preprocessor typescript
-
-@{%
-const lexer: any = {has: () => true};
-%}
-
+@{% const lexer: any = {has: () => true}; %}
 @lexer lexer
 
 # Whole document
@@ -21,15 +17,15 @@ fnd -> vrl %rt exp
 # Compound expressions with binary operators
 exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
 exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
-exp0 -> exp0 op0 vcf  mc0 | vcf mc0
+exp0 -> exp0 op0 vcf mc0 | vcf mc0
 
 # Maybe whitespace
 mws -> ws | null
 ws -> %os | %ms
 # Maybe (semi)colon
-mc2 -> %ms ";" | null
-mc1 -> %os ";" | null
-mc0 -> ";" | null
+mc2 -> %ms %sc | null
+mc1 -> %os %sc | null
+mc0 -> %sc | null
 # Binary operators
 op2 -> %ms %op mws | %os %op %ms | %op %ms
 op1 -> %os %op | %op %os | %os %op %os
@@ -40,4 +36,3 @@ vrl -> vrl ws %vr | %vr | null
 vcf -> %vr | %cnst | ife
 # Receivers: the complement to expressions
 rec -> %vr | ifr
-

@@ -1,7 +1,7 @@
 
 import { assert, unreachable } from '../util/Utils';
 import type { Op, Sc, NumType, StrType, Vr } from './CustomLexer';
-import type { Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec } from './CustomParser';
+import type { Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec } from './NearleyParser';
 
 interface Num {
   readonly type: NumType;
@@ -55,30 +55,34 @@ function checkb(val: Value): asserts val is Num {
   assert(val.type === 'b', `${val.type} is not a boolean`);
 }
 
-export default class Executor {
+export default class RootExecutor {
   private readonly rootContext: ExecContext = new ExecContext(undefined);
 
-  run(sta: Sta): string {
-    return this.runn(this.rootContext, sta);
+  run(sta: Sta): string | undefined {
+    return new Executor(this.rootContext).run(sta);
   }
+}
 
-  private runn(context: ExecContext, sta: Sta): string {
-    const left = this.resolveReceiver(context, sta.value[0]);
-    const right = this.express(context, sta.value[1]);
-    context.setVar(left, right);
+class Executor {
+  constructor(private readonly context: ExecContext) {}
+
+  run(sta: Sta): string | undefined {
+    const left = this.resolveReceiver(sta.value[0]);
+    const right = this.express(sta.value[1]);
+    this.context.setVar(left, right);
     return right.type === 'f' ? `Defined ${left.value}` : `${left.value} = ${right.value}`;
   }
 
-  private resolveReceiver(context: ExecContext, rec: Rec): Vr {
+  private resolveReceiver(rec: Rec): Vr {
     if (rec.type === 'vr') {
       return rec;
     }
-    const cond = this.express(context, rec.value[0]);
+    const cond = this.express(rec.value[0]);
     checkb(cond);
     if (cond.value) {
-      return this.resolveReceiver(context, rec.value[1]);
+      return this.resolveReceiver(rec.value[1]);
     } else {
-      return this.resolveReceiver(context, rec.value[2]);
+      return this.resolveReceiver(rec.value[2]);
     }
   }
 
@@ -87,47 +91,48 @@ export default class Executor {
     return {type, args, applied: applied.concat(arg), ret};
   }
 
-  private callfun(context: ExecContext, fun: Fun): Value {
+  private callfun(fun: Fun): Value {
     assert(fun.args.length === fun.applied.length, `Function missing ${fun.args.length - fun.applied.length} arguments`);
-    const innerContext = new ExecContext(context);
+    const innerContext = new ExecContext(this.context);
     for (const [i,a] of fun.applied.entries()) {
       innerContext.setVar(fun.args[i], a);
     }
-    const result = this.express(innerContext, fun.ret);
+    const innerExecutor = new Executor(innerContext);
+    const result = innerExecutor.express(fun.ret);
     return result;
   }
 
-  private exprOrVcf(context: ExecContext, exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): Value {
+  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): Value {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
-      return this.evalVcf(context, exp);
+      return this.evalVcf(exp);
     }
-    return this.express(context, exp);
+    return this.express(exp);
   }
 
-  private express(context: ExecContext, exp: Exp | Exp0 | Exp1 | Exp2 | Fnd, innerVars?: Map<string, Value>): Value {
+  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd, innerVars?: Map<string, Value>): Value {
     if (exp.type === 'fnd'){
       const [args, ret] = exp.value;
       return {type: 'f', args, applied:[], ret};
     } else if (exp.value.length === 1) {
-      return this.exprOrVcf(context, exp.value[0]);
+      return this.exprOrVcf(exp.value[0]);
     } else if (exp.value.length === 2) {
-      const left = this.exprOrVcf(context, exp.value[0]);
+      const left = this.exprOrVcf(exp.value[0]);
       const sc = exp.value[1];
-      return this.doMonoOp(context, left, sc);
+      return this.doMonoOp(left, sc);
     } else {
-      const left = this.exprOrVcf(context, exp.value[0]);
-      const right = this.exprOrVcf(context, exp.value[2]);
+      const left = this.exprOrVcf(exp.value[0]);
+      const right = this.exprOrVcf(exp.value[2]);
       const op = exp.value[1];
       const sc = exp.value.length === 4 ? exp.value[3] : undefined;
       const result = this.doOp(op, left, right);
       if (!sc) return result;
-      return this.doMonoOp(context, result, sc);
+      return this.doMonoOp(result, sc);
     }
   }
 
-  private evalVcf(context: ExecContext, vcf: Vcf): Value {
+  private evalVcf(vcf: Vcf): Value {
     if (vcf.type === 'vr') {
-      return context.getVar(vcf);
+      return this.context.getVar(vcf);
     } else if (vcf.type === 'cnst') {
       if (vcf.value === 'true') {
         return {type: 'b', value: 1};
@@ -144,22 +149,22 @@ export default class Executor {
       }
     } else if (vcf.type === 'ife') {
       const [c, y, n] = vcf.value;
-      const cond = this.express(context, c);
+      const cond = this.express(c);
       checkb(cond);
       if (cond.value) {
-        return this.express(context, y);
+        return this.express(y);
       } else {
-        return this.express(context, n);
+        return this.express(n);
       }
     } else {
       return unreachable(vcf);
     }
   }
 
-  private doMonoOp(context: ExecContext, val: Value, sc: Sc): Value {
+  private doMonoOp(val: Value, sc: Sc): Value {
     assert(sc.value === ';');
     checkf(val);
-    return this.callfun(context, val);
+    return this.callfun(val);
   }
 
   private doOp(op: Op, left: Value, right: Value): Value {
@@ -236,7 +241,7 @@ Abstract roots, join and split them, shared? saver and top-level data
 Parser type checking
 Static type checking
 Fix function closure context
-Tuples, lists, structs + method calls, Maybe and Either types, exceptions
+Tuples, lists, structs + method calls, Maybe and Either/Union types, exceptions
 */
 /*
 fiSPooky = -> iX + iY

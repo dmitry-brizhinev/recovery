@@ -26,7 +26,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "nearley": "nearleyc src/program/nearley.ne -o src/program/nearley.compiled.ts",
+    "nearley": "nearleyc src/program/grammar.ne -o src/program/grammar.compiled.ts",
     "deploy": "firebase deploy"
   },
   "eslintConfig": {

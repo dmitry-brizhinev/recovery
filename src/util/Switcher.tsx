@@ -10,16 +10,17 @@ export type SwitcherData = readonly [SwitcherEntry, ...SwitcherEntry[]];
 interface SwitcherProps {
   readonly initial?: string;
   readonly data: SwitcherData;
+  readonly buttonRender?: (buttons: React.ReactElement[]) => React.ReactNode;
 }
 
-export default function Switcher({data, initial}: SwitcherProps): React.ReactElement {
+export default function Switcher({data, initial, buttonRender}: SwitcherProps): React.ReactElement {
   const [maybeState, setState] = React.useState(initial || '');
   const [state, inner] = data.find(e => e[0] === maybeState) || data[0];
 
   const buttons = data.map(([name]) => <SwitcherButton key={name} current={state} onClick={setState}>{name}</SwitcherButton>);
-
+  const render = buttonRender || (x => x);
   return <ErrorBoundary>
-    {buttons}
+    {render(buttons)}
     <SuspenseBoundary><ErrorBoundary>{inner()}</ErrorBoundary></SuspenseBoundary>
   </ErrorBoundary>;
 }

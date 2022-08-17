@@ -7,6 +7,7 @@ import Textarea from '../util/Textarea';
 import Calendar from './Calendar';
 
 import '../css/pages.css';
+import { useEventHandler } from '../util/Hooks';
 
 export default function CalendarAndPages({data}: {data: UserData}): React.ReactElement {
   return <ErrorBoundary>
@@ -39,13 +40,16 @@ function Page(props: PageProps) : React.ReactElement {
   const root = React.useContext(DataRootContext);
   const [editing, setEditing] = React.useState(false);
   const [title, text] = props.data;
-  const onChange = React.useCallback((text: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, title]);
+  const toggleEditing = React.useCallback(() => setEditing(e => !e), [setEditing]);
+  const onChangeText = React.useCallback((text: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, title]);
+  const onChangeTitle = React.useCallback((title: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, text]);
+  const onChangeTitleEvent = useEventHandler(onChangeTitle);
   return <div className="page"><ErrorBoundary>
     {editing ? 
-      <><button className="page-edit material-icons" onClick={() => setEditing(false)}>done</button> <input onChange={e => root.onPageUpdate(props.id, [e.target.value, text])} value={title} type="text"/></>
+      <><button className="page-edit material-icons" onClick={toggleEditing}>done</button> <input onChange={onChangeTitleEvent} value={title} type="text"/></>
     : 
-      <><button className="page-edit material-icons" onClick={() => setEditing(true)}>edit</button> {title}</>
+      <><button className="page-edit material-icons" onClick={toggleEditing}>edit</button> {title}</>
     }
-    <Textarea className="page" value={text} onChange={onChange}/>
+    <Textarea className="page" value={text} onChange={onChangeText}/>
     </ErrorBoundary></div>;
 }

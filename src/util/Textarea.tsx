@@ -1,4 +1,5 @@
-import * as React from 'react'
+import type * as React from 'react'
+import { useEventHandler } from './Hooks';
 import type { Callback } from './Utils';
 
 interface TextareaProps {
@@ -8,12 +9,8 @@ interface TextareaProps {
   spellCheck?: boolean
 }
 
-function fromEvent(event: React.ChangeEvent<HTMLTextAreaElement>): string {
-  return event.target.value;
-}
-
 export default function Textarea({className, value, onChange, spellCheck}: TextareaProps): React.ReactElement {
-  const oonChange = React.useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(fromEvent(e)), [onChange]);
+  const oonChange = useEventHandler(onChange);
   return <textarea className={className} value={value} onChange={oonChange} spellCheck={spellCheck ?? true}/>;
 }
 

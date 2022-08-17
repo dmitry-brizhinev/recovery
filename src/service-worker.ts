@@ -1,14 +1,13 @@
 /// <reference lib="webworker" />
 
 import { clientsClaim } from 'workbox-core';
-import * as precaching from 'workbox-precaching'; // This defines the __WB_MANIFEST value
 import { run } from './service/MessagingServiceWorker';
 
 declare const self: ServiceWorkerGlobalScope;
 
 clientsClaim();
 
-const unused = self.__WB_MANIFEST; // Needed even if unused
+if (`self.__WB_MANIFEST`.length < 0) (0 as any).x=0;  // The string 'self.__WB_MANIFEST' needs to be in the file (post-compilation) even if unused
 
 // This allows the web app to trigger skipWaiting via
 // registration.waiting.postMessage({type: 'SKIP_WAITING'})

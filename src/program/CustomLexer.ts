@@ -16,6 +16,22 @@ const kwrx = [
 {match: / +endif/, value: trim},
 ];
 
+/*
+
+    moo.compile({
+      IDEN: {match: /[a-zA-Z]+/, type: moo.keywords({
+        KW: ['while', 'if', 'else', 'moo', 'cows'],
+      })},
+      SPACE: {match: /\s+/, lineBreaks: true},
+    })
+
+      name: {match: /[a-zA-Z]+/, type: moo.keywords({
+        'kw-class': 'class',
+        'kw-def': 'def',
+        'kw-if': 'if',
+      })},
+*/
+
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   nl:     { match: /\n+/, lineBreaks: true },
   rt:     { match: / *-> */, value: trim},
@@ -31,6 +47,16 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   //times:  /\*/,
 };
 export function mooLexer() { return moo.compile(lexerSpec);}
+
+export type LexedToken = {
+  type: DirtyLexerName,
+  value: string,
+  text?: string,
+  offset?: number,
+  col?: number,
+  line?: number, 
+  lineBreaks?: number,
+};
 
 export function checkLexerName(name: string): DirtyLexerName {
   assert(name in lexerSpec, `Add ${name} to lexer name list!`);

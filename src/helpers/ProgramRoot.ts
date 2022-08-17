@@ -21,4 +21,17 @@ export default class ProgramRoot {
   onCodeUpdate(id: CodeId, data: Code | null) {
     this.onUpdate(id, data);
   }
+
+  onCodeIdUpdate(oldId: CodeId, newId: CodeId) {
+    if (oldId === 'tests' || newId === 'tests') return;
+    if (newId === oldId) return;
+    while (this.data.has(newId)) {
+      newId = `${newId.slice(0, -4)}(c).phi`;
+    }
+    const value = this.data.get(oldId, '');
+    this.data = this.data.delete(oldId).set(newId, value);
+    this.saver.logUpdate(this.data, oldId);
+    this.saver.logUpdate(this.data, newId);
+    this.subscriber(this.data);
+  }
 }

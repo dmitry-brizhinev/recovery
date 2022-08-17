@@ -13,7 +13,7 @@ export function run(self: ServiceWorkerGlobalScope) {
     const notificationTitle = 'Background Message Title';
     const notificationOptions = {
       body: 'Background Message body.',
-      icon: '/logo192.png',
+      icon: `${process.env.PUBLIC_URL}/logo192.png`,
     };
 
     self.registration.showNotification(notificationTitle,

@@ -17,3 +17,7 @@ export function useCancellableDelay(handler: Func, ms: number, active: boolean =
     return cancellableDelay(handler, ms);
   }, [active, ms, handler]);
 }
+
+export function useEventHandler(onUpdate: Callback<string>): React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement> {
+  return React.useCallback(e => onUpdate(e.target.value), [onUpdate]);
+}

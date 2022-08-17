@@ -2,6 +2,7 @@ import Immutable from 'immutable';
 import * as React from 'react'
 
 import '../css/assimilation.css';
+import ripple from './ripple.png';
 import { useCancellable, useCancellableDelay } from '../util/Hooks';
 import type { Callback, Func } from '../util/Utils';
 import { Board, countPlayers, currentPlayerHasValidMove, donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState } from './Board';
@@ -10,7 +11,7 @@ import { FilterDefinitions, FilterId, SimpleRipple } from './Filter';
 import { makeMove } from './Player';
 
 export default function Assimilation(props: {image?: string}): React.ReactElement {
-  return <div className="a-game-wrapper"><Game image={props.image ?? '/ripple.png'}/></div>;
+  return <div className="a-game-wrapper"><Game image={props.image ?? ripple}/></div>;
 }
 
 function Game(props: {image: string}): React.ReactElement {
