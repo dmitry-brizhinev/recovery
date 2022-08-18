@@ -1,8 +1,8 @@
-import { deleteField, FieldValue } from "firebase/firestore/lite";
+import {deleteField, FieldValue} from "firebase/firestore/lite";
 
-import { Map as IMap } from 'immutable';
-import { Code, CodeId, CodeData, CodeDiff, checkCodeId } from '../data/Code';
-import { getDocument, writeDocument } from "./Firestore";
+import {Map as IMap} from 'immutable';
+import {Code, CodeId, CodeData, CodeDiff, checkCodeId} from '../data/Code';
+import {getDocument, writeDocument} from "./Firestore";
 
 
 export async function getCode(): Promise<CodeData> {
@@ -11,7 +11,7 @@ export async function getCode(): Promise<CodeData> {
 
   if (data != null) {
     for (const [key, valuex] of Object.entries(data)) {
-      const id = checkCodeId(key);
+      const id = key === 'tests' ? key : checkCodeId(key);
       if (!id) {
         continue;
       }

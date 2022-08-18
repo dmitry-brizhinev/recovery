@@ -1,0 +1,76 @@
+div.wrapper {
+  margin: var(--margin) auto;
+  padding: var(--margin);
+  border: thin solid black;
+  width: fit-content;
+
+  display: grid;
+  grid-template-columns: [h-start f-start l-start r-start] auto [f-end l-end c-start b-start] auto [c-end b-end h-end r-end];
+  grid-template-rows: [h-start] auto [h-end f-start c-start] auto [f-end l-start] auto [c-end b-start] auto [b-end l-end r-start] auto [r-end];
+  column-gap: var(--margin);
+  row-gap: var(--margin);
+}
+
+div.header {
+  grid-area: h;
+}
+
+div.filename {
+  white-space: pre;
+  grid-area: f;
+}
+
+input.filename {
+  font-weight: bold;
+  width: 20ch;
+}
+
+input.filename.valid {
+  color: black;
+}
+
+input.filename.invalid {
+  color: red;
+}
+
+div.filenames {
+  border: thin solid black;
+  grid-area: l;
+  font-size: small;
+  min-width: 25ch;
+  cursor: default;
+}
+
+span.file.selected {
+  font-weight: bold;
+}
+
+textarea.text {
+  width: 600px;
+  height: 10cm;
+  white-space: pre;
+  min-width: 400px;
+  min-height: 10cm;
+  grid-area: c;
+}
+
+div.run {
+  grid-area: b;
+}
+
+button.run {
+  width: 50%;
+}
+
+div.output {
+  background-color: field;
+  border: thin solid rgb(118, 118, 118);
+  padding: 2px;
+  text-align: start;
+  font-family: 'Courier New', Courier, monospace;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+
+  grid-area: r;
+}

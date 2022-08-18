@@ -1,6 +1,6 @@
 import Immutable from 'immutable';
 
-import { COLS, ROWS, WorldCoords } from './Context';
+import {COLS, ROWS, WorldCoords} from './Context';
 
 export const enum Cell {
   Chasm,
@@ -9,8 +9,8 @@ export const enum Cell {
 }
 
 export class World {
-  get({c,r}: WorldCoords): Cell {
-    if (!this.valid({c,r})) {
+  get({c, r}: WorldCoords): Cell {
+    if (!this.valid({c, r})) {
       return Cell.Chasm;
     }
     if (r <= 2 || c <= 2) {
@@ -18,11 +18,11 @@ export class World {
     }
     return Cell.Grass;
   }
-  valid({c,r}: WorldCoords): boolean {
+  valid({c, r}: WorldCoords): boolean {
     return !(c < 0 || c >= COLS || r < 0 || r >= ROWS);
   }
   cells(filter: Cell) {
-    return Immutable.Range(0, ROWS).flatMap(r => Immutable.Range(0, COLS).filter(c => this.get({c,r}) === filter).map(c => {return {c,r}}));
+    return Immutable.Range(0, ROWS).flatMap(r => Immutable.Range(0, COLS).filter(c => this.get({c, r}) === filter).map(c => ({c, r})));
   }
 }
 
@@ -32,20 +32,20 @@ function genWorld(): World {
 
 function genEntities(world: World): Entities {
   return Entities.init([
-    [{c:5,r:5},{type: 'castle'}],
-    [{c:5,r:6},{type: 'player'}],
-    [{c:7,r:7},{type: 'mine'}],
-    [{c:18,r:4},{type: 'mine'}],
-    [{c:17,r:19},{type: 'mine'}],
-    [{c:3,r:16},{type: 'mine'}],
-    [{c:11,r:12},{type: 'mine'}],
+    [{c: 5, r: 5}, {type: 'castle'}],
+    [{c: 5, r: 6}, {type: 'player'}],
+    [{c: 7, r: 7}, {type: 'mine'}],
+    [{c: 18, r: 4}, {type: 'mine'}],
+    [{c: 17, r: 19}, {type: 'mine'}],
+    [{c: 3, r: 16}, {type: 'mine'}],
+    [{c: 11, r: 12}, {type: 'mine'}],
   ]);
 }
 
 export function initialiseGameState(): GameState {
   const world = genWorld();
   const entities = genEntities(world);
-  return { world, entities };
+  return {world, entities};
 }
 
 export const SYMBOL_CASTLE = 'castle';
@@ -78,7 +78,7 @@ export class Entities {
   has(pos: WorldCoords): boolean {
     return this.map.has(Entities.c(pos));
   }
-  move({from,to}: {from: WorldCoords, to: WorldCoords}): Entities {
+  move({from, to}: {from: WorldCoords, to: WorldCoords}): Entities {
     const f = Entities.c(from);
     const t = Entities.c(to);
     const e = this.map.get(f);
@@ -88,15 +88,15 @@ export class Entities {
     ));
   }
   entrySeq(): Immutable.Seq.Indexed<[WorldCoords, Entity]> {
-    return this.map.entrySeq().map(([n,e]) => [Entities.unC(n),e]);
+    return this.map.entrySeq().map(([n, e]) => [Entities.unC(n), e]);
   }
-  private static c({c,r}: WorldCoords): number {
-    return c*100000 + r;
+  private static c({c, r}: WorldCoords): number {
+    return c * 100000 + r;
   }
   private static unC(n: number): WorldCoords {
     const r = n % 100000;
     const c = Math.round((n - r) / 100000);
-    return {c,r};
+    return {c, r};
   }
 }
 

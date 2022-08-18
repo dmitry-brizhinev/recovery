@@ -1,6 +1,7 @@
-import { CalendarId, idToDate } from "./CalendarId";
-import { pad2, extractNamedGroups } from "../util/Utils";
-import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
+import type {CalendarId} from "./CalendarId";
+import {idToDate} from "./DateId";
+import {pad2, extractNamedGroups} from "../util/Utils";
+import {castToTypedef, StrongTypedef} from "../util/StrongTypedef";
 
 let lastMagicKey = 1;
 function getMagicKey(): number {
@@ -68,7 +69,7 @@ export default class Event {
     if (!result) {
       return new Event(-1, value, Event.sanitizeComment(''), 0, false, magicKey);
     }
-    const { time, title, comment, recur, marked } = result;
+    const {time, title, comment, recur, marked} = result;
     const timeMinutes = parseTimeInput(time) ?? -1;
     const unescapedComment = Event.sanitizeComment((comment ?? '').replaceAll('\\n', '\n'));
     const recurDays = maybeParse(recur);
@@ -106,7 +107,7 @@ export default class Event {
   }
 
   static sanitizeComment(comment: string): ValidComment {
-    return castToTypedef<ValidComment, typeof validcomment>(comment.replaceAll('|', '/'));
+    return castToTypedef<typeof validcomment, string>(comment.replaceAll('|', '/'));
   }
 
   static toString(value: Event): string {
@@ -125,13 +126,13 @@ export default class Event {
     const finished = fields.finished ?? this.finished;
     const magicKey = fields.regenKey ? getMagicKey() : this.magicKey;
 
-    if(timeMinutes === this.timeMinutes &&
+    if (timeMinutes === this.timeMinutes &&
       title === this.title &&
       comment === this.comment &&
       recurDays === this.recurDays &&
       finished === this.finished &&
       magicKey === this.magicKey) {
-        return this;
+      return this;
     }
 
     return new Event(
@@ -144,7 +145,7 @@ export default class Event {
   }
 
   private sortKey(): number {
-    return (this.isValid() ? this.timeMinutes * 1000 : 60*24*2000) + this.magicKey;
+    return (this.isValid() ? this.timeMinutes * 1000 : 60 * 24 * 2000) + this.magicKey;
   }
 
   static compare(a: Event, b: Event): number {

@@ -1,9 +1,9 @@
 import * as React from 'react'
-import { Callback, Func, pad2 } from '../util/Utils';
+import {Callback, Func, pad2} from '../util/Utils';
 import ErrorBoundary from '../util/ErrorBoundary';
-import { DataRootContext } from '../helpers/DataRoot';
-import { ValidComment, default as Event } from '../data/Event';
-import { CalendarId, incrementId } from '../data/CalendarId';
+import {DataRootContext} from '../helpers/DataRoot';
+import {ValidComment, default as Event} from '../data/Event';
+import {CalendarId, incrementCId} from '../data/CalendarId';
 import Textarea from '../util/Textarea';
 
 interface EventInputProps {
@@ -54,7 +54,7 @@ export default class EventInput extends React.PureComponent<EventInputProps, Eve
       const oldEvent = this.props.event;
       if (oldEvent.recurDays) {
         const newEvent = oldEvent.withUpdate({regenKey: true});
-        const newId = incrementId(this.props.dayId, oldEvent.recurDays);
+        const newId = incrementCId(this.props.dayId, oldEvent.recurDays);
         this.context.onCalendarEventUpdate(newId, newEvent.magicKey, newEvent);
       }
     }
@@ -67,17 +67,17 @@ export default class EventInput extends React.PureComponent<EventInputProps, Eve
     const targetUTCmillis = (this.props.event.isActive() || 0) && this.props.event.getScheduledDate(this.props.dayId).getTime();
 
     return <ErrorBoundary>
-    <div className="calendar-event">
-      {this.state.open ?
-        <button className="calendar-event-delete" onClick={event => this.onChange(this.props.event, {delete: true})}>Delete</button> :
-        <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))}/>
-      }
-      <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))}/>
-      <input className="calendar-event-recur" type="number" min={0} max={14} step={1} value={this.props.event.recurDays || ''} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value || '0')}))} />
-      <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis} onClick={this.onClickCountdown}/></ErrorBoundary>
-    </div>
+      <div className="calendar-event">
+        {this.state.open ?
+          <button className="calendar-event-delete" onClick={event => this.onChange(this.props.event, {delete: true})}>Delete</button> :
+          <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))} />
+        }
+        <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))} />
+        <input className="calendar-event-recur" type="number" min={0} max={14} step={1} value={this.props.event.recurDays || ''} onChange={(event) => this.onChange(this.props.event.withUpdate({recur: Number.parseInt(event.target.value || '0')}))} />
+        <ErrorBoundary><Countdown open={this.state.open} targetUTCmillis={targetUTCmillis} onClick={this.onClickCountdown} /></ErrorBoundary>
+      </div>
       {this.state.open && <ErrorBoundary>
-        <EventDetail event={this.props.event} onCancel={this.onClickCountdown} onSave={this.onClickSave} onReschedule={this.onClickReschedule}/>
+        <EventDetail event={this.props.event} onCancel={this.onClickCountdown} onSave={this.onClickSave} onReschedule={this.onClickReschedule} />
       </ErrorBoundary>}
     </ErrorBoundary>;
   }
@@ -121,7 +121,7 @@ class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState
     const rescheduleDays = canReschedule ? ` ${this.props.event.recurDays}d` : '';
 
     return <div className="event-detail">
-      <Textarea className="event-detail-comment" value={this.state.unsavedComment} onChange={this.onChange}/>
+      <Textarea className="event-detail-comment" value={this.state.unsavedComment} onChange={this.onChange} />
       <div className="event-detail-buttons">
         <button className="event-detail-button" onClick={this.props.onCancel}>Cancel</button>
         <button className="event-detail-button" onClick={this.onSave}>Save</button>
@@ -142,7 +142,7 @@ interface CountdownState {
 }
 
 class Countdown extends React.PureComponent<CountdownProps, CountdownState> {
-  
+
   timer?: NodeJS.Timer;
 
   constructor(props: CountdownProps) {

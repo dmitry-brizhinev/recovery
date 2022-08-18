@@ -1,10 +1,10 @@
-import { deleteField, FieldValue } from "firebase/firestore/lite";
-import { UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff } from '../data/Data'
+import {deleteField, FieldValue} from "firebase/firestore/lite";
+import {UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff} from '../data/Data'
 import Event from '../data/Event';
-import { Map as IMap } from 'immutable';
-import { CalendarId, checkCalendarId } from '../data/CalendarId';
-import { checkPageId, PageId } from '../data/PageId';
-import { getDocument, writeDocument } from "./Firestore";
+import {Map as IMap} from 'immutable';
+import {CalendarId, checkCalendarId} from '../data/CalendarId';
+import {checkPageId, PageId} from '../data/PageId';
+import {getDocument, writeDocument} from "./Firestore";
 
 export async function getData(): Promise<UserData> {
   const data = await getDocument('users');
@@ -24,8 +24,8 @@ export async function getData(): Promise<UserData> {
           if (split === -1) {
             pages.set(id, [valuex, '']);
           } else {
-            const title = valuex.substring(0,split);
-            const body = valuex.substring(split+1);
+            const title = valuex.substring(0, split);
+            const body = valuex.substring(split + 1);
             pages.set(id, [title, body]);
           }
           continue;
@@ -48,7 +48,8 @@ export async function getData(): Promise<UserData> {
   return makeUserData({
     pages: pages.asImmutable(),
     calendarPages: calendarPages.asImmutable(),
-    calendarEvents: events.asImmutable()});
+    calendarEvents: events.asImmutable()
+  });
 }
 
 export async function saveAll(diffs: DataDiff) {

@@ -1,14 +1,14 @@
 import Immutable from "immutable";
-import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
+import {castToTypedef, StrongTypedef} from "../util/StrongTypedef";
 
-declare const pageid : unique symbol;
+declare const pageid: unique symbol;
 export type PageId = StrongTypedef<string, typeof pageid>;
 
 const PageRegex = /^P[a-z][a-z]P$/;
 
-export function checkPageId(id: string) : PageId | null {
+export function checkPageId(id: string): PageId | null {
   if (PageRegex.test(id)) {
-    return castToTypedef<PageId, typeof pageid>(id);
+    return castToTypedef<typeof pageid, string>(id);
   }
   return null;
 }

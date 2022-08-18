@@ -1,46 +1,24 @@
-import { castToTypedef, StrongTypedef } from "../util/StrongTypedef";
-import { assert, Day, extractNamedGroups, pad2 } from "../util/Utils";
-import type { Map as IMap } from 'immutable';
+import {extractNamedGroups} from "../util/Utils";
+import type {Map as IMap} from 'immutable';
+import {checkDateId, DateId, dateToId, incrementId} from "./DateId";
 
 export type JournalData = IMap<JournalId, Journal>;
 export type JournalDiff = Map<JournalId, Journal | null>;
 export const makeJournalDiff: () => JournalDiff = () => new Map();
 // type JournalTypes = {id: JournalId, data: Journal};
-
-declare const journalid : unique symbol;
-export type JournalId = StrongTypedef<string, typeof journalid>;
-
-const JournalIdRegex = /^J(20\d\d)-([01]\d)-([0123]\d)$/;
+;
+export type JournalId = DateId<'J'>;
 
 export function checkJournalId(id: string): JournalId | null {
-  if (!JournalIdRegex.test(id)) return null;
-  
-  return castToTypedef<JournalId, typeof journalid>(id);
-
-  //const {month, day} = idToDay(cid);
-  //if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  //return cid;
+  return checkDateId(id, 'J');
 }
 
 export function dateToJId(date: Date): JournalId {
-  const year = date.getFullYear();
-  const month = pad2(date.getMonth() + 1);
-  const day = pad2(date.getDate());
-  const id = checkJournalId(`J${year}-${month}-${day}`);
-  assert(id, `Failed constructing JournalId with date ${date}`);
-  return id;
+  return dateToId(date, 'J');
 }
 
 export function incrementJId(id: JournalId, incrementDays: number): JournalId {
-  const {year, month, day} = jidToDay(id);
-  return dateToJId(new Date(year, month-1, day + incrementDays));
-}
-
-export function jidToDay(id: JournalId): Day {
-  const year = Number.parseInt(id.substring(1, 5));
-  const month = Number.parseInt(id.substring(6, 8));
-  const day = Number.parseInt(id.substring(9, 11));
-  return {year, month, day};
+  return incrementId<'J'>(id, incrementDays);
 }
 
 const JournalRegex = /^J\((?<main>.+)\)$/s;

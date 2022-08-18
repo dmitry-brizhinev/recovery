@@ -1,19 +1,20 @@
 import * as React from 'react'
 
-import type { CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap } from '../data/Data'
+import type {CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap} from '../data/Data'
 import ErrorBoundary from '../util/ErrorBoundary'
 
 import EventInput from './CalendarEvents';
 
-import { Map as IMap } from 'immutable';
-import { DataRootContext } from '../helpers/DataRoot'
+import {Map as IMap} from 'immutable';
+import {DataRootContext} from '../helpers/DataRoot'
 import Event from '../data/Event';
-import { CalendarId, dateToId, incrementId, idToNiceString } from '../data/CalendarId';
-import type { Func } from '../util/Utils';
+import {CalendarId, dateToCId, incrementCId} from '../data/CalendarId';
+import type {Func} from '../util/Utils';
 import Textarea from '../util/Textarea';
 import MyCalendar from './MyCalendar';
 
 import '../css/events.css';
+import {idToNiceString} from '../data/DateId';
 
 interface CalendarProps {
   pages: CalendarPageMap;
@@ -28,7 +29,7 @@ export default class Calendar extends React.Component<CalendarProps, CalendarSta
   constructor(props: CalendarProps) {
     super(props);
 
-    this.state = {id: dateToId(new Date())};
+    this.state = {id: dateToCId(new Date())};
 
     this.changeDay = this.changeDay.bind(this);
     this.onClickPrevDay = this.onClickPrevDay.bind(this);
@@ -40,11 +41,11 @@ export default class Calendar extends React.Component<CalendarProps, CalendarSta
   }
 
   onClickPrevDay() {
-    this.changeDay(incrementId(this.state.id, -1));
+    this.changeDay(incrementCId(this.state.id, -1));
   }
 
   onClickNextDay() {
-    this.changeDay(incrementId(this.state.id, 1));
+    this.changeDay(incrementCId(this.state.id, 1));
   }
 
   hasPageOrEvent(id: CalendarId): boolean {
@@ -57,10 +58,10 @@ export default class Calendar extends React.Component<CalendarProps, CalendarSta
     const pageData = this.props.pages.get(this.state.id) ?? '';
     const eventData = this.props.events.get(this.state.id) ?? IMap<number, Event>();
     return <div className="calendar-wrapper"><ErrorBoundary>
-      <MyCalendar id={this.state.id} onClickDay={this.changeDay} hasPageOrEvent={this.hasPageOrEvent.bind(this)}/>
-      <CalendarPage id={this.state.id} data={pageData}/>
-      <CalendarEvents id={this.state.id} data={eventData} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay}/>
-      </ErrorBoundary>
+      <MyCalendar id={this.state.id} onClickDay={this.changeDay} hasPageOrEvent={this.hasPageOrEvent.bind(this)} />
+      <CalendarPage id={this.state.id} data={pageData} />
+      <CalendarEvents id={this.state.id} data={eventData} onClickPrevDay={this.onClickPrevDay} onClickNextDay={this.onClickNextDay} />
+    </ErrorBoundary>
     </div>;
   }
 }
@@ -76,7 +77,7 @@ function CalendarPage(props: CalendarPageProps): React.ReactElement {
 
   return <ErrorBoundary><div className="calendar-page">
     {props.id.substring(1)}
-    <Textarea className="calendar" value={props.data} onChange={onChange}/>
+    <Textarea className="calendar" value={props.data} onChange={onChange} />
   </div></ErrorBoundary>;
 }
 
@@ -102,7 +103,7 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
   }
 
   makeBox(event: Event): React.ReactNode {
-    return <EventInput key={event.magicKey} dayId={this.props.id} event={event}/>
+    return <EventInput key={event.magicKey} dayId={this.props.id} event={event} />
   }
 
   render() {

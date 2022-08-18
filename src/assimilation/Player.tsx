@@ -1,11 +1,11 @@
-import { delay } from "../util/Utils";
-import { countPlayers, enumerateMoves, GameState, Move, reduceGameState } from "./Board";
+import {delay} from "../util/Utils";
+import {countPlayers, enumerateMoves, GameState, Move, reduceGameState} from "./Board";
 
 function evaluateMove(state: GameState, move: Move): number {
   const result = reduceGameState(state, move);
   const counts = countPlayers(result.board);
   const me = counts[state.team];
-  const others = counts.filter((v,t)=> t !== state.team).reduce((a,b)=>a+b);
+  const others = counts.filter((_v, t) => t !== state.team).reduce((a, b) => a + b);
   return me - others;
 }
 

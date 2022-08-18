@@ -1,6 +1,6 @@
-import { myLexer, mooLexer } from './CustomLexer';
-import { myParser } from './MyParser';
-import { Doc, nearleyParser } from './NearleyParser';
+import {myLexer, mooLexer} from './CustomLexer';
+import {myParser} from './MyParser';
+import {Doc, nearleyParser} from './NearleyParser';
 
 export default async function parse(code: string, mine?: boolean): Promise<Doc> {
   if (mine) {

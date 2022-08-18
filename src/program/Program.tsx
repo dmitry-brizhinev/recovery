@@ -1,18 +1,19 @@
 import * as React from 'react'
 
-import styles from '../css/program.module.css';
-import { checkCodeId, CodeData, CodeId } from '../data/Code';
-import { getCode } from '../firebase/FirestoreProgram';
+import styles from './program.module.css';
+import {checkCodeId, CodeData, CodeId, CodeOrTest, newCodeId} from '../data/Code';
+import {getCode} from '../firebase/FirestoreProgram';
 import ProgramRoot from '../helpers/ProgramRoot';
-import { useCancellable, useEventHandler } from '../util/Hooks';
+import {useCancellable, useEventHandler} from '../util/Hooks';
 import Loading from '../util/Loading';
-import type { SwitcherData } from '../util/Switcher';
+import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
-import { Callback, delay, errorString } from '../util/Utils';
+import {assert, Callback, delay, errorString, Func} from '../util/Utils';
 import RootExecutor from './Executor';
-import { visualiseNode } from './NearleyParser';
+import {visualiseNode} from './NearleyParser';
 import parse from './Parser';
+import MaterialButton from '../util/MaterialButton';
 
 export default function Program(): React.ReactElement {
   return <div className={styles.wrapper}>
@@ -30,64 +31,58 @@ function ProgramDataWrapper() {
   useCancellable(getCode, onDataReceipt);
 
   const switchData = React.useMemo<SwitcherData | null>(() => (data && root) ? [
-    ['Code', () => <ProgramFileSelect data={data} root={root}/>],
-    ['Tests', () => <ProgramFileSelect data={data} root={root} test/>],
+    ['Code', () => <ProgramFileSelect data={data} root={root} />],
+    ['Tests', () => <ProgramFileSelect data={data} root={root} test />],
   ] : null, [data, root]);
 
-  return switchData ? 
-    <Switcher buttonRender={buttons => <div className={styles.header}>{saver}{buttons}</div>} data={switchData} initial={'Code'}/>
-  : <Loading/>;
+  return switchData ?
+    <Switcher buttonRender={buttons => <div className={styles.header}>{saver}{buttons}</div>} data={switchData} initial={'Code'} />
+    : <Loading />;
 }
 
 function ProgramFileSelect(props: {test?: boolean, data: CodeData, root: ProgramRoot}) {
-  const [id, setId] = React.useState<CodeId | null>(null);
-  const selectedId : CodeId = props.test ? 'tests' : id || props.data.keySeq().first('code.phi');
+  const filenames = React.useMemo(() => [...props.data.keys()].sort().flatMap(k => k !== 'tests' ? [k] : []), [props.data]);
+  const [id, setId] = React.useState<CodeId>(filenames.length ? filenames[0] : 'code.phi');
+  const selectedId: CodeOrTest = props.test ? 'tests' : id;
   const code = props.data.get(selectedId, '');
   const onChange = React.useCallback<Callback<string>>(code => props.root.onCodeUpdate(selectedId, code), [props.root, selectedId]);
-  const onChangeTitle = React.useCallback<Callback<CodeId>>(id => { props.root.onCodeIdUpdate(selectedId, id); setId(id); }, [props.root, selectedId, setId]);
-  return <div className={styles.body}><FileList selected={selectedId} data={props.data} onChange={onChangeTitle}/><ProgramCode code={code} onChange={onChange}/></div>;
+  const onChangeTitle = React.useCallback<Callback<CodeId>>(id => {assert(selectedId !== 'tests'); props.root.onCodeIdUpdate(selectedId, id); setId(id);}, [props.root, selectedId, setId]);
+  return <>
+    <div className={styles.filename}>{selectedId === 'tests' ? 'tests' : <CurrentFile name={selectedId} onChange={onChangeTitle} />}</div>
+    <FileList selected={id} filenames={filenames} onSelect={setId} />
+    <ProgramCode code={code} onChange={onChange} />
+  </>;
 }
 
-function FileList(props: {selected: CodeId, data: CodeData, onChange: Callback<CodeId>}) {
-  const filenames = [...props.data.keys()].sort().filter(k => k !== 'tests').join('\n');
-  return <div className={styles.files}>
-    <CurrentFile name={props.selected} onChange={props.onChange}/>
-    <div className={styles.filenames}>
-      {filenames}
-    </div>
+function FileList(props: {selected: CodeId, filenames: CodeId[], onSelect: Callback<CodeId>}) {
+  const onSelect = props.onSelect;
+  const filenames = React.useMemo(() => props.filenames.map(f => OtherFile(f, onSelect.bind(undefined, f), f === props.selected)), [props.filenames, onSelect, props.selected]);
+  const onAdd = React.useCallback(() => onSelect(newCodeId(props.selected, f => props.filenames.includes(f))), [props.selected, onSelect, props.filenames]);
+  return <div className={styles.filenames}>
+    {filenames}
+    <MaterialButton size={18} key={'add'} onClick={onAdd} className={styles.add} icon={'add'} />
   </div>;
 }
 
-type Editor = {
-  editing: boolean;
-  temporary: string;
+function OtherFile(name: CodeId, onSelect: Func, selected: boolean) {
+  return <span key={name} className={`${styles.file} ${selected ? styles.selected : ''}`} onClick={onSelect}>{name}<br /></span>;
 }
 
+function CurrentFile({name, onChange}: {name: CodeId, onChange: Callback<CodeId>}) {
+  const [editText, setText] = React.useState<string | null>(null);
+  const edit = editText != null;
+  const valid = edit ? checkCodeId(editText) : name;
+  const start = React.useCallback(() => {
+    setText(name);
+  }, [setText, name]);
+  const stop = React.useCallback(() => {
+    valid && onChange(valid);
+    setText(null);
+  }, [setText, onChange, valid]);
+  const onChangeInput = useEventHandler(setText);
 
-function reduceEditor(name: CodeId, onChange: Callback<CodeId>, {editing, temporary}: Editor, update: string | null): Editor {
-  if (editing) {
-    if (update == null) {
-      const valid = temporary !== 'tests' && checkCodeId(temporary);
-      if (valid) {
-        onChange(valid);
-      }
-      return {editing: false, temporary: valid || name};
-    } else {
-      return {editing, temporary: update};
-    }
-  } else {
-    return {editing: update == null, temporary: name};
-  }
-}
-
-function CurrentFile(props: {name: CodeId, onChange: Callback<CodeId>}) {
-  const reduce = React.useMemo(() => reduceEditor.bind(undefined, props.name, props.onChange), [props.name, props.onChange]);
-  const [{editing, temporary}, onUpdate] = React.useReducer(reduce, {editing: false, temporary: props.name});
-  const toggleEditing = React.useCallback(() => onUpdate(null), [onUpdate]);
-  const onChange = useEventHandler(onUpdate);
-  const valid = !editing || (checkCodeId(temporary) && temporary !== 'tests');
-  return <><button disabled={props.name === 'tests'} className={`${styles.filename} material-icons`} onClick={toggleEditing}>{editing ? (valid ? 'done' : 'cancel') : 'edit'}</button>
-  {editing ? <input className={`${styles.filename} ${valid ? styles.valid : styles.invalid}`} onChange={onChange} value={temporary} type="text" spellCheck={false}/> : temporary}</>;
+  return <><MaterialButton size={18} className={styles.filename} onClick={edit ? stop : start} icon={edit ? (valid ? 'done' : 'cancel') : 'edit'} />
+    {edit ? <input className={`${styles.filename} ${valid ? styles.valid : styles.invalid}`} onChange={onChangeInput} value={editText} type="text" spellCheck={false} /> : name}</>;
 }
 
 type Result = {
@@ -97,27 +92,27 @@ type Result = {
 }
 
 function reduceResult({maxLines, lines, text}: Result, line: string | null): Result {
-  if (line == null) return {maxLines:lines, lines:0, text:''};
-  const m = Math.max(maxLines, lines+1);
-  return {maxLines:m, lines:lines+1, text:`${text}${line}\n`};
+  if (line == null) return {maxLines: lines, lines: 0, text: ''};
+  const m = Math.max(maxLines, lines + 1);
+  return {maxLines: m, lines: lines + 1, text: `${text}${line}\n`};
 }
 
 function dummyText({maxLines, lines, text}: Result): string {
-  return text + '\n'.repeat(maxLines - lines);
+  return text + '\n'.repeat(Math.max(maxLines, 3) - lines);
 }
 
 function ProgramCode(props: {code: string, onChange: Callback<string>}) {
-  const [result, addLine] = React.useReducer(reduceResult, {maxLines:0, lines:0, text:''});
+  const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: ''});
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
 
-  return <div className={styles.code}>
-    <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false}/>
-    <div><button className={styles.run} onClick={runCode}>Run</button></div>
+  return <>
+    <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} />
+    <div className={styles.run}><button className={styles.run} onClick={runCode}>Run</button></div>
     <div className={styles.output}>{dummyText(result)}</div>
-  </div>;
+  </>;
 }
 
-async function run(code: string, addLine: Callback<string|null>): Promise<void> {
+async function run(code: string, addLine: Callback<string | null>): Promise<void> {
   addLine(null);
   for await (const r of execute(code)) {
     addLine(r);
