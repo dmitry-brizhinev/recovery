@@ -13,7 +13,7 @@ ifr -> "if" exp "then" rec "else" rec "endif"
 # General expression
 exp -> exp2 | fnd
 # Function definition expression
-fnd -> vrl %rt exp
+fnd -> vrl %rt exp | vrl %rt "struct"
 # Compound expressions with binary operators
 exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
 exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
@@ -35,4 +35,4 @@ vrl -> vrl ws %vr | %vr | null
 # Variable / constant / if: primitive expressions
 vcf -> %vr | %cnst | ife
 # Receivers: the complement to expressions
-rec -> %vr | ifr
+rec -> %vr | ifr | %vr mws "." mws %vr

@@ -102,13 +102,14 @@ function dummyText({maxLines, lines, text}: Result): string {
 function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
   const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: ''});
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
+  const compileCode = React.useCallback(() => compile(props.code, addLine), [props.code, addLine]);
 
   return <>
     <div className={styles.text}>
       <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} />
       <EdgeDisplay color={'red'} markers={[]} />
     </div>
-    <div className={styles.run}><button className={styles.run} onClick={runCode}>Run</button></div>
+    <div className={styles.run}><button className={styles.run} onClick={compileCode}>Compile</button><button className={styles.run} onClick={runCode}>Run</button></div>
     <div className={styles.output}>{dummyText(result)}</div>
   </>;
 }
@@ -130,6 +131,13 @@ function EdgeDisplay(props: {color?: 'red' | 'green', markers: EdgeMarker[];}): 
 async function run(code: string, addLine: Callback<string | null>): Promise<void> {
   addLine(null);
   for await (const r of execute(code)) {
+    addLine(r);
+  }
+}
+
+async function compile(code: string, addLine: Callback<string | null>): Promise<void> {
+  addLine(null);
+  for await (const r of execute(code, true)) {
     addLine(r);
   }
 }

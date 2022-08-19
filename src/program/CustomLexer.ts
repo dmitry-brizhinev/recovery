@@ -10,13 +10,14 @@ const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>
 const compOps = ['.:', '.', '::', ':', ','] as const;
 export type PrimOps = typeof primOps[number];
 export type CompOps = typeof compOps[number];
-const kws = ['if', 'then', 'else', 'elif', 'endif'] as const;
+const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct'] as const;
 const kwrx = [
   {match: /if +/, value: trim},
   {match: / +then +/, value: trim},
   {match: / +else +/, value: trim},
   {match: / +elif +/, value: trim},
   {match: / +endif/, value: trim},
+  {match: /struct/},
 ];
 
 /*

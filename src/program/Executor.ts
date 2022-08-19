@@ -16,8 +16,8 @@ interface Fun {
   readonly type: FunType;
   readonly args: Vr[];
   readonly applied: Value[];
-  readonly context: ContextSnapshot;
-  readonly ret: Exp;
+  readonly context?: ContextSnapshot;
+  readonly ret: Exp | 'struct';
 }
 interface Tup {
   readonly type: TupType;
@@ -25,24 +25,30 @@ interface Tup {
 }
 class Obj {
   readonly type: ObjType = 'o';
-  constructor(readonly fields: IMap<string, Value>,
-    readonly methods: IMap<string, Fun>) {}
+  constructor(private fields: IMap<string, Value>,
+    private readonly methods: IMap<string, Fun> = IMap()) {}
 
   getMember(name: string): Value {
     const m = this.fields.get(name) ?? this.methods.get(name);
     assert(m, `No member named ${name}`);
     return m;
   }
+  setMember(name: string, v: Value) {
+    const current = this.getMember(name);
+    assert(current.type === v.type, `${name} cannot be assigned a value of type ${v.type}`);
+    this.fields = this.fields.set(name, v);
+  }
 }
 interface Arr {
   readonly type: ArrType;
 }
 type Value = Num | Str | Fun | Tup | Obj | Arr;
+type LazyValue = Value | Vr;
 
 class ContextSnapshot {
   constructor(
     private readonly parent: ContextSnapshot | undefined,
-    private readonly vars: IMap<string, Value>) {}
+    readonly vars: IMap<string, Value>) {}
 
   getVar(vr: Vr): Value {
     const v = this.vars.get(vr.value);
@@ -117,30 +123,65 @@ export default class RootExecutor {
   }
 }
 
+type Receiver = Vr | [Obj, string];
+
 class Executor {
   constructor(private readonly context: ExecContext) {}
 
-  run(sta: Sta): string | undefined {
-    const left = this.resolveReceiver(sta.value[0]);
-    const right = this.express(sta.value[1]);
-    this.context.setVar(left, right);
-    return isf(right) ? `Defined ${left.value}` :
-      right.type === 't' ? `${left.value} = tuple` :
-        right.type === 'o' ? `${left.value} = object` :
-          right.type === 'a' ? `${left.value} = array` :
-            `${left.value} = ${right.value}`;
+  private eager(v: LazyValue): Value {
+    if (v.type !== 'vr') return v;
+    return this.context.getVar(v);
   }
 
-  private resolveReceiver(rec: Rec): Vr {
-    if (rec.type === 'vr') {
-      return rec;
+  run(sta: Sta): string | undefined {
+    const left = this.resolveReceiver(sta.value[0]);
+    const right = this.eager(this.express(sta.value[1]));
+    return this.assign(left, right);
+  }
+
+  private recRep(r: Receiver): string {
+    if (Array.isArray(r)) {
+      return `object.${r[1]}`;
     }
-    const cond = this.express(rec.value[0]);
-    checkb(cond);
-    if (cond.value) {
-      return this.resolveReceiver(rec.value[1]);
+    return r.value;
+  }
+
+  private valRep(v: Value): string {
+    return isf(v) ? `function` :
+      v.type === 't' ? `tuple` :
+        v.type === 'o' ? `object` :
+          v.type === 'a' ? `array` :
+            `${v.value}`;
+  }
+
+  private assign(left: Receiver, right: Value): string | undefined {
+    if (Array.isArray(left)) {
+      left[0].setMember(left[1], right);
     } else {
-      return this.resolveReceiver(rec.value[2]);
+      this.context.setVar(left, right);
+    }
+    return `${this.recRep(left)} = ${this.valRep(right)}`;
+  }
+
+  private resolveReceiver(rc: Rec): Receiver {
+    if (rc.value.length === 1) {
+      const rec = rc.value[0];
+      if (rec.type === 'vr') {
+        return rec;
+      }
+      const cond = this.eager(this.express(rec.value[0]));
+      checkb(cond);
+      if (cond.value) {
+        return this.resolveReceiver(rec.value[1]);
+      } else {
+        return this.resolveReceiver(rec.value[2]);
+      }
+    } else {
+      assert(rc.value[1].value === '.');
+      const left = this.context.getVar(rc.value[0]);
+      checko(left);
+      const right = rc.value[2];
+      return [left, right.value];
     }
   }
 
@@ -150,61 +191,63 @@ class Executor {
     return {type, args, applied: curried && ist(arg) ? applied.concat(arg.values) : applied.concat(arg), context, ret};
   }
 
-  private callfun(fun: Fun): Value {
+  private makeStruct(fun: Fun, fields: ContextSnapshot): Obj {
+    return new Obj(fields.vars);
+  }
+
+  private callfun(fun: Fun): LazyValue {
     assert(fun.args.length === fun.applied.length, `Function missing ${fun.args.length - fun.applied.length} arguments`);
     const innerContext = new ExecContext(fun.context);
     for (const [i, a] of fun.applied.entries()) {
       innerContext.setVar(fun.args[i], a);
     }
-    const innerExecutor = new Executor(innerContext);
-    const result = innerExecutor.express(fun.ret);
-    return result;
+    if (fun.ret === 'struct') {
+      return this.makeStruct(fun, innerContext.snapshot());
+    } else {
+      return new Executor(innerContext).express(fun.ret);
+    }
   }
 
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): Value {
+  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): LazyValue {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
       return this.evalVcf(exp);
     }
     return this.express(exp);
   }
 
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd, innerVars?: Map<string, Value>): Value {
+  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd): LazyValue {
     if (exp.type === 'fnd') {
-      const [args, ret] = exp.value;
-      return {type: 'f', args, applied: [], context: this.context.snapshot(), ret};
+      if (exp.value.length === 2) {
+        const [args, ret] = exp.value;
+        return {type: 'f', args, applied: [], context: this.context.snapshot(), ret};
+      } else {
+        const args = exp.value[0];
+        return {type: 'r', args, applied: [], ret: 'struct'};
+      }
     } else if (exp.value.length === 1) {
       return this.exprOrVcf(exp.value[0]);
     } else if (exp.value.length === 2) {
       const left = this.exprOrVcf(exp.value[0]);
       const sc = exp.value[1];
-      return this.doMonoOp(left, sc);
+      return this.doMonoOp(this.eager(left), sc);
     } else {
       const left = this.exprOrVcf(exp.value[0]);
       const op = exp.value[1];
-      let right: Value;
+      let right = this.exprOrVcf(exp.value[2]);
       if (op.value === '.:' || op.value === '.') {
-        const r = exp.value[2];
-        assert(r.type === 'vr' || r.type === 'cnst', 'Invalid object member dereference');
-        if (r.type === 'cnst') {
-          const rr = this.evalVcf(r);
-          assert(iss(rr), 'Invalid object member dereference', rr);
-          right = rr;
-        } else {
-          right = {type: 's', value: r.value};
-        }
-      } else {
-        right = this.exprOrVcf(exp.value[2]);
+        assert(right.type === 'vr', 'Invalid object member dereference', right);
+        right = {type: 's', value: right.value};
       }
       const sc = exp.value.length === 4 ? exp.value[3] : undefined;
-      const result = this.doOp(op, left, right);
+      const result = this.doOp(op, this.eager(left), this.eager(right));
       if (!sc) return result;
-      return this.doMonoOp(result, sc);
+      return this.doMonoOp(this.eager(result), sc);
     }
   }
 
-  private evalVcf(vcf: Vcf): Value {
+  private evalVcf(vcf: Vcf): LazyValue {
     if (vcf.type === 'vr') {
-      return this.context.getVar(vcf);
+      return vcf;
     } else if (vcf.type === 'cnst') {
       if (vcf.value === 'true') {
         return {type: 'b', value: 1};
@@ -221,7 +264,7 @@ class Executor {
       }
     } else if (vcf.type === 'ife') {
       const [c, y, n] = vcf.value;
-      const cond = this.express(c);
+      const cond = this.eager(this.express(c));
       checkb(cond);
       if (cond.value) {
         return this.express(y);
@@ -233,13 +276,13 @@ class Executor {
     }
   }
 
-  private doMonoOp(val: Value, sc: Sc): Value {
+  private doMonoOp(val: Value, sc: Sc): LazyValue {
     assert(sc.value === ';');
     checkf(val);
     return this.callfun(val);
   }
 
-  private doOp(op: Op, left: Value, right: Value): Value {
+  private doOp(op: Op, left: Value, right: Value): LazyValue {
     if (op.value === ':' || op.value === '::') {
       checkf(left);
       return this.partApply(left, right, op.value === '::');
@@ -248,6 +291,7 @@ class Executor {
       const r = ist(right) ? right.values : [right];
       return {type: 't', values: l.concat(r)};
     } else if (op.value === '.' || op.value === '.:') {
+      assert(op.value === '.');
       checko(left);
       checks(right);
       return left.getMember(right.value);
@@ -318,18 +362,9 @@ Todos:
 Abstract roots, join and split them, shared? saver and top-level data
 Parser type checking
 Static type checking
-lists, structs + method calls, Maybe and Either/Union types, test assertions
+lists, methods + method calls, Maybe and Either/Union types, test assertions
 */
 /*
-fX = iX=0 iY=0 -> iX + iY # default arguments
-iX = fX :: 3,4 ;
-rBob = iX=10 fS=fX -> struct
-oBob = rBob : 10 ;
-oBob . iX = 5
-iY = oBob . iX
-iZ = oBob . fS : 1 : 2;
-fX = oBob .: iX
-iX = fX : oBob;
 
 
 */

@@ -3,6 +3,7 @@ import {myParser} from './MyParser';
 import {NearleyParser, Parser} from './NearleyParser';
 import {delay, errorString} from '../util/Utils';
 import RootExecutor from './Executor';
+import RootCompiler from './Compiler';
 
 async function getParser(mine?: boolean): Promise<Parser> {
   if (mine) {
@@ -11,10 +12,11 @@ async function getParser(mine?: boolean): Promise<Parser> {
   return NearleyParser.start(mooLexer());
 }
 
-export async function* execute(code: string): AsyncGenerator<string, void, void> {
+export async function* execute(code: string, compile?: boolean): AsyncGenerator<string, void, void> {
   yield 'Running ...';
   const parser = await getParser();
   const exec = new RootExecutor();
+  const comp = new RootCompiler();
   await delay(300);
   for (const line of code.split('\n')) {
     let statements;
@@ -27,12 +29,12 @@ export async function* execute(code: string): AsyncGenerator<string, void, void>
     }
     try {
       for (const sta of statements) {
-        const r = exec.run(sta);
+        const r = compile ? comp.compile(sta) : exec.run(sta);
         if (r) yield r;
       }
     }
     catch (e: unknown) {
-      yield `Runtime error <- encountered while executing ${line}`;
+      yield `${compile ? 'Compile' : 'Runtime'} error <- encountered while ${compile ? 'compiling' : 'executing'} ${line}`;
       yield errorString(e);
       return;
     }

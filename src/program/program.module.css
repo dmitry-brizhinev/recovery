@@ -75,7 +75,8 @@ div.run {
 }
 
 button.run {
-  width: 50%;
+  width: 20%;
+  margin: 0 5%;
 }
 
 div.output {
