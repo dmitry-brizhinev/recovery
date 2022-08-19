@@ -20,7 +20,7 @@ export type Callback<T> = (x: T) => void;
 export type Func = () => void;
 export type Getter<T> = () => T;
 
-type NamedGroups = {[key: string]: string | undefined};
+type NamedGroups = {[key: string]: string | undefined;};
 export function extractNamedGroups(regex: RegExp, match: string): NamedGroups | undefined {
   const result = regex.exec(match);
   if (!result) return undefined;
@@ -39,7 +39,7 @@ export function unreachable(x: never): never {
 
 export function assert(x: unknown, message?: string, extraData?: unknown): asserts x {
   if (x) return;
-  const m = (message ?? `Assertion failed; ${x} is falsy `) + JSON.stringify(extraData ?? '');
+  const m = (message ?? `Assertion failed; ${x} is falsy`) + (extraData == null ? '' : ` ${JSON.stringify(extraData)}`);
   throw new Error(m);
 }
 
@@ -64,5 +64,5 @@ export function makeLazySingleton<T>(initialiser: Getter<T>): Getter<T> {
 }
 
 export function errorString(e: unknown): string {
-  return e instanceof Error ? `${e.name} - ${e.message}`: JSON.stringify(e);
+  return e instanceof Error ? `${e.name} - ${e.message}` : JSON.stringify(e);
 }

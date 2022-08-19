@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from 'react';
 
 import styles from './program.module.css';
 import {checkCodeId, CodeData, CodeId, CodeOrTest, newCodeId} from '../data/Code';
@@ -9,10 +9,8 @@ import Loading from '../util/Loading';
 import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
-import {assert, Callback, delay, errorString, Func} from '../util/Utils';
-import RootExecutor from './Executor';
-import {visualiseNode} from './NearleyParser';
-import parse from './Parser';
+import {assert, Callback, Func} from '../util/Utils';
+import {execute} from './Parser';
 import MaterialButton from '../util/MaterialButton';
 
 export default function Program(): React.ReactElement {
@@ -40,13 +38,13 @@ function ProgramDataWrapper() {
     : <Loading />;
 }
 
-function ProgramFileSelect(props: {test?: boolean, data: CodeData, root: ProgramRoot}) {
+function ProgramFileSelect(props: {test?: boolean, data: CodeData, root: ProgramRoot;}) {
   const filenames = React.useMemo(() => [...props.data.keys()].sort().flatMap(k => k !== 'tests' ? [k] : []), [props.data]);
   const [id, setId] = React.useState<CodeId>(filenames.length ? filenames[0] : 'code.phi');
   const selectedId: CodeOrTest = props.test ? 'tests' : id;
   const code = props.data.get(selectedId, '');
-  const onChange = React.useCallback<Callback<string>>(code => props.root.onCodeUpdate(selectedId, code), [props.root, selectedId]);
-  const onChangeTitle = React.useCallback<Callback<CodeId>>(id => {assert(selectedId !== 'tests'); props.root.onCodeIdUpdate(selectedId, id); setId(id);}, [props.root, selectedId, setId]);
+  const onChange = React.useCallback((code: string) => props.root.onCodeUpdate(selectedId, code), [props.root, selectedId]);
+  const onChangeTitle = React.useCallback((id: CodeId) => {assert(selectedId !== 'tests'); props.root.onCodeIdUpdate(selectedId, id); setId(id);}, [props.root, selectedId, setId]);
   return <>
     <div className={styles.filename}>{selectedId === 'tests' ? 'tests' : <CurrentFile name={selectedId} onChange={onChangeTitle} />}</div>
     <FileList selected={id} filenames={filenames} onSelect={setId} />
@@ -54,7 +52,7 @@ function ProgramFileSelect(props: {test?: boolean, data: CodeData, root: Program
   </>;
 }
 
-function FileList(props: {selected: CodeId, filenames: CodeId[], onSelect: Callback<CodeId>}) {
+function FileList(props: {selected: CodeId, filenames: CodeId[], onSelect: Callback<CodeId>;}) {
   const onSelect = props.onSelect;
   const filenames = React.useMemo(() => props.filenames.map(f => OtherFile(f, onSelect.bind(undefined, f), f === props.selected)), [props.filenames, onSelect, props.selected]);
   const onAdd = React.useCallback(() => onSelect(newCodeId(props.selected, f => props.filenames.includes(f))), [props.selected, onSelect, props.filenames]);
@@ -68,7 +66,7 @@ function OtherFile(name: CodeId, onSelect: Func, selected: boolean) {
   return <span key={name} className={`${styles.file} ${selected ? styles.selected : ''}`} onClick={onSelect}>{name}<br /></span>;
 }
 
-function CurrentFile({name, onChange}: {name: CodeId, onChange: Callback<CodeId>}) {
+function CurrentFile({name, onChange}: {name: CodeId, onChange: Callback<CodeId>;}) {
   const [editText, setText] = React.useState<string | null>(null);
   const edit = editText != null;
   const valid = edit ? checkCodeId(editText) : name;
@@ -89,7 +87,7 @@ type Result = {
   maxLines: number,
   lines: number,
   text: string,
-}
+};
 
 function reduceResult({maxLines, lines, text}: Result, line: string | null): Result {
   if (line == null) return {maxLines: lines, lines: 0, text: ''};
@@ -101,15 +99,32 @@ function dummyText({maxLines, lines, text}: Result): string {
   return text + '\n'.repeat(Math.max(maxLines, 3) - lines);
 }
 
-function ProgramCode(props: {code: string, onChange: Callback<string>}) {
+function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
   const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: ''});
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
 
   return <>
-    <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} />
+    <div className={styles.text}>
+      <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} />
+      <EdgeDisplay color={'red'} markers={[]} />
+    </div>
     <div className={styles.run}><button className={styles.run} onClick={runCode}>Run</button></div>
     <div className={styles.output}>{dummyText(result)}</div>
   </>;
+}
+
+interface EdgeMarker {
+  l: number;
+  c: '<' | '>' | '.';
+}
+function EdgeDisplay(props: {color?: 'red' | 'green', markers: EdgeMarker[];}): React.ReactElement {
+  let chars = '';
+  let ll = 0;
+  for (const m of props.markers) {
+    chars = chars + '\n'.repeat(m.l - ll) + m.c;
+    ll = m.l;
+  }
+  return <div className={`${styles.edge} ${props.color ? styles[props.color] : ''}`}>{chars}</div>;
 }
 
 async function run(code: string, addLine: Callback<string | null>): Promise<void> {
@@ -117,31 +132,4 @@ async function run(code: string, addLine: Callback<string | null>): Promise<void
   for await (const r of execute(code)) {
     addLine(r);
   }
-}
-
-async function* execute(code: string): AsyncGenerator<string, void, void> {
-  yield 'Running ...';
-  let tree;
-  try {
-    tree = await parse(code);
-  } catch (e: unknown) {
-    yield 'Parse error:';
-    yield errorString(e);
-    return;
-  }
-  yield 'Parsed ...';
-  await delay(300);
-  const exec = new RootExecutor();
-  for (const statement of tree) {
-    try {
-      const r = exec.run(statement);
-      if (r) yield r;
-    }
-    catch (e: unknown) {
-      yield `${errorString(e)} <- error encountered while executing ${visualiseNode(statement)}`;
-      return
-    }
-  }
-  yield 'Done.';
-  return;
 }

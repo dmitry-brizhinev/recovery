@@ -45,14 +45,30 @@ span.file.selected {
   font-weight: bold;
 }
 
+div.text {
+  grid-area: c;
+}
+
 textarea.text {
   width: 600px;
   height: 10cm;
   white-space: pre;
   min-width: 400px;
   min-height: 10cm;
-  grid-area: c;
+  box-sizing: border-box;
 }
+
+div.edge {
+  height: 100%;
+  width: 1em;
+  float: right;
+  padding-top: 3px;
+  font-family: monospace;
+  white-space: pre;
+  line-height: 1.185em;
+}
+div.edge.red {color:red;}
+div.edge.green {color:green;}
 
 div.run {
   grid-area: b;

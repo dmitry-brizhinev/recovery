@@ -9,10 +9,11 @@ type AnyDateId = DateId<'C'> | DateId<'E'> | DateId<'J'>;
 
 const DateIdRegex = /^[CEJ](20\d\d)-([01]\d)-([0123]\d)$/;
 
-export function checkDateId<T extends CEJ>(id: string, cej: T): DateId<T> | null {
+export function checkDateId<T extends CEJ>(id: string, cej: T): DateId<typeof cej> | null {
   if (!DateIdRegex.test(id)) return null;
+  if (!id.startsWith(cej)) return null;
 
-  const did = castToTypedef<typeof dateid, RawDateId<T>>(`${cej}${id.slice(1)}`);
+  const did = castToTypedef<typeof dateid, RawDateId<typeof cej>>(`${cej}${id.slice(1)}`);
 
   const {month, day} = idToDay(did);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
@@ -20,7 +21,7 @@ export function checkDateId<T extends CEJ>(id: string, cej: T): DateId<T> | null
   return did;
 }
 
-export function dateToId<T extends CEJ>(date: Date, cej: T): DateId<T> {
+export function dateToId<T extends CEJ>(date: Date, cej: T): DateId<typeof cej> {
   const year = date.getFullYear();
   const month = pad2(date.getMonth() + 1);
   const day = pad2(date.getDate());

@@ -21,6 +21,8 @@ export function incrementJId(id: JournalId, incrementDays: number): JournalId {
   return incrementId<'J'>(id, incrementDays);
 }
 
+export interface JournalUpdate {id: JournalId, data: Journal | null;}
+
 const JournalRegex = /^J\((?<main>.+)\)$/s;
 
 export class Journal {

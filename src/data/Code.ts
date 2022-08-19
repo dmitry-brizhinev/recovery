@@ -7,6 +7,8 @@ export type CodeData = IMap<CodeOrTest, Code>;
 export type CodeDiff = Map<CodeOrTest, Code | null>;
 export const makeCodeDiff: () => CodeDiff = () => new Map();
 
+export interface CodeUpdate {id: CodeOrTest, data: Code | null;}
+
 export function checkCodeId(id: string): CodeId | null {
   if (id.endsWith('.phi')) return `${id.slice(0, -4)}.phi`;
   return null;

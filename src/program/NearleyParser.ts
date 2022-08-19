@@ -1,6 +1,6 @@
-import { Cnst, DirtyLexerName, FilteredLexerNames, LexedToken, LexerName, Op, Sc, Vr } from "./CustomLexer";
+import {Cnst, DirtyLexerName, FilteredLexerNames, LexedToken, LexerName, Op, Sc, Vr} from "./CustomLexer";
 import nearley from 'nearley';
-import { assert } from "../util/Utils";
+import {assert} from "../util/Utils";
 import compileGrammar from "./NearleyGrammar";
 
 /*
@@ -65,7 +65,7 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   exp1: filterAndLabel,
   exp0: filterAndLabel,
   mws: discard,
-  ws:  discard,
+  ws: discard,
   mc2: filterAndUnwrapSingle,
   mc1: filterAndUnwrapSingle,
   mc0: filterAndUnwrapSingle,
@@ -85,7 +85,7 @@ export interface Exp {type: 'exp'; value: [Exp2] | [Fnd];}
 export interface Fnd {type: 'fnd'; value: [Vrl, Exp];}
 export interface Exp2 {type: 'exp2'; value: [Exp2, Op, Exp1] | [Exp2, Op, Exp1, Sc] | [Exp1] | [Exp1, Sc];}
 export interface Exp1 {type: 'exp1'; value: [Exp1, Op, Exp0] | [Exp1, Op, Exp0, Sc] | [Exp0] | [Exp0, Sc];}
-export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Vcf]  | [Exp0, Op, Vcf,  Sc] | [Vcf]  | [Vcf,  Sc];}
+export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Vcf] | [Exp0, Op, Vcf, Sc] | [Vcf] | [Vcf, Sc];}
 export type Vrl = Vr[];
 export type Vcf = Vr | Cnst | Ife;
 export type Rec = Vr | Ifr;
@@ -97,10 +97,10 @@ type ParsedRule = {
   value: Processed[],
 };
 
-type CleanedRule = {type: ParserName, value: Processed[]};
-type DirtyRule = ParsedRule
-type CleanedToken = {type: LexerName, value: string};
-type DirtyToken = {type: DirtyLexerName, value: string};
+type CleanedRule = {type: ParserName, value: Processed[];};
+type DirtyRule = ParsedRule;
+type CleanedToken = {type: LexerName, value: string;};
+type DirtyToken = {type: DirtyLexerName, value: string;};
 
 type CleanerInput = Raw;
 type CleanerOutput = Processed | Processed[];
@@ -114,8 +114,8 @@ function discard(name: 'mws' | 'ws', rs: CleanerInput[]): undefined {
 }
 
 function cleaningFilter(e: Raw): boolean {
-  return e != null && (Array.isArray(e) || 
-  !((FilteredParserNames as readonly string[]).includes(e.type) || (FilteredLexerNames as readonly string[]).includes(e.type)));
+  return e != null && (Array.isArray(e) ||
+    !((FilteredParserNames as readonly string[]).includes(e.type) || (FilteredLexerNames as readonly string[]).includes(e.type)));
 }
 
 function clean(e: Raw): DirtyToken | DirtyRule {
@@ -157,28 +157,49 @@ function getPostprocessor<T extends DirtyParserName>(name: T, rule: string): Pos
   return cleaners[name].bind(undefined, name);
 }
 
-const compiled: {v?: nearley.CompiledRules} = {};
+const compiled: {v?: nearley.CompiledRules;} = {};
 
-export async function nearleyParser(code: string, lexer: nearley.Lexer): Promise<Doc> {
-  const grammar = nearley.Grammar.fromCompiled(compiled.v || (compiled.v = await compileGrammar(getPostprocessor)));
-  const parser = new nearley.Parser(grammar, {lexer});
+export interface Parser {
+  parseLine: (line: string) => Promise<Sta[]>;
+  finish: () => Promise<void>;
+}
 
-  parser.feed(code);
+export class NearleyParser implements Parser {
+  private constructor(private readonly parser: nearley.Parser) {}
+  private statements: number = 0;
 
-  const result = parser.results;
-  if (result.length === 0) {
-    // Trigger an error from the parser internals:
-    parser.feed('|unexpected end of input|');
+  static async start(lexer: nearley.Lexer): Promise<NearleyParser> {
+    const grammar = nearley.Grammar.fromCompiled(compiled.v || (compiled.v = await compileGrammar(getPostprocessor)));
+    return new NearleyParser(new nearley.Parser(grammar, {lexer}));
   }
 
-  if (result.length > 1) {
-    const [a,b] = compareParses(result[0], result[1]);
-    //const a = JSON.stringify(result[0]);
-    //const b = JSON.stringify(result[1]);
-    throw new Error(`Unexpected ambiguous parse (${result.length})(${a === b})\na:${a}\nb:${b}`);
+  async parseLine(line: string): Promise<Sta[]> {
+    this.parser.feed(line);
+    const result = this.parser.results as Sta[][];
+    if (result.length === 1) {
+      const full = result[0];
+      const part = full.slice(this.statements);
+      this.statements = full.length;
+      return part;
+    } else {
+      return [];
+    }
   }
-  
-  return result[0];
+
+  async finish(): Promise<void> {
+    const result = this.parser.results;
+    if (result.length === 0) {
+      // Trigger an error from the parser internals:
+      this.parser.feed('|unexpected end of input|');
+    }
+
+    if (result.length > 1) {
+      const [a, b] = compareParses(result[0], result[1]);
+      //const a = JSON.stringify(result[0]);
+      //const b = JSON.stringify(result[1]);
+      throw new Error(`Unexpected ambiguous parse (${result.length})(${a === b})\na:${a}\nb:${b}`);
+    }
+  }
 }
 
 
@@ -200,7 +221,7 @@ function compareParses(a: Doc, b: Doc): [string, string] {
   return ['??', '??'];
 }
 
-type Node = {type: string, value: Node | string} | Node[];
+type Node = {type: string, value: Node | string;} | Node[];
 
 export function visualiseNode(n: Node): string {
   if (Array.isArray(n)) {

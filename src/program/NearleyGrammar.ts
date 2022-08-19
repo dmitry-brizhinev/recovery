@@ -1,16 +1,16 @@
-import { checkLexerName, DirtyLexerName, LexedToken } from "./CustomLexer";
+import {checkLexerName, DirtyLexerName, LexedToken} from "./CustomLexer";
 import type nearley from 'nearley';
-import { assert } from "../util/Utils";
-import { checkParserName, DirtyParserName } from "./NearleyParser";
+import {assert} from "../util/Utils";
+import {checkParserName, DirtyParserName} from "./NearleyParser";
 import grammarPath from './grammar.ne';
 
-type Symbol = {type: DirtyLexerName} | {literal: string} | {test: (t: LexedToken) => boolean} | DirtyParserName;
+type Symbol = {type: DirtyLexerName;} | {literal: string;} | {test: (t: LexedToken) => boolean;} | DirtyParserName;
 
 function parseSymbol(t: string): Symbol {
   if (t.startsWith('%')) {
     return {type: checkLexerName(t.substring(1))};
   } else if (t.startsWith('"') && t.endsWith('"')) {
-    const value = t.substring(1,t.length-1);
+    const value = t.substring(1, t.length - 1);
     return {test: v => v.value === value};
   }
   return checkParserName(t);

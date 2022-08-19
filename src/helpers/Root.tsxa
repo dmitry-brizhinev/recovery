@@ -1,0 +1,88 @@
+import * as React from 'react';
+
+import type {PageUpdate, CalendarUpdate, EventUpdate, PageMap} from '../data/Data';
+import type {JournalUpdate} from '../data/Journal';
+import type {CodeData, CodeUpdate} from '../data/Code';
+import Loading from '../util/Loading';
+import {Callback, delay} from '../util/Utils';
+import Immutable from 'immutable';
+import {useCancellable} from '../util/Hooks';
+
+interface GenericRoot<S extends string, T> {onUpdate(type: S, update: T): void;}
+
+interface RootsType {
+  page: PageRoot,
+  calendar: CalendarRoot,
+  event: EventRoot,
+  journal: JournalRoot,
+  program: ProgramRoot,
+}
+
+class EmptyRoot {onUpdate() {} }
+const EmptyRootSingleton = new EmptyRoot();
+
+export type PageRoot = GenericRoot<'page', PageUpdate>;
+export type CalendarRoot = GenericRoot<'calendar', CalendarUpdate>;
+export type EventRoot = GenericRoot<'event', EventUpdate>;
+export type JournalRoot = GenericRoot<'journal', JournalUpdate>;
+export type ProgramRoot = GenericRoot<'code', CodeUpdate>;
+
+const makeRoots: Immutable.Record.Factory<RootsType> = Immutable.Record<RootsType>({page: EmptyRootSingleton, calendar: EmptyRootSingleton, event: EmptyRootSingleton, journal: EmptyRootSingleton, program: EmptyRootSingleton});
+type Roots = Immutable.RecordOf<RootsType>;
+
+export class Root {
+  private readonly roots: Roots = makeRoots();
+}
+
+function addRoot<S extends keyof RootsType>(this: Roots, type: S, root: RootsType[S]): Roots {
+  return this.set(type, root);
+}
+
+
+
+
+async function getPages(): Promise<PageMap> {
+  await delay(1000);
+  return Immutable.Map();
+}
+
+async function getCode(): Promise<CodeData> {
+  await delay(1000);
+  return Immutable.Map();
+}
+
+export default function Top(props: {x: 'page' | 'code' | null;}): React.ReactElement {
+  return props.x == null ? <Loading /> : (props.x === 'page' ? <MiddlePage /> : <MiddleCode />);
+}
+
+function MiddlePage() {
+  const [saver, setSaver] = React.useState('');
+  const [data, setData] = React.useState<PageMap>();
+  const [root, setRoot] = React.useState<PageRoot>();
+  const onDataReceipt = React.useCallback<Callback<PageMap>>(
+    data => setRoot(new PageRoot(data, setData, setSaver)),
+    [setData, setRoot, setSaver]);
+  useCancellable(getPages, onDataReceipt);
+
+  return (data && root) ? <BottomPage saver={saver} root={root} data={data} /> : <Loading />;
+}
+
+function MiddleCode() {
+  const [saver, setSaver] = React.useState('');
+  const [data, setData] = React.useState<CodeData>();
+  const [root, setRoot] = React.useState<ProgramRoot>();
+  const onDataReceipt = React.useCallback<Callback<CodeData>>(
+    data => setRoot(new ProgramRoot(data, setData, setSaver)),
+    [setData, setRoot, setSaver]);
+  useCancellable(getCode, onDataReceipt);
+
+  return (data && root) ? <BottomCode saver={saver} root={root} data={data} /> : <Loading />;
+}
+
+function BottomPage(props: {saver: string, root: PageRoot, data: PageMap;}) {
+  return <button onClick={() => props.root.onUpdate({id: props.data.keySeq().first(), data: null})}>{props.saver}{props.data.first()}</button>;
+}
+
+function BottomCode(props: {saver: string, root: ProgramRoot, data: CodeData;}) {
+  return <button onClick={() => props.root.onUpdate({id: 'x.phi', data: 'aaaaaa'})}>{props.saver}{props.data.first(' ')}</button>;
+}

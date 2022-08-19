@@ -1,19 +1,22 @@
 import moo from 'moo';
-import { assert } from '../util/Utils';
+import {assert} from '../util/Utils';
 
 const OpRegex = /^[-+*/%=]$/;
 const VarRegex = /^[a-z]\w+$/;
 const ConstRegex = /^\d+(?:\.\d+)?$/;
 
-const trim = (s:string) => s.trim();
-const ops = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||', ':'] as const;
+const trim = (s: string) => s.trim();
+const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
+const compOps = ['.:', '.', '::', ':', ','] as const;
+export type PrimOps = typeof primOps[number];
+export type CompOps = typeof compOps[number];
 const kws = ['if', 'then', 'else', 'elif', 'endif'] as const;
 const kwrx = [
-{match: /if +/, value: trim},
-{match: / +then +/, value: trim},
-{match: / +else +/, value: trim},
-{match: / +elif +/, value: trim},
-{match: / +endif/, value: trim},
+  {match: /if +/, value: trim},
+  {match: / +then +/, value: trim},
+  {match: / +else +/, value: trim},
+  {match: / +elif +/, value: trim},
+  {match: / +endif/, value: trim},
 ];
 
 /*
@@ -33,20 +36,20 @@ const kwrx = [
 */
 
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
-  nl:     { match: /\n+/, lineBreaks: true },
-  rt:     { match: / *-> */, value: trim},
-  op:     ops as any,
-  sc:     [';'],
-  eq:     { match: / *= *(?!=)/, value: trim},
-  kw:     kwrx,
-  ms:     /  +/,
-  os:     ' ',
-  vr:     /[f]?[idbsc][A-Z]\w*/,
-  cnst:   /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
+  nl: {match: /(?: *#.*\n| *\n)+/, lineBreaks: true},
+  rt: {match: / *-> */, value: trim},
+  op: primOps.concat(compOps as any) as any,
+  sc: [';'],
+  eq: {match: / *= *(?!=)/, value: trim},
+  kw: kwrx,
+  ms: /  +/,
+  os: ' ',
+  vr: /(?:[idbsctor]|[fa][idbsctorfa]?)[A-Z]\w*/,
+  cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
   //word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
   //times:  /\*/,
 };
-export function mooLexer() { return moo.compile(lexerSpec);}
+export function mooLexer() {return moo.compile(lexerSpec);}
 
 export type LexedToken = {
   type: DirtyLexerName,
@@ -54,7 +57,7 @@ export type LexedToken = {
   text?: string,
   offset?: number,
   col?: number,
-  line?: number, 
+  line?: number,
   lineBreaks?: number,
 };
 
@@ -63,18 +66,21 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-export type ValueType = StrType | NumType;
+export type ValueType = StrType | NumType | FunType | TupType | ObjType | ArrType;
 export type StrType = 's' | 'c';
 export type NumType = 'i' | 'd' | 'b';
-export type ComplexType = 'f';// | 'r' | 't' | 'a';
+export type FunType = 'f' | 'r';
+export type TupType = 't';
+export type ObjType = 'o';
+export type ArrType = 'a';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
-export const FilteredLexerNames = ['nl' , 'os' , 'ms' , 'kw', 'rt', 'eq'] as const;
+export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames[number];
 export type DirtyLexerName = LexerName | FilteredLexerName;
 export interface Vr {
   type: 'vr';
-  value: `${ComplexType | ''}${ValueType}${string}`;
+  value: `${ValueType}${string}`;
 }
 interface Eq {
   type: 'eq';
@@ -82,7 +88,7 @@ interface Eq {
 }
 export interface Op {
   type: 'op';
-  value: typeof ops[number];
+  value: PrimOps | CompOps;
 }
 export interface Sc {
   type: 'sc';
@@ -117,7 +123,7 @@ interface Line {
 export type Atom = Vr | Eq | Op | Cnst | Err | Line;
 export type AtomType = Atom['type'];
 
-function a<T extends Atom>(type: T['type'], value: T['value']): {type: T['type'], value: T['value']} {
+function a<T extends Atom>(type: T['type'], value: T['value']): {type: T['type'], value: T['value'];} {
   return {type, value};
 }
 
