@@ -1,5 +1,5 @@
 import {checkLexerName, DirtyLexerName, LexedToken} from "./CustomLexer";
-import type nearley from 'nearley';
+import type * as nearley from 'nearley';
 import {assert} from "../util/Utils";
 import {checkParserName, DirtyParserName} from "./NearleyParser";
 import grammarPath from './grammar.ne';

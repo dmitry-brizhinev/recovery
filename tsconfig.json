@@ -6,19 +6,32 @@
       "dom.iterable",
       "esnext"
     ],
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": false, /* todo */
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "exactOptionalPropertyTypes": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false, /* todo */
+    "noUnusedLocals": true,
+    "noUnusedParameters": false, /* todo */
+    "importsNotUsedAsValues": "error",
+    "noFallthroughCasesInSwitch": true,
+    "allowUmdGlobalAccess": false,
+    "preserveValueImports": false, /* todo */
+    /**/
     "allowJs": false,
     "skipLibCheck": false,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": false,
     "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
+    /**/
     "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "importsNotUsedAsValues": "error",
     "jsx": "react-jsx"
   },
   "include": [

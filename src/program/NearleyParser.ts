@@ -1,5 +1,5 @@
-import {Cnst, DirtyLexerName, FilteredLexerNames, LexedToken, LexerName, Op, Sc, Vr} from "./CustomLexer";
-import nearley from 'nearley';
+import {Cnst, DirtyLexerName, FilteredLexerNames, LexedToken, LexerName, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
+import * as nearley from 'nearley';
 import {assert} from "../util/Utils";
 import compileGrammar from "./NearleyGrammar";
 
@@ -19,7 +19,7 @@ ifr -> "if" exp "then" rec "else" rec "endif"
 # General expression
 exp -> exp2 | fnd
 # Function definition expression
-fnd -> vrl %rt exp | vrl %rt "struct"
+fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
 exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
 exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
@@ -36,16 +36,25 @@ mc0 -> %sc | null
 op2 -> %ms %op mws | %os %op %ms | %op %ms
 op1 -> %os %op | %op %os | %os %op %os
 op0 -> %op
+# Type annotations
+typ -> "{" ctp "}" | %tc | %tp
+ctp -> ftp | ttp | atp
+ttp -> typ "," | ttp typ ","
+atp -> "a" typ
+ftp -> %rt typ | tps %rt typ
+tps -> typ | tps ":" typ
+# Variable with type annotation
+var -> %vr | %vr mws typ
 # Variable list
-vrl -> vrl ws %vr | %vr | null
+vrl -> vrl ws var | var | null
 # Variable / constant / if: primitive expressions
 vcf -> %vr | %cnst | ife
 # Receivers: the complement to expressions
-rec -> %vr | ifr | %vr mws "." mws %vr
+rec -> var | ifr | %vr mws "." mws %vr
 */
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['doc', 'mws', 'ws', 'mc2', 'mc1', 'mc0', 'op2', 'op1', 'op0', 'vrl', 'vcf'] as const;
+const FilteredParserNames = ['doc', 'mws', 'ws', 'mc2', 'mc1', 'mc0', 'op2', 'op1', 'op0', 'typ', 'ctp', 'tps', 'vrl', 'vcf'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -72,6 +81,13 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   op2: filterAndUnwrapSingle,
   op1: filterAndUnwrapSingle,
   op0: filterAndUnwrapSingle,
+  typ: filterAndUnwrapSingle,
+  ctp: filterAndUnwrapSingle,
+  ttp: filterAndLabel,
+  atp: filterAndLabel,
+  ftp: filterAndLabel,
+  tps: flattenAndFilter,
+  var: filterAndLabel,
   vrl: flattenAndFilter,
   vcf: filterAndUnwrapSingle,
   rec: filterAndLabel,
@@ -82,15 +98,21 @@ export interface Sta {type: 'sta'; value: [Rec, Exp];}
 export interface Ife {type: 'ife'; value: [Exp, Exp, Exp];}
 export interface Ifr {type: 'ifr'; value: [Exp, Rec, Rec];}
 export interface Exp {type: 'exp'; value: [Exp2] | [Fnd];}
-export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl];}
+export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, Tc];}
 export interface Exp2 {type: 'exp2'; value: [Exp2, Op, Exp1] | [Exp2, Op, Exp1, Sc] | [Exp1] | [Exp1, Sc];}
 export interface Exp1 {type: 'exp1'; value: [Exp1, Op, Exp0] | [Exp1, Op, Exp0, Sc] | [Exp0] | [Exp0, Sc];}
 export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Vcf] | [Exp0, Op, Vcf, Sc] | [Vcf] | [Vcf, Sc];}
-export type Vrl = Vr[];
+export type Typ = Ftp | Ttp | Atp | Tc | Tp;
+export interface Ttp {type: 'ttp'; value: [Typ, Op] | [Ttp, Typ, Op];}
+export interface Atp {type: 'atp'; value: [Typ];}
+export interface Ftp {type: 'ftp'; value: [Typ] | [Tps, Typ];}
+export type Tps = (Typ | Op)[];
+export interface Var {type: 'var'; value: [Vr] | [Vr, Typ];}
+export type Vrl = Var[];
 export type Vcf = Vr | Cnst | Ife;
-export interface Rec {type: 'rec'; value: [Vr | Ifr] | [Vr, Op, Vr];}
+export interface Rec {type: 'rec'; value: [Var | Ifr] | [Vr, Op, Vr];}
 
-type ParserOpts = Sta | Ife | Ifr | Exp | Fnd | Exp2 | Exp1 | Exp0 | Rec;
+type ParserOpts = Sta | Ife | Ifr | Exp | Fnd | Exp2 | Exp1 | Exp0 | Ttp | Atp | Ftp | Var | Rec;
 
 type ParsedRule = {
   type: DirtyParserName,
@@ -147,7 +169,7 @@ function filterAndUnwrapSingle(name: DirtyParserName, rs: CleanerInput[]): Clean
   return unwrapSingle(name, r);
 }
 
-function flattenAndFilter(name: 'vrl' | 'doc', rs: CleanerInput[]): CleanerOutput {
+function flattenAndFilter(name: 'vrl' | 'doc' | 'tps', rs: CleanerInput[]): CleanerOutput {
   return filterAndClean(rs.flat());
 }
 

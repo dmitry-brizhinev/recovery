@@ -75,8 +75,12 @@ div.run {
 }
 
 button.run {
-  width: 20%;
-  margin: 0 5%;
+  width: 15%;
+  margin: 0 var(--margin) 0 0;
+}
+
+input.run {
+  margin: 0 var(--margin) 0 5px;
 }
 
 div.output {

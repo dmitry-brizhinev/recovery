@@ -1,4 +1,4 @@
-import Immutable from 'immutable';
+import * as Immutable from 'immutable';
 
 import {COLS, ROWS, WorldCoords} from './Context';
 
@@ -78,7 +78,7 @@ export class Entities {
   has(pos: WorldCoords): boolean {
     return this.map.has(Entities.c(pos));
   }
-  move({from, to}: {from: WorldCoords, to: WorldCoords}): Entities {
+  move({from, to}: {from: WorldCoords, to: WorldCoords;}): Entities {
     const f = Entities.c(from);
     const t = Entities.c(to);
     const e = this.map.get(f);
@@ -125,7 +125,7 @@ interface Attack {
 
 export type GameAction = Move | Harvest | Attack;
 
-function adjacent({from, to}: {from: WorldCoords, to: WorldCoords}) {
+function adjacent({from, to}: {from: WorldCoords, to: WorldCoords;}) {
   return Math.abs(from.c - to.c) + Math.abs(from.r - to.r) === 1;
 }
 

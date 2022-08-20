@@ -13,7 +13,7 @@ ifr -> "if" exp "then" rec "else" rec "endif"
 # General expression
 exp -> exp2 | fnd
 # Function definition expression
-fnd -> vrl %rt exp | vrl %rt "struct"
+fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
 exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
 exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
@@ -30,9 +30,18 @@ mc0 -> %sc | null
 op2 -> %ms %op mws | %os %op %ms | %op %ms
 op1 -> %os %op | %op %os | %os %op %os
 op0 -> %op
+# Type annotations
+typ -> "{" ctp "}" | %tc | %tp
+ctp -> ftp | ttp | atp
+ttp -> typ "," | ttp typ ","
+atp -> "a" typ
+ftp -> %rt typ | tps %rt typ
+tps -> typ | tps ":" typ
+# Variable with type annotation
+var -> %vr | %vr mws typ
 # Variable list
-vrl -> vrl ws %vr | %vr | null
+vrl -> vrl ws var | var | null
 # Variable / constant / if: primitive expressions
 vcf -> %vr | %cnst | ife
 # Receivers: the complement to expressions
-rec -> %vr | ifr | %vr mws "." mws %vr
+rec -> var | ifr | %vr mws "." mws %vr

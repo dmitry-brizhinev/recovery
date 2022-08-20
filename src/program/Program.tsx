@@ -4,7 +4,7 @@ import styles from './program.module.css';
 import {checkCodeId, CodeData, CodeId, CodeOrTest, newCodeId} from '../data/Code';
 import {getCode} from '../firebase/FirestoreProgram';
 import ProgramRoot from '../helpers/ProgramRoot';
-import {useCancellable, useEventHandler} from '../util/Hooks';
+import {useCancellable, useEventHandler, useToggle} from '../util/Hooks';
 import Loading from '../util/Loading';
 import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
@@ -101,15 +101,28 @@ function dummyText({maxLines, lines, text}: Result): string {
 
 function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
   const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: ''});
+
+  const [ts, toggleTs] = useToggle(true);
+  const [js, toggleJs] = useToggle(false);
+
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
-  const compileCode = React.useCallback(() => compile(props.code, addLine), [props.code, addLine]);
+  const compileCode = React.useCallback(() => compile(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
+  const checkTypes = React.useCallback(() => check(props.code, addLine), [props.code, addLine]);
 
   return <>
     <div className={styles.text}>
       <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} />
       <EdgeDisplay color={'red'} markers={[]} />
     </div>
-    <div className={styles.run}><button className={styles.run} onClick={compileCode}>Compile</button><button className={styles.run} onClick={runCode}>Run</button></div>
+    <div className={styles.run}>
+      <button className={styles.run} onClick={checkTypes}>Check</button>
+      <button className={styles.run} onClick={runCode}>Run</button>
+      <button className={styles.run} onClick={compileCode}>Compile</button>
+      Show TS
+      <input type="checkbox" className={styles.run} checked={ts} onChange={toggleTs} />
+      Show JS
+      <input type="checkbox" className={styles.run} checked={js} onChange={toggleJs} />
+    </div>
     <div className={styles.output}>{dummyText(result)}</div>
   </>;
 }
@@ -130,14 +143,21 @@ function EdgeDisplay(props: {color?: 'red' | 'green', markers: EdgeMarker[];}): 
 
 async function run(code: string, addLine: Callback<string | null>): Promise<void> {
   addLine(null);
-  for await (const r of execute(code)) {
+  for await (const r of execute(code, 'run')) {
     addLine(r);
   }
 }
 
-async function compile(code: string, addLine: Callback<string | null>): Promise<void> {
+async function compile(code: string, addLine: Callback<string | null>, compileOpts: {ts: boolean, js: boolean;}): Promise<void> {
   addLine(null);
-  for await (const r of execute(code, true)) {
+  for await (const r of execute(code, compileOpts)) {
+    addLine(r);
+  }
+}
+
+async function check(code: string, addLine: Callback<string | null>): Promise<void> {
+  addLine(null);
+  for await (const r of execute(code, 'check')) {
     addLine(r);
   }
 }

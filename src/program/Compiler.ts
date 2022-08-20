@@ -1,36 +1,57 @@
 
 import {assert, unreachable} from '../util/Utils';
-import type {Op, Sc, PrimOps} from './CustomLexer';
+import type {Op, Sc, PrimOps, Vr} from './CustomLexer';
 import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec} from './NearleyParser';
+import toJS from './TsComp';
 
 export default class RootCompiler {
+  private results: string[] = ['const rrr: string[] = [];'];
+  private compiler = new Compiler();
+
   compile(sta: Sta): string {
-    return new Compiler().compile(sta);
+    const [main, extra] = this.compiler.compile(sta);
+    this.results.push(main, extra);
+    return main;
+  }
+
+  finish(): string {
+    this.results.push('rrr.join("\\n");');
+    const result = toJS(this.results.join('\n'));
+    if (result.diagnostics?.length) {
+      return JSON.stringify(result.diagnostics);
+    }
+    return result.outputText;
   }
 }
 
 class Compiler {
-  compile(sta: Sta): string {
+  private knownVars = new Set<Vr['value']>();
+
+  compile(sta: Sta): [string, string] {
     const right = this.express(sta.value[1]);
     return this.resolveReceiver(sta.value[0], right);
   }
 
-  private resolveReceiver(rc: Rec, right: string): string {
+  private resolveReceiver(rc: Rec, right: string): [string, string] {
     if (rc.value.length === 1) {
       const rec = rc.value[0];
-      if (rec.type === 'vr') {
-        return `let ${rec.value} = ${right};`;
+      if (rec.type === 'var') {
+        const l = rec.value[0].value;
+        const dec = this.knownVars.has(l) ? '' : 'let ';
+        this.knownVars.add(l);
+        return [`${dec}${l} = ${right}`, `rrr.push(\`${l} = \${${l}}\`);`];
       }
       const cond = this.express(rec.value[0]);
-      const y = this.resolveReceiver(rec.value[1], 'c');
-      const n = this.resolveReceiver(rec.value[2], 'c');
+      const [y] = this.resolveReceiver(rec.value[1], 'c');
+      const [n] = this.resolveReceiver(rec.value[2], 'c');
       const inner = `((${cond})?(${y}):(${n}))`;
-      return right === 'c' ? '' : `{const c = ${right};${inner};}`;
+      return right === 'c' ? [`${inner}`, ''] : [`{const c = ${right};${inner};}`, `rrr.push('ifs = something')`];
     } else {
       assert(rc.value[1].value === '.');
       const l = rc.value[0].value;
       const r = rc.value[2].value;
-      return `${l}.${r} = ${right};`;
+      const v = `${l}.${r}`;
+      return [`${v} = ${right}`, `rrr.push(\`${v} = \${${v}}\`);`];
     }
   }
 
@@ -44,12 +65,12 @@ class Compiler {
 
   private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd): string {
     if (exp.type === 'fnd') {
-      if (exp.value.length === 2) {
-        const [args, ret] = exp.value;
-        const aargs = args.map(vr => vr.value).join(', ');
-        return `((${aargs}) => (${this.express(ret)}))`;
+      if (exp.value[1].type !== 'tc') {
+        const args = exp.value[0].map(vr => vr.value[0].value).join(', ');
+        const ret = exp.value.length === 3 ? exp.value[2] : exp.value[1];
+        return `((${args}) => (${this.express(ret)}))`;
       } else {
-        const args = exp.value[0].map(vr => `${vr.value}`).join(', ');
+        const args = exp.value[0].map(vr => `${vr.value[0].value}`).join(', ');
         return `((${args}) => ({${args}}))`;
       }
     } else if (exp.value.length === 1) {
@@ -97,7 +118,7 @@ class Compiler {
       return `[(${left}),(${right})].flat()`;
     } else if (op.value === '.' || op.value === '.:') {
       assert(op.value === '.');
-      return `(${left}).(${right})`;
+      return `(${left}).${right}`;
     } else if (op.value === '//') {
       return `Math.trunc((${left})/(${right}))`;
     } else {

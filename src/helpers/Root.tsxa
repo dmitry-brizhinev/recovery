@@ -5,7 +5,7 @@ import type {JournalUpdate} from '../data/Journal';
 import type {CodeData, CodeUpdate} from '../data/Code';
 import Loading from '../util/Loading';
 import {Callback, delay} from '../util/Utils';
-import Immutable from 'immutable';
+import * as Immutable from 'immutable';
 import {useCancellable} from '../util/Hooks';
 
 interface GenericRoot<S extends string, T> {onUpdate(type: S, update: T): void;}

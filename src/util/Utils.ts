@@ -33,8 +33,8 @@ export interface Day {
   readonly day: number;
 }
 
-export function unreachable(x: never): never {
-  throw new Error(`Unreachable code reached! ${x}`);
+export function unreachable(x: never, s?: string): never {
+  throw new Error(`Unreachable code reached! ${s} ${x}`);
 }
 
 export function assert(x: unknown, message?: string, extraData?: unknown): asserts x {
@@ -64,5 +64,5 @@ export function makeLazySingleton<T>(initialiser: Getter<T>): Getter<T> {
 }
 
 export function errorString(e: unknown): string {
-  return e instanceof Error ? `${e.name} - ${e.message}` : JSON.stringify(e);
+  return e instanceof Error ? (e.stack || `${e.name}: ${e.message}`) : JSON.stringify(e);
 }

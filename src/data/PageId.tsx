@@ -1,4 +1,4 @@
-import Immutable from "immutable";
+import * as Immutable from "immutable";
 import {castToTypedef, StrongTypedef} from "../util/StrongTypedef";
 
 declare const pageid: unique symbol;
@@ -13,7 +13,7 @@ export function checkPageId(id: string): PageId | null {
   return null;
 }
 
-export function genNewId(current: {has: (id: PageId) => boolean}): PageId {
+export function genNewId(current: {has: (id: PageId) => boolean;}): PageId {
   for (const a of Immutable.Range(0, 26)) {
     for (const b of Immutable.Range(0, 26)) {
       const id = checkPageId(`P${String.fromCharCode(97 + a, 97 + b)}P`);

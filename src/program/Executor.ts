@@ -17,6 +17,7 @@ interface Fun {
   readonly args: Vr[];
   readonly applied: Value[];
   readonly context?: ContextSnapshot;
+  readonly selfref?: {name: Vr['value']; value: Fun;};
   readonly ret: Exp | 'struct';
 }
 interface Tup {
@@ -95,7 +96,7 @@ function checko(val: Value): asserts val is Obj {
   assert(iso(val), `${val.type} is not an object`);
 }
 function isf(val: Value): val is Fun {
-  return val.type === 'f' || val.type === 'r';
+  return val.type === 'f';
 }
 function checkf(val: Value): asserts val is Fun {
   assert(isf(val), `${val.type} is not a function`);
@@ -127,6 +128,7 @@ type Receiver = Vr | [Obj, string];
 
 class Executor {
   constructor(private readonly context: ExecContext) {}
+  private currentVar?: Vr;
 
   private eager(v: LazyValue): Value {
     if (v.type !== 'vr') return v;
@@ -135,7 +137,16 @@ class Executor {
 
   run(sta: Sta): string | undefined {
     const left = this.resolveReceiver(sta.value[0]);
-    const right = this.eager(this.express(sta.value[1]));
+    if (!Array.isArray(left) && left.value.charAt(0) === 'f') {
+      this.currentVar = left;
+    }
+    let right = this.eager(this.express(sta.value[1]));
+    if (this.currentVar && right.type === 'f') {
+      right = {...right, selfref: {name: this.currentVar.value, value: right}};
+      assert(right.selfref);
+      right.selfref.value = right;
+    }
+    this.currentVar = undefined;
     return this.assign(left, right);
   }
 
@@ -166,8 +177,8 @@ class Executor {
   private resolveReceiver(rc: Rec): Receiver {
     if (rc.value.length === 1) {
       const rec = rc.value[0];
-      if (rec.type === 'vr') {
-        return rec;
+      if (rec.type === 'var') {
+        return rec.value[0];
       }
       const cond = this.eager(this.express(rec.value[0]));
       checkb(cond);
@@ -186,9 +197,9 @@ class Executor {
   }
 
   private partApply(fun: Fun, arg: Value, curried: boolean): Fun {
-    const {type, args, applied, context, ret} = fun;
+    const {type, args, applied, context, selfref, ret} = fun;
     if (curried) checkt(arg);
-    return {type, args, applied: curried && ist(arg) ? applied.concat(arg.values) : applied.concat(arg), context, ret};
+    return {type, args, applied: curried && ist(arg) ? applied.concat(arg.values) : applied.concat(arg), context, selfref, ret};
   }
 
   private makeStruct(fun: Fun, fields: ContextSnapshot): Obj {
@@ -200,6 +211,9 @@ class Executor {
     const innerContext = new ExecContext(fun.context);
     for (const [i, a] of fun.applied.entries()) {
       innerContext.setVar(fun.args[i], a);
+    }
+    if (fun.selfref) {
+      innerContext.setVar({type: 'vr', value: fun.selfref.name}, fun.selfref.value);
     }
     if (fun.ret === 'struct') {
       return this.makeStruct(fun, innerContext.snapshot());
@@ -217,12 +231,13 @@ class Executor {
 
   private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd): LazyValue {
     if (exp.type === 'fnd') {
-      if (exp.value.length === 2) {
-        const [args, ret] = exp.value;
+      if (exp.value[1].type !== 'tc') {
+        const args = exp.value[0].map(v => v.value[0]);
+        const ret = exp.value.length === 3 ? exp.value[2] : exp.value[1];
         return {type: 'f', args, applied: [], context: this.context.snapshot(), ret};
       } else {
-        const args = exp.value[0];
-        return {type: 'r', args, applied: [], ret: 'struct'};
+        const args = exp.value[0].map(v => v.value[0]);
+        return {type: 'f', args, applied: [], ret: 'struct'};
       }
     } else if (exp.value.length === 1) {
       return this.exprOrVcf(exp.value[0]);
@@ -361,8 +376,12 @@ class Executor {
 Todos:
 Abstract roots, join and split them, shared? saver and top-level data
 Parser type checking
-Static type checking
-lists, methods + method calls, Maybe and Either/Union types, test assertions
+arrays,
+generic types,
+methods + method calls,
+Maybe and Either/Union types,
+test assertions,
+do ... end (with 'return'!!)
 */
 /*
 

@@ -1,16 +1,16 @@
-import * as React from 'react'
-import type {PageData, PageMap, UserData} from '../data/Data'
-import ErrorBoundary from '../util/ErrorBoundary'
-import {DataRootContext} from '../helpers/DataRoot'
+import * as React from 'react';
+import type {PageData, PageMap, UserData} from '../data/Data';
+import ErrorBoundary from '../util/ErrorBoundary';
+import {DataRootContext} from '../helpers/DataRoot';
 import {genNewId, PageId} from '../data/PageId';
 import Textarea from '../util/Textarea';
 import Calendar from './Calendar';
 
 import '../css/pages.css';
-import {useEventHandler} from '../util/Hooks';
+import {useEventHandler, useToggle} from '../util/Hooks';
 import MaterialButton from '../util/MaterialButton';
 
-export default function CalendarAndPages({data}: {data: UserData}): React.ReactElement {
+export default function CalendarAndPages({data}: {data: UserData;}): React.ReactElement {
   return <ErrorBoundary>
     <Calendar pages={data.calendarPages} events={data.calendarEvents} />
     <Pages pages={data.pages} />
@@ -39,9 +39,8 @@ interface PageProps {
 
 function Page(props: PageProps): React.ReactElement {
   const root = React.useContext(DataRootContext);
-  const [editing, setEditing] = React.useState(false);
   const [title, text] = props.data;
-  const toggleEditing = React.useCallback(() => setEditing(e => !e), [setEditing]);
+  const [editing, toggleEditing] = useToggle(false);
   const onChangeText = React.useCallback((text: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, title]);
   const onChangeTitle = React.useCallback((title: string) => root.onPageUpdate(props.id, [title, text]), [root, props.id, text]);
   const onChangeTitleEvent = useEventHandler(onChangeTitle);

@@ -1,4 +1,4 @@
-import moo from 'moo';
+import * as moo from 'moo';
 import {assert} from '../util/Utils';
 
 const OpRegex = /^[-+*/%=]$/;
@@ -17,7 +17,7 @@ const kwrx = [
   {match: / +else +/, value: trim},
   {match: / +elif +/, value: trim},
   {match: / +endif/, value: trim},
-  {match: /struct/},
+  {match: /struct +/, value: trim},
 ];
 
 /*
@@ -45,10 +45,15 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   kw: kwrx,
   ms: /  +/,
   os: ' ',
-  vr: /(?:[idbsctor]|[fa][idbsctorfa]?)[A-Z]\w*/,
+  br: ['{', '}'],
+  vr: /[idbsctofa][A-Z]\w*/,
+  tc: /[A-Z]\w*/,
   cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
+  tp: /[idbsc]/,
+  ta: 'a',
   //word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
-  //times:  /\*/,
+  // {Abb = f:i:b:a;} {r:i:a;->Bob}
+  //times:  /\*/,    fX {f:i:b:a;->f:b}
 };
 export function mooLexer() {return moo.compile(lexerSpec);}
 
@@ -67,16 +72,16 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-export type ValueType = StrType | NumType | FunType | TupType | ObjType | ArrType;
-export type StrType = 's' | 'c';
+export type ValueType = NumType | StrType | FunType | TupType | ObjType | ArrType;
 export type NumType = 'i' | 'd' | 'b';
-export type FunType = 'f' | 'r';
+export type StrType = 's' | 'c';
+export type FunType = 'f';
 export type TupType = 't';
 export type ObjType = 'o';
 export type ArrType = 'a';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
-export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq'] as const;
+export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames[number];
 export type DirtyLexerName = LexerName | FilteredLexerName;
 export interface Vr {
@@ -99,6 +104,14 @@ export interface Cnst {
   type: 'cnst';
   value: string;
 }
+export interface Tc {
+  type: 'tc';
+  value: string;
+}
+export interface Tp {
+  type: 'tp';
+  value: NumType | StrType;
+}
 interface Rt {
   type: 'rt';
   value: '->';
@@ -107,7 +120,7 @@ interface Kw {
   type: 'kw';
   value: typeof kws[number];
 }
-export type LexerOpts = Vr | Op | Sc | Cnst;
+export type LexerOpts = Vr | Tc | Tp | Op | Sc | Cnst;
 
 
 

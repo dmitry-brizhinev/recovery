@@ -1,4 +1,4 @@
-import Immutable from 'immutable';
+import * as Immutable from 'immutable';
 
 import {Map as IMap} from 'immutable';
 import type {CalendarId} from './CalendarId';
