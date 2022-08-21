@@ -5,6 +5,7 @@ import {delay, errorString} from '../util/Utils';
 import RootExecutor from './Executor';
 import RootCompiler from './Compiler';
 import RootTypeChecker from './TypeChecker';
+import {errorToString} from './TsComp';
 
 async function getParser(mine?: boolean): Promise<Parser> {
   if (mine) {
@@ -75,22 +76,27 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
     }
     yield 'Compiling TS -> JS';
     yield '';
-    const result = comp.finish();
-    if (mode.js) {
-      yield result;
+    const result = await comp.finish();
+    for (const e of result.errors) {
+      yield errorToString(e);
     }
-    yield 'Executing JS';
-    yield '';
-    try {
-      const rr = eval(result);
-      const rrr = typeof rr === 'string' ? rr.replaceAll('\\n', '\n') : 'success';
-      for (const r of rrr.split('\n')) {
-        yield r.length > 50 ? r.slice(0, 50) + '...' : r;
+    if (result.outputText) {
+      if (mode.js) {
+        yield result.outputText;
       }
+      yield 'Executing JS';
       yield '';
-    } catch (e) {
-      yield errorString(e);
-      return;
+      try {
+        const rr = eval(result.outputText);
+        const rrr = typeof rr === 'string' ? rr.replaceAll('\\n', '\n') : 'success';
+        for (const r of rrr.split('\n')) {
+          yield r.length > 50 ? r.slice(0, 50) + '...' : r;
+        }
+        yield '';
+      } catch (e) {
+        yield errorString(e);
+        return;
+      }
     }
   }
   yield 'Done.';

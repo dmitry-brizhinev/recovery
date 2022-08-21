@@ -2,7 +2,7 @@
 import {assert, unreachable} from '../util/Utils';
 import type {Op, Sc, PrimOps, Vr} from './CustomLexer';
 import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec} from './NearleyParser';
-import toJS from './TsComp';
+import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
   private results: string[] = ['const rrr: string[] = [];'];
@@ -14,13 +14,16 @@ export default class RootCompiler {
     return main;
   }
 
-  finish(): string {
-    this.results.push('rrr.join("\\n");');
-    const result = toJS(this.results.join('\n'));
-    if (result.diagnostics?.length) {
-      return JSON.stringify(result.diagnostics);
+  async finish(): Promise<CompilationResult> {
+    this.results.push('rrr.join("\\n");export {};');
+
+    const result = await compile(this.results.join('\n'));
+
+    if (result.outputText.endsWith('export {};\n')) {
+      result.outputText = result.outputText.split('export {};')[0];
     }
-    return result.outputText;
+
+    return result;
   }
 }
 

@@ -10,7 +10,7 @@ import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
 import {assert, type Callback, type Func} from '../util/Utils';
-import {execute} from './Parser';
+import {execute} from './Runner';
 import MaterialButton from '../util/MaterialButton';
 
 export default function Program(): React.ReactElement {

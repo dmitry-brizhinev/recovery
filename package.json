@@ -14,7 +14,6 @@
     "immutable": "^4.1.0",
     "moo": "^0.5.1",
     "nearley": "^2.20.1",
-    "perf_hooks": "^0.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
