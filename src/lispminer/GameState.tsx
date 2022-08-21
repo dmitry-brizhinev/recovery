@@ -1,6 +1,6 @@
 import * as Immutable from 'immutable';
 
-import {COLS, ROWS, WorldCoords} from './Context';
+import {COLS, ROWS, type WorldCoords} from './Context';
 
 export const enum Cell {
   Chasm,
@@ -30,7 +30,7 @@ function genWorld(): World {
   return new World();
 }
 
-function genEntities(world: World): Entities {
+function genEntities(_world: World): Entities {
   return Entities.init([
     [{c: 5, r: 5}, {type: 'castle'}],
     [{c: 5, r: 6}, {type: 'player'}],

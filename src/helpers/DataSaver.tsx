@@ -1,6 +1,7 @@
-import { DataDiff, DataId, DataTypes, makeDataDiff, UserData } from '../data/Data';
-import { saveAll } from '../firebase/FirestoreData';
-import type { Callback } from '../util/Utils';
+import type {DataDiff, DataId, DataTypes, UserData} from '../data/Data';
+import {makeDataDiff} from '../data/Data';
+import {saveAll} from '../firebase/FirestoreData';
+import type {Callback} from '../util/Utils';
 import Saver from './Saver';
 
 interface Key<K extends DataId> {

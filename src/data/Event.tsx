@@ -1,7 +1,7 @@
 import type {CalendarId} from "./CalendarId";
 import {idToDate} from "./DateId";
 import {pad2, extractNamedGroups} from "../util/Utils";
-import {castToTypedef, StrongTypedef} from "../util/StrongTypedef";
+import {castToTypedef, type StrongTypedef} from "../util/StrongTypedef";
 
 let lastMagicKey = 1;
 function getMagicKey(): number {
@@ -99,7 +99,7 @@ export default class Event {
     const comment = this.comment.replaceAll('\n', '\\n');
     const recur = this.recurDays || '';
     const finished = this.finished ? 'F' : '';
-    return `${time}||${title}|${comment}|${recur}|${finished}`
+    return `${time}||${title}|${comment}|${recur}|${finished}`;
   }
 
   static sanitizeTitle(title?: string): string | undefined {
@@ -118,7 +118,7 @@ export default class Event {
     return recur != null && Number.isInteger(recur) && recur >= 0 && recur <= 30 ? recur : undefined;
   }
 
-  withUpdate(fields: {timeinput?: string, title?: string, comment?: string, recur?: number, finished?: boolean, regenKey?: boolean}): Event {
+  withUpdate(fields: {timeinput?: string, title?: string, comment?: string, recur?: number, finished?: boolean, regenKey?: boolean;}): Event {
     const timeMinutes = parseTimeInput(fields.timeinput) ?? this.timeMinutes;
     const title = Event.sanitizeTitle(fields.title) ?? this.title;
     const comment = fields.comment != null ? Event.sanitizeComment(fields.comment) : this.comment;

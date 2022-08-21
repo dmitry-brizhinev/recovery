@@ -16,8 +16,8 @@ interface Fun {
   readonly type: FunType;
   readonly args: Vr[];
   readonly applied: Value[];
-  readonly context?: ContextSnapshot;
-  readonly selfref?: {name: Vr['value']; value: Fun;};
+  readonly context?: ContextSnapshot | undefined;
+  readonly selfref?: {name: Vr['value']; value: Fun;} | undefined;
   readonly ret: Exp | 'struct';
 }
 interface Tup {
@@ -128,7 +128,7 @@ type Receiver = Vr | [Obj, string];
 
 class Executor {
   constructor(private readonly context: ExecContext) {}
-  private currentVar?: Vr;
+  private currentVar?: Vr | undefined;
 
   private eager(v: LazyValue): Value {
     if (v.type !== 'vr') return v;
@@ -202,7 +202,7 @@ class Executor {
     return {type, args, applied: curried && ist(arg) ? applied.concat(arg.values) : applied.concat(arg), context, selfref, ret};
   }
 
-  private makeStruct(fun: Fun, fields: ContextSnapshot): Obj {
+  private makeStruct(fields: ContextSnapshot): Obj {
     return new Obj(fields.vars);
   }
 
@@ -212,11 +212,11 @@ class Executor {
     for (const [i, a] of fun.applied.entries()) {
       innerContext.setVar(fun.args[i], a);
     }
-    if (fun.selfref) {
+    if (fun.selfref && fun.ret !== 'struct') {
       innerContext.setVar({type: 'vr', value: fun.selfref.name}, fun.selfref.value);
     }
     if (fun.ret === 'struct') {
-      return this.makeStruct(fun, innerContext.snapshot());
+      return this.makeStruct(innerContext.snapshot());
     } else {
       return new Executor(innerContext).express(fun.ret);
     }

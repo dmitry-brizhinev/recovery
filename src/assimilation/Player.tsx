@@ -1,5 +1,5 @@
 import {delay} from "../util/Utils";
-import {countPlayers, enumerateMoves, GameState, Move, reduceGameState} from "./Board";
+import {countPlayers, enumerateMoves, type GameState, type Move, reduceGameState} from "./Board";
 
 function evaluateMove(state: GameState, move: Move): number {
   const result = reduceGameState(state, move);

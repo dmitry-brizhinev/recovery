@@ -1,9 +1,9 @@
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User as FUser, signOut } from "firebase/auth";
+import {onAuthStateChanged, GoogleAuthProvider, signInWithPopup, type User as FUser, signOut} from "firebase/auth";
 
-import { getAuth as getAuthF } from "firebase/auth";
-import type { User } from '../data/Data'
-import { Callback, Func, makeLazySingleton, throwIfNull } from '../util/Utils';
-import { getApp } from './FirebaseCore';
+import {getAuth as getAuthF} from "firebase/auth";
+import type {User} from '../data/Data';
+import {type Callback, type Func, makeLazySingleton, throwIfNull} from '../util/Utils';
+import {getApp} from './FirebaseCore';
 
 const getAuth = makeLazySingleton(() => getAuthF(getApp()));
 
@@ -17,7 +17,7 @@ export async function logout() {
   await signOut(getAuth());
 }
 
-function toUser(user: FUser | null) : User | null {
+function toUser(user: FUser | null): User | null {
   return user && {name: user.email, uid: user.uid};
 }
 

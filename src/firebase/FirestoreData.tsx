@@ -1,9 +1,10 @@
 import {deleteField, FieldValue} from "firebase/firestore/lite";
-import {UserData, PageData, CalendarPageData, CalendarEventData, PageMap, makeUserData, CalendarPageMap, CalendarEventMap, DataDiff} from '../data/Data'
+import type {UserData, PageData, CalendarPageData, CalendarEventData, PageMap, CalendarPageMap, CalendarEventMap, DataDiff} from '../data/Data';
+import {makeUserData} from '../data/Data';
 import Event from '../data/Event';
 import {Map as IMap} from 'immutable';
-import {CalendarId, checkCalendarId} from '../data/CalendarId';
-import {checkPageId, PageId} from '../data/PageId';
+import {type CalendarId, checkCalendarId} from '../data/CalendarId';
+import {checkPageId, type PageId} from '../data/PageId';
 import {getDocument, writeDocument} from "./Firestore";
 
 export async function getData(): Promise<UserData> {
@@ -53,7 +54,7 @@ export async function getData(): Promise<UserData> {
 }
 
 export async function saveAll(diffs: DataDiff) {
-  const data: {[key: string]: string | FieldValue} = {};
+  const data: {[key: string]: string | FieldValue;} = {};
   for (const [key, value] of diffs.pages) {
     data[key] = value?.join('\n') || deleteField();
   }

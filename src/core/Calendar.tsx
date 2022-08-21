@@ -1,14 +1,14 @@
-import * as React from 'react'
+import * as React from 'react';
 
-import type {CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap} from '../data/Data'
-import ErrorBoundary from '../util/ErrorBoundary'
+import type {CalendarPageData, CalendarEventData, CalendarPageMap, CalendarEventMap} from '../data/Data';
+import ErrorBoundary from '../util/ErrorBoundary';
 
 import EventInput from './CalendarEvents';
 
 import {Map as IMap} from 'immutable';
-import {DataRootContext} from '../helpers/DataRoot'
+import {DataRootContext} from '../helpers/DataRoot';
 import Event from '../data/Event';
-import {CalendarId, dateToCId, incrementCId} from '../data/CalendarId';
+import {type CalendarId, dateToCId, incrementCId} from '../data/CalendarId';
 import type {Func} from '../util/Utils';
 import Textarea from '../util/Textarea';
 import MyCalendar from './MyCalendar';
@@ -54,7 +54,7 @@ export default class Calendar extends React.Component<CalendarProps, CalendarSta
     return hasPage || (!!events && events.size > 0 && events.some(event => !event.isFinished()));
   }
 
-  render() {
+  override render() {
     const pageData = this.props.pages.get(this.state.id) ?? '';
     const eventData = this.props.events.get(this.state.id) ?? IMap<number, Event>();
     return <div className="calendar-wrapper"><ErrorBoundary>
@@ -89,8 +89,8 @@ interface CalendarEventProps {
 }
 
 class CalendarEvents extends React.Component<CalendarEventProps, object> {
-  static contextType = DataRootContext;
-  context!: React.ContextType<typeof DataRootContext>;
+  static override contextType = DataRootContext;
+  override context!: React.ContextType<typeof DataRootContext>;
   constructor(props: CalendarEventProps) {
     super(props);
     this.makeBox = this.makeBox.bind(this);
@@ -103,10 +103,10 @@ class CalendarEvents extends React.Component<CalendarEventProps, object> {
   }
 
   makeBox(event: Event): React.ReactNode {
-    return <EventInput key={event.magicKey} dayId={this.props.id} event={event} />
+    return <EventInput key={event.magicKey} dayId={this.props.id} event={event} />;
   }
 
-  render() {
+  override render() {
     return <div className="calendar-events"><ErrorBoundary>
       <div className="calendar-events-header">
         <button className="event-prev-day" onClick={this.props.onClickPrevDay}>&lt;</button>

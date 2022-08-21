@@ -1,8 +1,8 @@
-import { GridCoords, HEIGHT, Team, WIDTH } from "./Constants";
-import { List, Range } from 'immutable';
+import {type GridCoords, HEIGHT, Team, WIDTH} from "./Constants";
+import {List, Range} from 'immutable';
 
-export const MAX_ROWS = Math.trunc(HEIGHT / Math.sqrt(3/4));
-export function MAX_COLUMNS(row: number): number { return (row % 2 === 0 ? WIDTH - 1 : WIDTH); }
+export const MAX_ROWS = Math.trunc(HEIGHT / Math.sqrt(3 / 4));
+export function MAX_COLUMNS(row: number): number {return (row % 2 === 0 ? WIDTH - 1 : WIDTH);}
 
 export const enum MoveResult {
   Invalid,
@@ -14,9 +14,9 @@ export type InitialBoard = (spot: GridCoords) => Team | undefined;
 
 type RowData = List<Team | undefined>;
 export type Board = List<RowData>;
-interface BoardChange {readonly pos: GridCoords, readonly team: Team};
-export interface Move {readonly from: GridCoords, readonly to: GridCoords};
-export type GameState = {readonly board: Board, readonly team: Team};
+interface BoardChange {readonly pos: GridCoords, readonly team: Team;};
+export interface Move {readonly from: GridCoords, readonly to: GridCoords;};
+export type GameState = {readonly board: Board, readonly team: Team;};
 
 export function fullBoard(spot: GridCoords): Team | undefined {
   return corners(spot);
@@ -37,7 +37,7 @@ function corners(spot: GridCoords): Team {
 }
 
 export function donutBoard(spot: GridCoords): Team | undefined {
-  if (Math.abs(spot.r - (MAX_ROWS-1)/2) < 3 && Math.abs(spot.c - (MAX_COLUMNS(spot.r)-1)/2) < 3) {
+  if (Math.abs(spot.r - (MAX_ROWS - 1) / 2) < 3 && Math.abs(spot.c - (MAX_COLUMNS(spot.r) - 1) / 2) < 3) {
     return undefined;
   }
   return fullBoard(spot);
@@ -62,8 +62,8 @@ function adjacent(m: Move): boolean {
   const absColDiff = Math.abs(colDiff);
   const absRowDiff = Math.abs(m.from.r - m.to.r);
   return (absColDiff === 1 && absRowDiff === 0) ||
-         (absRowDiff === 1 && absColDiff === 0) ||
-         (absRowDiff === 1 && colDiff === (even ? -1 : 1));
+    (absRowDiff === 1 && absColDiff === 0) ||
+    (absRowDiff === 1 && colDiff === (even ? -1 : 1));
 }
 
 function reachable(m: Move): boolean {
@@ -73,10 +73,10 @@ function reachable(m: Move): boolean {
   const absRowDiff = Math.abs(m.from.r - m.to.r);
 
   return (absColDiff === 1 && absRowDiff === 0) ||
-         (absColDiff === 2 && absRowDiff === 0) ||
-         (absColDiff <= 1  && absRowDiff === 2) ||
-         (absRowDiff === 1 && absColDiff <= 1 ) ||
-         (absRowDiff === 1 && colDiff === (even ? -2 : 2));
+    (absColDiff === 2 && absRowDiff === 0) ||
+    (absColDiff <= 1 && absRowDiff === 2) ||
+    (absRowDiff === 1 && absColDiff <= 1) ||
+    (absRowDiff === 1 && colDiff === (even ? -2 : 2));
 }
 
 export function currentPlayerHasValidMove(state: GameState) {
@@ -93,10 +93,10 @@ export function* enumerateMoves(state: GameState): Generator<Move, void, undefin
     for (const [c, team] of row.entries()) {
       if (team !== state.team) continue;
 
-      for (const to of neighbours({r,c})) {
+      for (const to of neighbours({r, c})) {
         const target = atPos(state.board, to);
         if (target === Team.Empty) {
-          yield {from:{r,c}, to};
+          yield {from: {r, c}, to};
         }
       }
     }
@@ -107,11 +107,11 @@ function* closeNeighbours(pos: GridCoords): Generator<GridCoords, void, undefine
   const even = pos.r % 2 === 0;
   const c = pos.c;
   const r = pos.r;
-  yield {r,c:c-1};
-  yield {r,c:c+1};
+  yield {r, c: c - 1};
+  yield {r, c: c + 1};
   for (const r of [pos.r - 1, pos.r + 1]) {
-    yield {r,c};
-    yield {r,c:c + (even ? 1 : -1)};
+    yield {r, c};
+    yield {r, c: c + (even ? 1 : -1)};
   }
 }
 
@@ -119,17 +119,17 @@ export function* neighbours(pos: GridCoords): Generator<GridCoords, void, undefi
   const even = pos.r % 2 === 0;
   const c = pos.c;
   const r = pos.r;
-  yield {r,c:c-2};
-  yield {r,c:c-1};
-  yield {r,c:c+1};
-  yield {r,c:c+2};
+  yield {r, c: c - 2};
+  yield {r, c: c - 1};
+  yield {r, c: c + 1};
+  yield {r, c: c + 2};
   for (const r of [pos.r - 2, pos.r - 1, pos.r + 1, pos.r + 2]) {
-    yield {r,c:c-1};
-    yield {r,c:c+1};
-    yield {r,c};
+    yield {r, c: c - 1};
+    yield {r, c: c + 1};
+    yield {r, c};
   }
   for (const r of [pos.r - 1, pos.r + 1]) {
-    yield {r,c:c + (even ? 2 : -2)};
+    yield {r, c: c + (even ? 2 : -2)};
   }
 }
 
@@ -139,10 +139,10 @@ function surrender(state: GameState): Board {
   }
 
   const diffs: BoardChange[] = [];
-  for (const [r,row] of state.board.entries()) {
-    for (const [c,t] of row.entries()) {
+  for (const [r, row] of state.board.entries()) {
+    for (const [c, t] of row.entries()) {
       if (t === state.team) {
-        diffs.push({pos:{r,c}, team:Team.Empty});
+        diffs.push({pos: {r, c}, team: Team.Empty});
       }
     }
   }
@@ -155,12 +155,12 @@ function move(board: Board, m: Move): Board | null {
   if (!f) return null;
   const t = atPos(board, m.to);
   if (t !== Team.Empty) return null;
-  const diffs: BoardChange[] = [{pos:m.to, team:f}];
-  if(!adjacent(m)) diffs.push({pos:m.from, team:Team.Empty});
+  const diffs: BoardChange[] = [{pos: m.to, team: f}];
+  if (!adjacent(m)) diffs.push({pos: m.from, team: Team.Empty});
   for (const n of closeNeighbours(m.to)) {
     const e = atPos(board, n);
     if (e && e !== f) {
-      diffs.push({pos:n, team:f});
+      diffs.push({pos: n, team: f});
     }
   }
   return setAll(board, diffs);
@@ -190,7 +190,7 @@ export function reduceGameState(state: GameState, action: Move | null): GameStat
 }
 
 export function countPlayers(board: Board): number[] {
-  const result = [0,0,0,0,0];
+  const result = [0, 0, 0, 0, 0];
   for (const row of board) {
     for (const t of row) {
       t && ++result[t];
@@ -202,7 +202,7 @@ export function countPlayers(board: Board): number[] {
 function nextTeam(board: Board, team: Team): Team {
   const counts = countPlayers(board);
   counts[Team.Empty] = 0;
-  if (counts.map(x => x && (1 as number)).reduce((a,b)=>a+b) <= 1)
+  if (counts.map(x => x && (1 as number)).reduce((a, b) => a + b) <= 1)
     return Team.Empty;
   do {
     team = incrementTeam(team);
@@ -215,13 +215,13 @@ function incrementTeam(team: Team): Team {
 }
 
 function initialiseBoard(board: InitialBoard): Board {
-  return rowIterator().map(r => columnInterator(r).map(c => board({r,c})).toList()).toList();
+  return rowIterator().map(r => columnInterator(r).map(c => board({r, c})).toList()).toList();
 }
 
 export function initialiseGameState(initialBoard: InitialBoard): GameState {
   const board = initialiseBoard(initialBoard);
   const team = Team.Red;
-  return {board,team};
+  return {board, team};
 }
 
 function rowIterator() {

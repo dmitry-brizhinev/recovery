@@ -1,5 +1,5 @@
 import * as Immutable from "immutable";
-import {castToTypedef, StrongTypedef} from "../util/StrongTypedef";
+import {castToTypedef, type StrongTypedef} from "../util/StrongTypedef";
 
 declare const pageid: unique symbol;
 export type PageId = StrongTypedef<string, typeof pageid>;

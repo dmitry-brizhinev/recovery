@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 import styles from './program.module.css';
-import {checkCodeId, CodeData, CodeId, CodeOrTest, newCodeId} from '../data/Code';
+import {checkCodeId, type CodeData, type CodeId, type CodeOrTest, newCodeId} from '../data/Code';
 import {getCode} from '../firebase/FirestoreProgram';
 import ProgramRoot from '../helpers/ProgramRoot';
 import {useCancellable, useEventHandler, useToggle} from '../util/Hooks';
@@ -9,7 +9,7 @@ import Loading from '../util/Loading';
 import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
-import {assert, Callback, Func} from '../util/Utils';
+import {assert, type Callback, type Func} from '../util/Utils';
 import {execute} from './Parser';
 import MaterialButton from '../util/MaterialButton';
 

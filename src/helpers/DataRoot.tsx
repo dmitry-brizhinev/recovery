@@ -1,15 +1,15 @@
-import * as React from 'react'
-import type { UserData, DataId, UserDataKey, UserDataLeaf, CalendarPageData, PageData } from '../data/Data';
+import * as React from 'react';
+import type {UserData, DataId, UserDataKey, UserDataLeaf, CalendarPageData, PageData} from '../data/Data';
 import DataSaver from './DataSaver';
 import type Event from '../data/Event';
-import type { CalendarId } from '../data/CalendarId';
-import type { PageId } from '../data/PageId';
-import type { Callback } from '../util/Utils';
+import type {CalendarId} from '../data/CalendarId';
+import type {PageId} from '../data/PageId';
+import type {Callback} from '../util/Utils';
 
 class DataRoot {
-  onPageUpdate(id: PageId, data: PageData | null): void {}
-  onCalendarPageUpdate(id: CalendarId, data: CalendarPageData | null): void {}
-  onCalendarEventUpdate(id: CalendarId, magicKey: number, event: Event | null): void {}
+  onPageUpdate(_id: PageId, _data: PageData | null): void {}
+  onCalendarPageUpdate(_id: CalendarId, _data: CalendarPageData | null): void {}
+  onCalendarEventUpdate(_id: CalendarId, _magicKey: number, _event: Event | null): void {}
 }
 
 export class DataRootImpl extends DataRoot {
@@ -18,7 +18,7 @@ export class DataRootImpl extends DataRoot {
     private data: UserData,
     private readonly subscriber: Callback<UserData>,
     onSaverUpdate: Callback<string>,
-    ) {
+  ) {
     super();
     this.saver = new DataSaver(onSaverUpdate);
   }
@@ -29,17 +29,17 @@ export class DataRootImpl extends DataRoot {
     this.subscriber(this.data);
   }
 
-  onPageUpdate(id: PageId, data: PageData | null) {
+  override onPageUpdate(id: PageId, data: PageData | null) {
     const key = ['pages', id] as const;
     this.onUpdate<typeof key[0]>(key, data);
   }
 
-  onCalendarPageUpdate(id: CalendarId, data: CalendarPageData | null) {
+  override onCalendarPageUpdate(id: CalendarId, data: CalendarPageData | null) {
     const key = ['calendarPages', id] as const;
     this.onUpdate<typeof key[0]>(key, data);
   }
 
-  onCalendarEventUpdate(id: CalendarId, magicKey: number, event: Event | null) {
+  override onCalendarEventUpdate(id: CalendarId, magicKey: number, event: Event | null) {
     const key = ['calendarEvents', id, magicKey] as const;
     this.onUpdate<typeof key[0]>(key, event);
   }

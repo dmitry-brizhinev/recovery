@@ -1,4 +1,4 @@
-import {checkDateId, DateId, dateToId, incrementId} from "./DateId";
+import {checkDateId, type DateId, dateToId, incrementId} from "./DateId";
 
 export type CalendarId = DateId<'C'>;
 

@@ -1,8 +1,8 @@
-import * as React from 'react'
+import * as React from 'react';
 
-import { dateToJId, incrementJId, Journal, JournalData } from '../data/Journal';
-import { getJournals } from '../firebase/FirestoreJournals';
-import { JournalRoot, JournalDataRoot, JournalRootContext } from '../helpers/JournalRoot';
+import {dateToJId, incrementJId, Journal, type JournalData} from '../data/Journal';
+import {getJournals} from '../firebase/FirestoreJournals';
+import {JournalRoot, JournalDataRoot, JournalRootContext} from '../helpers/JournalRoot';
 import Backup from '../util/Backup';
 import ErrorBoundary from '../util/ErrorBoundary';
 
@@ -30,7 +30,7 @@ export default class JournalsContainer extends React.Component<object, JournalsC
     this.onDataArrived = this.onDataArrived.bind(this);
   }
 
-  componentDidMount() {
+  override componentDidMount() {
     this.mounted = true;
     if (!this.waitingForData) {
       this.waitingForData = true;
@@ -38,7 +38,7 @@ export default class JournalsContainer extends React.Component<object, JournalsC
     }
   }
 
-  componentWillUnmount() {
+  override componentWillUnmount() {
     this.mounted = false;
   }
 
@@ -61,16 +61,16 @@ export default class JournalsContainer extends React.Component<object, JournalsC
       this.setState({saver});
   }
 
-  render() {
+  override render() {
     return <div className="journals-wrapper">
       {this.state.root && this.state.data ?
         <ErrorBoundary>
-          {this.state.saver}<Backup data={this.state.data}/>
+          {this.state.saver}<Backup data={this.state.data} />
           <JournalRootContext.Provider value={this.state.root}>
-            <Journals data={this.state.data}/>
+            <Journals data={this.state.data} />
           </JournalRootContext.Provider>
         </ErrorBoundary>
-        : <Loading/>
+        : <Loading />
       }
     </div>;
   }
@@ -98,14 +98,14 @@ function Journals(props: JournalsProps): React.ReactElement {
   const onUpdate = React.useCallback((data: string) => root.onJournalUpdate(today, todaydata.withUpdate(data)), [root, today, todaydata]);
 
   return <ErrorBoundary><div className="journal-pages">
-    <div className="journal-yesterday">{yester.substring(1)}<textarea readOnly={true} className="journal-page-yesterday" value={yesterday?.main ?? ''}/></div>
+    <div className="journal-yesterday">{yester.substring(1)}<textarea readOnly={true} className="journal-page-yesterday" value={yesterday?.main ?? ''} /></div>
     <div className="journal-today"><div className="journal-pages-header">
       <button className="journal-prev-day" onClick={onClickPrevDay}>&lt;</button>
       {today.substring(1)}
       <button className="journal-next-day" onClick={onClickNextDay}>&gt;</button>
     </div>
-      <Textarea className="journal-page-today" value={todaydata.main} onChange={onUpdate}/>
+      <Textarea className="journal-page-today" value={todaydata.main} onChange={onUpdate} />
     </div>
-    <div className="journal-tomorrow">{tomorr.substring(1)}<textarea readOnly={true} className="journal-page-tomorrow" value={tomorrrow?.main ?? ''}/></div>
+    <div className="journal-tomorrow">{tomorr.substring(1)}<textarea readOnly={true} className="journal-page-tomorrow" value={tomorrrow?.main ?? ''} /></div>
   </div></ErrorBoundary>;
 }

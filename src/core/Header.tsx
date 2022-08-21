@@ -1,14 +1,14 @@
-import * as React from 'react'
-import type { User, UserData } from '../data/Data'
-import { getData } from '../firebase/FirestoreData'
-import { subscribeToUserChanges, loginPopup, logout } from '../firebase/FirebaseAuth'
-import ErrorBoundary from '../util/ErrorBoundary'
-import { DataRootContext, DataRootImpl } from '../helpers/DataRoot'
-import { cancellableDelay, Func } from '../util/Utils';
-import Backup from '../util/Backup'
-import Loading from '../util/Loading'
+import * as React from 'react';
+import type {User, UserData} from '../data/Data';
+import {getData} from '../firebase/FirestoreData';
+import {subscribeToUserChanges, loginPopup, logout} from '../firebase/FirebaseAuth';
+import ErrorBoundary from '../util/ErrorBoundary';
+import {DataRootContext, DataRootImpl} from '../helpers/DataRoot';
+import {cancellableDelay, type Func} from '../util/Utils';
+import Backup from '../util/Backup';
+import Loading from '../util/Loading';
 
-import Switcher, { SwitcherData } from '../util/Switcher'
+import Switcher, {type SwitcherData} from '../util/Switcher';
 
 const CalendarAndPages = React.lazy(() => import('./Pages'));
 const JournalsContainer = React.lazy(() => import('./Journals'));
@@ -29,8 +29,8 @@ interface HeaderProps {
 }
 
 export default class Header extends React.Component<HeaderProps, HeaderState> {
-  unsubscribe?: Func;
-  cancel?: Func;
+  unsubscribe?: Func | undefined;
+  cancel?: Func | undefined;
 
   constructor(props: HeaderProps) {
     super(props);
@@ -40,9 +40,9 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
     this.onUserUpdate = this.onUserUpdate.bind(this);
   }
 
-  componentDidMount() {
+  override componentDidMount() {
     if (!this.cancel && !this.state.finishedWaiting) {
-      this.cancel = cancellableDelay(() => {this.setState({finishedWaiting: true})}, this.props.loginDelay ?? 2000);
+      this.cancel = cancellableDelay(() => {this.setState({finishedWaiting: true});}, this.props.loginDelay ?? 2000);
     }
 
     if (!this.unsubscribe) {
@@ -50,7 +50,7 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
     }
   }
 
-  componentWillUnmount() {
+  override componentWillUnmount() {
     if (this.cancel && !this.state.finishedWaiting) {
       this.cancel();
       this.cancel = undefined;
@@ -66,12 +66,12 @@ export default class Header extends React.Component<HeaderProps, HeaderState> {
     this.setState({user});
   }
 
-  render() {
+  override render() {
     let upper;
     if (this.state.user) {
-      upper = <LoggedInApp user={this.state.user}/>;
+      upper = <LoggedInApp user={this.state.user} />;
     } else if (!this.state.finishedWaiting) {
-      upper = <Loading/>;
+      upper = <Loading />;
     } else {
       upper = <button onClick={loginPopup}>Login</button>;
     }
@@ -110,7 +110,7 @@ export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppSt
     this.onDataArrived = this.onDataArrived.bind(this);
   }
 
-  componentDidMount() {
+  override componentDidMount() {
     this.mounted = true;
     if (!this.waitingForData) {
       this.waitingForData = true;
@@ -118,7 +118,7 @@ export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppSt
     }
   }
 
-  componentWillUnmount() {
+  override componentWillUnmount() {
     this.mounted = false;
   }
 
@@ -141,17 +141,17 @@ export class LoggedInApp extends React.Component<LoggedInAppProps, LoggedInAppSt
       this.setState({saver});
   }
 
-  render() {
+  override render() {
     return <ErrorBoundary>
       {this.props.user.name} --- {new Date().toLocaleString()}
       {this.state.root && this.state.data ?
         <ErrorBoundary>
-          <br/>{this.state.saver}<Backup data={this.state.data}/><br/>
-        <DataRootContext.Provider value={this.state.root}>
-          <LoadedApp data={this.state.data}/>
-        </DataRootContext.Provider>
+          <br />{this.state.saver}<Backup data={this.state.data} /><br />
+          <DataRootContext.Provider value={this.state.root}>
+            <LoadedApp data={this.state.data} />
+          </DataRootContext.Provider>
         </ErrorBoundary>
-        : <Loading/>
+        : <Loading />
       }
     </ErrorBoundary>;
   }
@@ -172,5 +172,5 @@ function LoadedApp({data}: LoadedAppProps) {
     ['Messaging', () => <Messaging />],
   ], [data]);
 
-  return <Switcher data={switchData} initial={'Program'}/>;
+  return <Switcher data={switchData} initial={'Program'} />;
 }

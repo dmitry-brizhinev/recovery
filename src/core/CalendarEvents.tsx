@@ -1,9 +1,9 @@
-import * as React from 'react'
-import {Callback, Func, pad2} from '../util/Utils';
+import * as React from 'react';
+import {type Callback, type Func, pad2} from '../util/Utils';
 import ErrorBoundary from '../util/ErrorBoundary';
 import {DataRootContext} from '../helpers/DataRoot';
-import {ValidComment, default as Event} from '../data/Event';
-import {CalendarId, incrementCId} from '../data/CalendarId';
+import {type ValidComment, default as Event} from '../data/Event';
+import {type CalendarId, incrementCId} from '../data/CalendarId';
 import Textarea from '../util/Textarea';
 
 interface EventInputProps {
@@ -21,8 +21,8 @@ interface EventUpdateOpts {
 }
 
 export default class EventInput extends React.PureComponent<EventInputProps, EventInputState> {
-  static contextType = DataRootContext;
-  context!: React.ContextType<typeof DataRootContext>;
+  static override contextType = DataRootContext;
+  override context!: React.ContextType<typeof DataRootContext>;
   constructor(props: EventInputProps) {
     super(props);
 
@@ -62,14 +62,14 @@ export default class EventInput extends React.PureComponent<EventInputProps, Eve
     this.context.onCalendarEventUpdate(this.props.dayId, newValue.magicKey, opts?.delete ? null : newValue);
   }
 
-  render() {
+  override render() {
     const classname = `calendar-event ${this.props.event.status()}`;
     const targetUTCmillis = (this.props.event.isActive() || 0) && this.props.event.getScheduledDate(this.props.dayId).getTime();
 
     return <ErrorBoundary>
       <div className="calendar-event">
         {this.state.open ?
-          <button className="calendar-event-delete" onClick={event => this.onChange(this.props.event, {delete: true})}>Delete</button> :
+          <button className="calendar-event-delete" onClick={() => this.onChange(this.props.event, {delete: true})}>Delete</button> :
           <input className="calendar-event-time" type="time" value={this.props.event.toTimeInputString()} onChange={event => this.onChange(this.props.event.withUpdate({timeinput: event.target.value}))} />
         }
         <input className={classname} type="text" value={this.props.event.title} onChange={(event) => this.onChange(this.props.event.withUpdate({title: event.target.value}))} />
@@ -116,7 +116,7 @@ class EventDetail extends React.PureComponent<EventDetailProps, EventDetailState
     this.setState({unsavedComment: Event.sanitizeComment(unsavedComment)});
   }
 
-  render() {
+  override render() {
     const canReschedule = !!this.props.event.recurDays;
     const rescheduleDays = canReschedule ? ` ${this.props.event.recurDays}d` : '';
 
@@ -143,7 +143,7 @@ interface CountdownState {
 
 class Countdown extends React.PureComponent<CountdownProps, CountdownState> {
 
-  timer?: NodeJS.Timer;
+  timer?: NodeJS.Timer | undefined;
 
   constructor(props: CountdownProps) {
     super(props);
@@ -152,11 +152,11 @@ class Countdown extends React.PureComponent<CountdownProps, CountdownState> {
     this.tick = this.tick.bind(this);
   }
 
-  componentDidMount() {
+  override componentDidMount() {
     this.timer = setInterval(this.tick, 1000);
   }
 
-  componentWillUnmount() {
+  override componentWillUnmount() {
     this.timer != null && clearInterval(this.timer);
     this.timer = undefined;
   }
@@ -165,7 +165,7 @@ class Countdown extends React.PureComponent<CountdownProps, CountdownState> {
     this.setState({nowUTCmillis: new Date().getTime()});
   }
 
-  render() {
+  override render() {
     let text = 'Inactive';
     if (this.props.targetUTCmillis) {
       let remainingSecs = Math.round((this.props.targetUTCmillis - this.state.nowUTCmillis) / 1000);

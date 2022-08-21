@@ -1,7 +1,7 @@
 import * as React from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import '../css/lazy.css';
-import {Callback, delay, delayRet} from './Utils';
+import {type Callback, delay, delayRet} from './Utils';
 
 export function LazyTest(): React.ReactElement {
   const [faststate, setFast] = React.useState<LazyType>('a');

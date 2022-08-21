@@ -1,6 +1,7 @@
 import ProgramSaver from './ProgramSaver';
 import type {Callback} from '../util/Utils';
-import {CodeData, Code, CodeId, CodeOrTest, newCodeId} from '../data/Code';
+import type {CodeData, Code, CodeId, CodeOrTest} from '../data/Code';
+import {newCodeId} from '../data/Code';
 
 
 export default class ProgramRoot {

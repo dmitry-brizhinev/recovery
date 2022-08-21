@@ -41,7 +41,7 @@ class ContextSnapshot {
     private readonly parent: ContextSnapshot | undefined,
     private readonly vars: IMap<VrName, RawValue>,
     private readonly cons: IMap<string, Con>,
-    private readonly currentVar?: Var) {}
+    private readonly currentVar?: Var | undefined) {}
 
   getVarOrRecursive(vr: VrName): RawValue | undefined {
     const v = this.vars.get(vr);
@@ -70,7 +70,7 @@ class ExecContext {
   constructor(private readonly parent: ContextSnapshot | undefined) {}
   private readonly vars = new Map<VrName, RawValue>();
   private readonly cons = new Map<string, Con>();
-  currentVar?: Var;
+  currentVar?: Var | undefined;
 
   getVarOrRecursive(vr: VrName): RawValue | undefined {
     const v = this.vars.get(vr);

@@ -1,8 +1,8 @@
-import type * as React from 'react'
+import type * as React from 'react';
 import type {Callback} from '../util/Utils';
 
 import '../css/calendar.css';
-import {CalendarId, dateToCId} from '../data/CalendarId';
+import {type CalendarId, dateToCId} from '../data/CalendarId';
 import {idToDate} from '../data/DateId';
 
 //const a = <ReactCalendar minDetail="month" onClickDay={props.onClickDay} tileClassName={props.tileClassName} next2Label={null} prev2Label={null}/>;

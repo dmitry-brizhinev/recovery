@@ -1,6 +1,7 @@
-import { JournalData, JournalDiff, JournalId, makeJournalDiff } from '../data/Journal';
-import { saveJournals } from '../firebase/FirestoreJournals';
-import type { Callback } from '../util/Utils';
+import type {JournalData, JournalDiff, JournalId} from '../data/Journal';
+import {makeJournalDiff} from '../data/Journal';
+import {saveJournals} from '../firebase/FirestoreJournals';
+import type {Callback} from '../util/Utils';
 import Saver from './Saver';
 
 

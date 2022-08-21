@@ -1,5 +1,5 @@
-import {assert, Day, pad2} from "../util/Utils";
-import {castToTypedef, StrongTypedef} from "../util/StrongTypedef";
+import {assert, type Day, pad2} from "../util/Utils";
+import {castToTypedef, type StrongTypedef} from "../util/StrongTypedef";
 
 type CEJ = 'C' | 'E' | 'J';
 type RawDateId<T extends CEJ> = `${T}${string}`;

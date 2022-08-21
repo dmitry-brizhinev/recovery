@@ -1,7 +1,7 @@
-import {checkLexerName, DirtyLexerName, LexedToken} from "./CustomLexer";
+import {checkLexerName, type DirtyLexerName, type LexedToken} from "./CustomLexer";
 import type * as nearley from 'nearley';
 import {assert} from "../util/Utils";
-import {checkParserName, DirtyParserName} from "./NearleyParser";
+import {checkParserName, type DirtyParserName} from "./NearleyParser";
 import grammarPath from './grammar.ne';
 
 type Symbol = {type: DirtyLexerName;} | {literal: string;} | {test: (t: LexedToken) => boolean;} | DirtyParserName;

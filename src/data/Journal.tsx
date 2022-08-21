@@ -1,6 +1,6 @@
 import {extractNamedGroups} from "../util/Utils";
 import type {Map as IMap} from 'immutable';
-import {checkDateId, DateId, dateToId, incrementId} from "./DateId";
+import {checkDateId, type DateId, dateToId, incrementId} from "./DateId";
 
 export type JournalData = IMap<JournalId, Journal>;
 export type JournalDiff = Map<JournalId, Journal | null>;

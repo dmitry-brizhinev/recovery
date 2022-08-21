@@ -1,4 +1,4 @@
-import {CodeData, CodeDiff, CodeOrTest, makeCodeDiff} from '../data/Code';
+import {type CodeData, type CodeDiff, type CodeOrTest, makeCodeDiff} from '../data/Code';
 import {saveCode} from '../firebase/FirestoreProgram';
 import type {Callback} from '../util/Utils';
 import Saver from './Saver';

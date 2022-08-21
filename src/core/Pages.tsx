@@ -2,7 +2,7 @@ import * as React from 'react';
 import type {PageData, PageMap, UserData} from '../data/Data';
 import ErrorBoundary from '../util/ErrorBoundary';
 import {DataRootContext} from '../helpers/DataRoot';
-import {genNewId, PageId} from '../data/PageId';
+import {genNewId, type PageId} from '../data/PageId';
 import Textarea from '../util/Textarea';
 import Calendar from './Calendar';
 

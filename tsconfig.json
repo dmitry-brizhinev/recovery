@@ -8,18 +8,18 @@
     ],
     "strict": true,
     "noImplicitAny": true,
-    "noImplicitOverride": false, /* todo */
+    "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noImplicitThis": true,
-    "exactOptionalPropertyTypes": false,
+    "exactOptionalPropertyTypes": true,
     "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": false, /* todo */
     "noUnusedLocals": true,
-    "noUnusedParameters": false, /* todo */
+    "noUnusedParameters": true,
     "importsNotUsedAsValues": "error",
     "noFallthroughCasesInSwitch": true,
     "allowUmdGlobalAccess": false,
-    "preserveValueImports": false, /* todo */
+    "preserveValueImports": true,
     /**/
     "allowJs": false,
     "skipLibCheck": false,

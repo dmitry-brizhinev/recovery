@@ -5,8 +5,8 @@ import '../css/assimilation.css';
 import ripple from './ripple.png';
 import {useCancellable, useCancellableDelay} from '../util/Hooks';
 import type {Callback, Func} from '../util/Utils';
-import {type Board, countPlayers, currentPlayerHasValidMove, donutBoard, GameState, InitialBoard, initialiseGameState, Move, moveResult, MoveResult, reduceGameState} from './Board';
-import {SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE, GRID} from './Constants';
+import {type Board, countPlayers, currentPlayerHasValidMove, donutBoard, type GameState, type InitialBoard, initialiseGameState, type Move, moveResult, MoveResult, reduceGameState} from './Board';
+import {type SvgCoords, SymbolDeclarations, SymbolName, Team, TeamColours, svgFromGrid, type GridCoords, gridFromSvg, PLAYER_TEAM, SIZE, VSIZE, GRID} from './Constants';
 import {FilterDefinitions, FilterId, SimpleRipple} from './Filter';
 import {makeMove} from './Player';
 
@@ -210,7 +210,7 @@ interface SymbolProps {
 }
 
 class Symbol extends React.Component<SymbolProps, object> {
-  render() {
+  override render() {
     const className = this.props.name + (this.props.className ? ` ${this.props.className}` : '');
     return <use href={'#' + this.props.name} x={this.props.pos.x} y={this.props.pos.y} className={className} />;
   }
@@ -289,7 +289,7 @@ onPointerLeave - end hover
     }
   }
 
-  render() {
+  override render() {
     const pos = this.state.draggedPos || this.props.initialPos;
 
     let sourcePos = undefined;

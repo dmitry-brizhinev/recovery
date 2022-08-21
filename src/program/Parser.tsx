@@ -1,6 +1,6 @@
 import {myLexer, mooLexer} from './CustomLexer';
 import {myParser} from './MyParser';
-import {NearleyParser, Parser} from './NearleyParser';
+import {NearleyParser, type Parser} from './NearleyParser';
 import {delay, errorString} from '../util/Utils';
 import RootExecutor from './Executor';
 import RootCompiler from './Compiler';

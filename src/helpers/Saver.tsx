@@ -1,4 +1,4 @@
-import { Callback, cancellableDelay, Func } from '../util/Utils';
+import {type Callback, cancellableDelay, type Func} from '../util/Utils';
 
 const enum SaverStatusString {
   Unsaved = ' [Unsaved..] ',
@@ -8,14 +8,14 @@ const enum SaverStatusString {
 
 export default class Saver<T> {
   private diffs: T = this.make();
-  private cancel?: Func;
+  private cancel?: Func | undefined;
 
   constructor(
     private readonly onStatusUpdate: Callback<SaverStatusString>,
     private readonly make: () => T,
     private readonly save: (diff: T) => Promise<void>,
     private readonly delay = 2000
-    ) {
+  ) {
     onStatusUpdate(SaverStatusString.Saved);
 
     this.saveNow = this.saveNow.bind(this);
@@ -41,7 +41,7 @@ export default class Saver<T> {
       this.cancel();
     }
     this.diffs = updater(this.diffs);
-  
+
     this.onStatusUpdate(SaverStatusString.Unsaved);
 
     this.cancel = cancellableDelay(this.saveNow, this.delay);

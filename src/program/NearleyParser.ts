@@ -1,4 +1,5 @@
-import {Cnst, DirtyLexerName, FilteredLexerNames, LexedToken, LexerName, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
+import type {Cnst, DirtyLexerName, LexedToken, LexerName, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
+import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert} from "../util/Utils";
 import compileGrammar from "./NearleyGrammar";
@@ -131,7 +132,7 @@ type Raw = LexedToken | ParsedRule;
 type Processed = DirtyToken | DirtyRule;
 type Clean = CleanedRule | CleanedToken;
 
-function discard(name: 'mws' | 'ws', rs: CleanerInput[]): undefined {
+function discard(_name: 'mws' | 'ws', _rs: CleanerInput[]): undefined {
   return undefined;
 }
 
@@ -169,13 +170,13 @@ function filterAndUnwrapSingle(name: DirtyParserName, rs: CleanerInput[]): Clean
   return unwrapSingle(name, r);
 }
 
-function flattenAndFilter(name: 'vrl' | 'doc' | 'tps', rs: CleanerInput[]): CleanerOutput {
+function flattenAndFilter(_name: 'vrl' | 'doc' | 'tps', rs: CleanerInput[]): CleanerOutput {
   return filterAndClean(rs.flat());
 }
 
 type Postprocessor = (data: CleanerInput[], loc?: number, reject?: {}) => CleanerOutput | undefined;
 
-function getPostprocessor<T extends DirtyParserName>(name: T, rule: string): Postprocessor | undefined {
+function getPostprocessor<T extends DirtyParserName>(name: T, _rule: string): Postprocessor | undefined {
   return cleaners[name].bind(undefined, name);
 }
 

@@ -1,8 +1,8 @@
-import { deleteField, FieldValue } from "firebase/firestore/lite";
+import {deleteField, FieldValue} from "firebase/firestore/lite";
 
-import { Map as IMap } from 'immutable';
-import { checkJournalId, Journal, JournalId, JournalData, JournalDiff } from '../data/Journal';
-import { getDocument, writeDocument } from "./Firestore";
+import {Map as IMap} from 'immutable';
+import {checkJournalId, Journal, type JournalId, type JournalData, type JournalDiff} from '../data/Journal';
+import {getDocument, writeDocument} from "./Firestore";
 
 
 export async function getJournals(): Promise<JournalData> {
@@ -24,7 +24,7 @@ export async function getJournals(): Promise<JournalData> {
 }
 
 export async function saveJournals(diffs: JournalDiff) {
-  const data: {[key: string]: string | FieldValue} = {};
+  const data: {[key: string]: string | FieldValue;} = {};
   for (const [key, value] of diffs) {
     data[key] = value?.toString() || deleteField();
   }
