@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable} from '../util/Utils';
-import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps} from './CustomLexer';
-import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Var, Typ, Ttp, Ftp} from './NearleyParser';
+import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName} from './CustomLexer';
+import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Var, Typ, Ttp, Ftp, Expo} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 interface Num {
@@ -12,16 +12,16 @@ interface Str {
 }
 interface Fun {
   readonly type: FunType;
-  readonly args: RawValue[];
-  readonly ret: RawValue;
+  readonly args: Value[];
+  readonly ret: Value;
 }
 interface Con {
   readonly name: string;
-  readonly fields: IMap<VrName, RawValue>;
+  readonly fields: IMap<VrName, Value>;
 }
 interface Tup {
   readonly type: TupType;
-  readonly values: RawValue[];
+  readonly values: Value[];
 }
 interface Obj {
   readonly type: ObjType;
@@ -29,21 +29,19 @@ interface Obj {
 }
 interface Arr {
   readonly type: ArrType;
-  readonly subtype: RawValue;
+  readonly subtype: Value;
 }
-type VrName = Vr['value'];
-type RawValue = Num | Str | Fun | Tup | Obj | Arr;
 
-interface Literal {readonly type: 'lit'; readonly name: VrName;};
+type Value = Num | Str | Fun | Tup | Obj | Arr;
 
 class ContextSnapshot {
   constructor(
     private readonly parent: ContextSnapshot | undefined,
-    private readonly vars: IMap<VrName, RawValue>,
+    private readonly vars: IMap<VrName, Value>,
     private readonly cons: IMap<string, Con>,
     private readonly currentVar?: Var | undefined) {}
 
-  getVarOrRecursive(vr: VrName): RawValue | undefined {
+  getVarOrRecursive(vr: VrName): Value | undefined {
     const v = this.vars.get(vr);
     if (v) return v;
     if (this.currentVar?.value.length === 2) {
@@ -57,7 +55,7 @@ class ContextSnapshot {
     return this.parent?.getVarOrRecursive(vr);
   }
 
-  getVar(vr: VrName): RawValue | undefined {
+  getVar(vr: VrName): Value | undefined {
     return this.vars.get(vr) || this.parent?.getVar(vr);
   }
 
@@ -68,11 +66,11 @@ class ContextSnapshot {
 
 class ExecContext {
   constructor(private readonly parent: ContextSnapshot | undefined) {}
-  private readonly vars = new Map<VrName, RawValue>();
+  private readonly vars = new Map<VrName, Value>();
   private readonly cons = new Map<string, Con>();
   currentVar?: Var | undefined;
 
-  getVarOrRecursive(vr: VrName): RawValue | undefined {
+  getVarOrRecursive(vr: VrName): Value | undefined {
     const v = this.vars.get(vr);
     if (v) return v;
     if (this.currentVar?.value.length === 2) {
@@ -86,10 +84,10 @@ class ExecContext {
     return this.parent?.getVarOrRecursive(vr);
   }
 
-  getVar(vr: VrName): RawValue | undefined {
+  getVar(vr: VrName): Value | undefined {
     return this.vars.get(vr) || this.parent?.getVar(vr);
   }
-  setVar(vr: Vr, val: RawValue) {
+  setVar(vr: Vr, val: Value) {
     const name = vr.value;
     this.vars.set(name, val);
   }
@@ -104,44 +102,41 @@ class ExecContext {
   }
 }
 
-function ist(val: RawValue): val is Tup {
+function ist(val: Value): val is Tup {
   return val.type === 't';
 }
-function checkt(val: RawValue): asserts val is Tup {
+function checkt(val: Value): asserts val is Tup {
   assert(ist(val), `${val.type} is not a tuple`);
 }
-function iso(val: RawValue): val is Obj {
+function iso(val: Value): val is Obj {
   return val.type === 'o';
 }
-function checko(val: RawValue): asserts val is Obj {
+function checko(val: Value): asserts val is Obj {
   assert(iso(val), `${val.type} is not an object`);
 }
-function isf(val: RawValue): val is Fun {
+function isf(val: Value): val is Fun {
   return val.type === 'f';
 }
-function checkf(val: RawValue): asserts val is Fun {
+function checkf(val: Value): asserts val is Fun {
   assert(isf(val), `${val.type} is not a function`);
 }
-function iss(val: RawValue): val is Str {
+function iss(val: Value): val is Str {
   return val.type === 's' || val.type === 'c';
 }
-function checks(val: RawValue): asserts val is Str {
+function checks(val: Value): asserts val is Str {
   assert(iss(val), `${val.type} is not stringy`);
 }
 
-function checkn(val: RawValue): asserts val is Num {
+function checkn(val: Value): asserts val is Num {
   assert(val.type === 'b' || val.type === 'i' || val.type === 'd', `${val.type} is not numeric`);
 }
 
-function checkb(val: RawValue): asserts val is Num {
+function checkb(val: Value): asserts val is Num {
   assert(val.type === 'b', `${val.type} is not a boolean`);
 }
 
-function checkFirstAssignment(target: VrName, source: RawValue) {
+function checkFirstAssignment(target: VrName, source: Value) {
   assert(target.charAt(0) === source.type);
-}
-function checkLitAssignment(target: VrName, source: VrName) {
-  assert(target.charAt(0) === source.charAt(0));
 }
 
 export default class RootTypeChecker {
@@ -153,7 +148,7 @@ export default class RootTypeChecker {
   }
 }
 
-type Receiver = Var | RawValue;
+type Receiver = Var | Value;
 
 class TypeChecker {
   constructor(private readonly context: ExecContext) {}
@@ -164,7 +159,7 @@ class TypeChecker {
     if (left.type === 'var' && left.value[0].value.charAt(0) === 'f') {
       this.context.currentVar = left;
     }
-    const right = this.unwrapLiteral(this.express(sta.value[1]));
+    const right = this.express(sta.value[1]);
     if (left.type !== 'var') {
       this.checkAssignment(left, right);
     } else {
@@ -173,7 +168,7 @@ class TypeChecker {
     this.context.currentVar = undefined;
   }
 
-  private assign(left: Var, right: RawValue) {
+  private assign(left: Var, right: Value) {
     const v = this.context.getVar(left.value[0].value);
     if (left.value.length === 2) {
       const vv = this.typeAnnotation(...left.value);
@@ -190,27 +185,18 @@ class TypeChecker {
 
   private resolveReceiver(rc: Rec): Receiver {
     if (rc.value.length === 1) {
-      const rec = rc.value[0];
-      if (rec.type === 'var') {
-        return rec;
-      }
-      const cond = this.unwrapLiteral(this.express(rec.value[0]));
-      checkb(cond);
-      const y = this.resolveReceiver(rec.value[1]);
-      const n = this.resolveReceiver(rec.value[2]);
-      return this.eitherReceiver(y, n);
+      return rc.value[0];
     } else {
-      assert(rc.value[1].value === '.');
-      const left = this.context.getVar(rc.value[0].value);
-      assert(left, `undefined variable ${rc.value[0].value}`);
+      const left = this.express(rc.value[0]);
       checko(left);
       const con = this.context.getCon(left.con);
       assertNonNull(con);
-      const field = con.fields.get(rc.value[2].value);
+      const field = con.fields.get(rc.value[1].value);
       assertNonNull(field);
       return field;
     }
   }
+
   private checkConAssignment(target: Con, source: Con) {
     for (const [n, f] of target.fields) {
       const s = source.fields.get(n);
@@ -219,7 +205,7 @@ class TypeChecker {
     }
     assert(target.name === source.name);
   }
-  private checkAssignment(target: RawValue | Literal, source: RawValue | Literal) {
+  private checkAssignment(target: Value, source: Value) {
     const t = target.type;
     switch (t) {
       case 'i':
@@ -250,24 +236,17 @@ class TypeChecker {
         assert(t === source.type, `Assigning ${source.type} to ${t}`);
         this.checkAssignment(target.subtype, source.subtype);
         return;
-      case 'lit':
-        if (source.type === 'lit') {
-          checkLitAssignment(target.name, source.name);
-        } else {
-          this.checkAssignment(this.unwrapLiteral(target), source);
-        }
-        return;
       default: unreachable(target, 'checkAssignment');
     }
   }
 
-  private typeAnnotation(vr: Vr, typ: Typ): RawValue {
+  private typeAnnotation(vr: Vr, typ: Typ): Value {
     const v = parseTypeAnnotation(typ);
     checkFirstAssignment(vr.value, v);
     return v;
   }
 
-  private unwrapVar(vvr: Var): RawValue {
+  private unwrapVar(vvr: Var): Value {
     if (vvr.value.length === 1) {
       const vr = vvr.value[0];
       const t = vr.value.charAt(0);
@@ -290,27 +269,12 @@ class TypeChecker {
     }
   }
 
-  private either(l: RawValue | Literal, r: RawValue | Literal): RawValue | Literal {
+  private either(l: Value, r: Value): Value {
     this.checkAssignment(l, r);
     return l;
   }
 
-  private eitherReceiver(l: Receiver, r: Receiver): Receiver {
-    if (l.type === 'var') {
-      const v = this.context.getVar(l.value[0].value);
-      assertNonNull(v, 'Cant define var inside receiver if');
-      l = v;
-    }
-    if (r.type === 'var') {
-      const v = this.context.getVar(r.value[0].value);
-      assertNonNull(v, 'Cant define var inside receiver if');
-      r = v;
-    }
-    this.checkAssignment(r, l);
-    return l;
-  }
-
-  private partApply(fun: Fun, arg: RawValue, curried: boolean): Fun {
+  private partApply(fun: Fun, arg: Value, curried: boolean): Fun {
     const {type, args, ret} = fun;
     if (curried) {
       checkt(arg);
@@ -324,19 +288,19 @@ class TypeChecker {
     }
   }
 
-  private callfun(fun: Fun): RawValue {
+  private callfun(fun: Fun): Value {
     assert(fun.args.length === 0, `Function missing ${fun.args.length} arguments`);
     return fun.ret;
   }
 
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): RawValue | Literal {
+  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo | Vcf): Value {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
       return this.evalVcf(exp);
     }
     return this.express(exp);
   }
 
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd): RawValue | Literal {
+  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo): Value {
     if (exp.type === 'fnd') {
       if (exp.value[1].type !== 'tc') {
         const args = exp.value[0].map(vr => ({...this.unwrapVar(vr), name: vr.value[0].value}));
@@ -344,7 +308,7 @@ class TypeChecker {
         args.forEach(v => innerContext.setVar({type: 'vr', value: v.name}, v));
         // const typ = exp.value.length === 3 ? exp.value[1] : undefined;
         const inn = exp.value.length === 3 ? exp.value[2] : exp.value[1];
-        const ret = this.unwrapLiteral(new TypeChecker(innerContext).express(inn));
+        const ret = new TypeChecker(innerContext).express(inn);
         return {type: 'f', args, ret};
       } else {
         const args = exp.value[0].map(vr => ({...this.unwrapVar(vr), name: vr.value[0].value}));
@@ -359,29 +323,35 @@ class TypeChecker {
       return this.exprOrVcf(exp.value[0]);
     } else if (exp.value.length === 2) {
       const left = this.exprOrVcf(exp.value[0]);
-      const sc = exp.value[1];
-      return this.doMonoOp(this.unwrapLiteral(left), sc);
-    } else {
+      const right = exp.value[1];
+      if (right.type === 'sc') {
+        return this.doMonoOp(left, right);
+      } else {
+        checko(left);
+        const con = this.context.getCon(left.con);
+        assertNonNull(con);
+        const field = con.fields.get(right.value);
+        assert(field, `Unknown object member ${right.value}`);
+        return field;
+      }
+    } else if (exp.value.length === 3 || exp.value.length === 4) {
       const left = this.exprOrVcf(exp.value[0]);
       const op = exp.value[1];
       const right = this.exprOrVcf(exp.value[2]);
       const sc = exp.value.length === 4 ? exp.value[3] : undefined;
-      const result = this.doOp(op, this.unwrapLiteral(left), right);
+      const result = this.doOp(op, left, right);
       if (!sc) return result;
       return this.doMonoOp(result, sc);
+    } else {
+      return unreachable(exp.value);
     }
   }
 
-  private unwrapLiteral(lit: Literal | RawValue): RawValue {
-    if (lit.type !== 'lit') return lit;
-    const v = this.context.getVarOrRecursive(lit.name);
-    assert(v, `undefined variable ${lit.name}`);
-    return v;
-  }
-
-  private evalVcf(vcf: Vcf): RawValue | Literal {
+  private evalVcf(vcf: Vcf): Value {
     if (vcf.type === 'vr') {
-      return {type: 'lit', name: vcf.value};
+      const v = this.context.getVarOrRecursive(vcf.value);
+      assert(v, `undefined variable ${vcf.value}`);
+      return v;
     } else if (vcf.type === 'cnst') {
       if (vcf.value === 'true') {
         return {type: 'b'};
@@ -396,9 +366,11 @@ class TypeChecker {
       } else {
         return {type: 'i'};
       }
+    } else if (vcf.type === 'exp') {
+      return this.express(vcf);
     } else if (vcf.type === 'ife') {
       const [c, y, n] = vcf.value;
-      const cond = this.unwrapLiteral(this.express(c));
+      const cond = this.express(c);
       checkb(cond);
       const ytype = this.express(y);
       const ntype = this.express(n);
@@ -408,29 +380,16 @@ class TypeChecker {
     }
   }
 
-  private doMonoOp(val: RawValue, sc: Sc): RawValue {
+  private doMonoOp(val: Value, sc: Sc): Value {
     assert(sc.value === ';');
     checkf(val);
     return this.callfun(val);
   }
 
-  private doOp(op: Op, left: RawValue, right: RawValue | Literal): RawValue {
-    if (op.value === '.' || op.value === '.:') {
-      assert(op.value === '.');
-      checko(left);
-      assert(right.type === 'lit', 'Invalid object member dereference');
-      const con = this.context.getCon(left.con);
-      assertNonNull(con);
-      const field = con.fields.get(right.name);
-      assert(field, `Unknown object member ${right.name}`);
-      return field;
-    }
-
-    right = this.unwrapLiteral(right);
-
+  private doOp(op: Op, left: Value, right: Value): Value {
     if (op.value === ':' || op.value === '::') {
       checkf(left);
-      return this.partApply(left, this.unwrapLiteral(right), op.value === '::');
+      return this.partApply(left, right, op.value === '::');
     } else if (op.value === ',') {
       const l = ist(left) ? left.values : [left];
       const r = ist(right) ? right.values : [right];
@@ -478,7 +437,7 @@ class TypeChecker {
 }
 
 
-function ttpValues(ttp: Ttp): RawValue[] {
+function ttpValues(ttp: Ttp): Value[] {
   if (ttp.value.length === 2) return [parseTypeAnnotation(ttp.value[0])];
   const vals = ttpValues(ttp.value[0]);
   vals.push(parseTypeAnnotation(ttp.value[1]));
@@ -487,7 +446,7 @@ function ttpValues(ttp: Ttp): RawValue[] {
 
 function parseFtp(ftp: Ftp): Fun {
   let ret;
-  let args: RawValue[];
+  let args: Value[];
   if (ftp.value.length === 2) {
     ret = parseTypeAnnotation(ftp.value[1]);
     args = ftp.value[0].flatMap(t => t.type === 'op' ? [] : [t]).map(t => parseTypeAnnotation(t));
@@ -498,7 +457,7 @@ function parseFtp(ftp: Ftp): Fun {
   return {type: 'f', args, ret};
 }
 
-function parseTypeAnnotation(typ: Typ): RawValue {
+function parseTypeAnnotation(typ: Typ): Value {
   switch (typ.type) {
     case 'tp': return {type: typ.value};
     case 'tc': return {type: 'o', con: typ.value};

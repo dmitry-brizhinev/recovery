@@ -1,7 +1,7 @@
 
-import {assert, unreachable} from '../util/Utils';
-import type {Op, Sc, PrimOps, Vr} from './CustomLexer';
-import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec} from './NearleyParser';
+import {assert, numToLetter, unreachable} from '../util/Utils';
+import type {Op, Sc, PrimOps, Vr, VrName} from './CustomLexer';
+import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Var, Typ, Ttp, Ftp, Expo} from './NearleyParser';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -28,7 +28,7 @@ export default class RootCompiler {
 }
 
 class Compiler {
-  private knownVars = new Set<Vr['value']>();
+  private knownVars = new Set<VrName>();
 
   compile(sta: Sta): [string, string] {
     const right = this.express(sta.value[1]);
@@ -38,50 +38,110 @@ class Compiler {
   private resolveReceiver(rc: Rec, right: string): [string, string] {
     if (rc.value.length === 1) {
       const rec = rc.value[0];
-      if (rec.type === 'var') {
-        const l = rec.value[0].value;
-        const dec = this.knownVars.has(l) ? '' : 'let ';
-        this.knownVars.add(l);
-        return [`${dec}${l} = ${right}`, `rrr.push(\`${l} = \${${l}}\`);`];
-      }
-      const cond = this.express(rec.value[0]);
-      const [y] = this.resolveReceiver(rec.value[1], 'c');
-      const [n] = this.resolveReceiver(rec.value[2], 'c');
-      const inner = `((${cond})?(${y}):(${n}))`;
-      return right === 'c' ? [`${inner}`, ''] : [`{const c = ${right};${inner};}`, `rrr.push('ifs = something')`];
+      const l = rec.value[0].value;
+      const left = this.knownVars.has(l) ? l : `let ${this.maybeAnnotate(rec)}`;
+      this.knownVars.add(l);
+      return [`${left} = ${right}`, `rrr.push(\`${l} = \${${l}}\`);`];
     } else {
-      assert(rc.value[1].value === '.');
-      const l = rc.value[0].value;
-      const r = rc.value[2].value;
-      const v = `${l}.${r}`;
+      const l = this.express(rc.value[0]);
+      const r = rc.value[1].value;
+      const v = `(${l}).${r}`;
       return [`${v} = ${right}`, `rrr.push(\`${v} = \${${v}}\`);`];
     }
   }
 
 
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): string {
+  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo | Vcf): string {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
       return this.evalVcf(exp);
     }
     return this.express(exp);
   }
 
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd): string {
+  private implicitAnnotation(vr: Vr): string | undefined {
+    const n = vr.value;
+    switch (n.charAt(0)) {
+      case 'i': return 'number';
+      case 'd': return 'number';
+      case 'b': return 'boolean';
+      case 's': return 'string';
+      case 'c': return 'string';
+      default: return undefined;
+    }
+  }
+
+  private ttpValues(ttp: Ttp): string[] {
+    if (ttp.value.length === 2) return [this.annotation(ttp.value[0])];
+    const vals = this.ttpValues(ttp.value[0]);
+    vals.push(this.annotation(ttp.value[1]));
+    return vals;
+  }
+
+  private parseFtp(ftp: Ftp): string {
+    let ret: string;
+    let args: string[];
+    if (ftp.value.length === 2) {
+      ret = this.annotation(ftp.value[1]);
+      args = ftp.value[0].flatMap(t => t.type === 'op' ? [] : [t]).map((t, i) => `${numToLetter('a', i)}:(${this.annotation(t)})`);
+      return `(${args.join('),(')}) => (${ret})`;
+    } else {
+      ret = this.annotation(ftp.value[0]);
+      args = [];
+      return `() => (${ret})`;
+    }
+  }
+
+  private annotation(typ: Typ): string {
+    if (typ.type === 'tp') {
+      switch (typ.value) {
+        case 'i': return 'number';
+        case 'd': return 'number';
+        case 'b': return 'boolean';
+        case 's': return 'string';
+        case 'c': return 'string';
+        default: return unreachable(typ);
+      }
+    } else if (typ.type === 'tc') {
+      return typ.value;
+    } else if (typ.type === 'atp') {
+      return `(${this.annotation(typ.value[0])})[]`;
+    } else if (typ.type === 'ttp') {
+      const vs = this.ttpValues(typ);
+      return `[(${vs.join('),(')})]`;
+    } else if (typ.type === 'ftp') {
+      return this.parseFtp(typ);
+    } else {
+      return unreachable(typ);
+    }
+  }
+
+  private maybeAnnotate(v: Var): string {
+    const [vr, typ] = v.value;
+    const a = typ ? this.annotation(typ) : this.implicitAnnotation(vr);
+    const aa = a ? `:(${a})` : '';
+    return `${vr.value}${aa}`;
+  }
+
+  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo): string {
     if (exp.type === 'fnd') {
+      const args = exp.value[0].map(vr => this.maybeAnnotate(vr)).join(', ');
       if (exp.value[1].type !== 'tc') {
-        const args = exp.value[0].map(vr => vr.value[0].value).join(', ');
         const ret = exp.value.length === 3 ? exp.value[2] : exp.value[1];
         return `((${args}) => (${this.express(ret)}))`;
       } else {
-        const args = exp.value[0].map(vr => `${vr.value[0].value}`).join(', ');
-        return `((${args}) => ({${args}}))`;
+        const rawArgs = exp.value[0].map(vr => vr.value[0].value).join(', ');
+        return `((${args}) => ({${rawArgs}}))`;
       }
     } else if (exp.value.length === 1) {
       return this.exprOrVcf(exp.value[0]);
     } else if (exp.value.length === 2) {
       const left = this.exprOrVcf(exp.value[0]);
-      const sc = exp.value[1];
-      return this.doMonoOp(left, sc);
+      const right = exp.value[1];
+      if (right.type === 'sc') {
+        return this.doMonoOp(left, right);
+      } else {
+        return `(${left}).${right.value}`;
+      }
     } else {
       const left = this.exprOrVcf(exp.value[0]);
       const op = exp.value[1];
@@ -98,10 +158,12 @@ class Compiler {
       return vcf.value;
     } else if (vcf.type === 'cnst') {
       return vcf.value;
+    } else if (vcf.type === 'exp') {
+      return this.express(vcf);
     } else if (vcf.type === 'ife') {
       const [c, y, n] = vcf.value;
       const cond = this.express(c);
-      return `((${cond})?(${this.express(y)}):(${this.express(n)})`;
+      return `(${cond})?(${this.express(y)}):(${this.express(n)})`;
     } else {
       return unreachable(vcf);
     }
@@ -119,9 +181,6 @@ class Compiler {
       return `(${left}).bind(undefined,...(${right}))`;
     } else if (op.value === ',') {
       return `[(${left}),(${right})].flat()`;
-    } else if (op.value === '.' || op.value === '.:') {
-      assert(op.value === '.');
-      return `(${left}).${right}`;
     } else if (op.value === '//') {
       return `Math.trunc((${left})/(${right}))`;
     } else {

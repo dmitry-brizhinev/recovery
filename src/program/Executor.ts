@@ -1,7 +1,7 @@
 
 import {assert, unreachable} from '../util/Utils';
-import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps} from './CustomLexer';
-import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec} from './NearleyParser';
+import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName} from './CustomLexer';
+import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Expo} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 interface Num {
@@ -17,7 +17,7 @@ interface Fun {
   readonly args: Vr[];
   readonly applied: Value[];
   readonly context?: ContextSnapshot | undefined;
-  readonly selfref?: {name: Vr['value']; value: Fun;} | undefined;
+  readonly selfref?: {name: VrName; value: Fun;} | undefined;
   readonly ret: Exp | 'struct';
 }
 interface Tup {
@@ -26,15 +26,15 @@ interface Tup {
 }
 class Obj {
   readonly type: ObjType = 'o';
-  constructor(private fields: IMap<string, Value>,
-    private readonly methods: IMap<string, Fun> = IMap()) {}
+  constructor(private fields: IMap<VrName, Value>,
+    private readonly methods: IMap<VrName, Fun> = IMap()) {}
 
-  getMember(name: string): Value {
+  getMember(name: VrName): Value {
     const m = this.fields.get(name) ?? this.methods.get(name);
     assert(m, `No member named ${name}`);
     return m;
   }
-  setMember(name: string, v: Value) {
+  setMember(name: VrName, v: Value) {
     const current = this.getMember(name);
     assert(current.type === v.type, `${name} cannot be assigned a value of type ${v.type}`);
     this.fields = this.fields.set(name, v);
@@ -44,12 +44,11 @@ interface Arr {
   readonly type: ArrType;
 }
 type Value = Num | Str | Fun | Tup | Obj | Arr;
-type LazyValue = Value | Vr;
 
 class ContextSnapshot {
   constructor(
     private readonly parent: ContextSnapshot | undefined,
-    readonly vars: IMap<string, Value>) {}
+    readonly vars: IMap<VrName, Value>) {}
 
   getVar(vr: Vr): Value {
     const v = this.vars.get(vr.value);
@@ -61,7 +60,7 @@ class ContextSnapshot {
 
 class ExecContext {
   constructor(private readonly parent: ContextSnapshot | undefined) {}
-  private readonly vars = new Map<string, Value>();
+  private readonly vars = new Map<VrName, Value>();
 
   getVar(vr: Vr): Value {
     const v = this.vars.get(vr.value);
@@ -124,23 +123,18 @@ export default class RootExecutor {
   }
 }
 
-type Receiver = Vr | [Obj, string];
+type Receiver = Vr | [Obj, VrName];
 
 class Executor {
   constructor(private readonly context: ExecContext) {}
   private currentVar?: Vr | undefined;
-
-  private eager(v: LazyValue): Value {
-    if (v.type !== 'vr') return v;
-    return this.context.getVar(v);
-  }
 
   run(sta: Sta): string | undefined {
     const left = this.resolveReceiver(sta.value[0]);
     if (!Array.isArray(left) && left.value.charAt(0) === 'f') {
       this.currentVar = left;
     }
-    let right = this.eager(this.express(sta.value[1]));
+    let right = this.express(sta.value[1]);
     if (this.currentVar && right.type === 'f') {
       right = {...right, selfref: {name: this.currentVar.value, value: right}};
       assert(right.selfref);
@@ -176,22 +170,11 @@ class Executor {
 
   private resolveReceiver(rc: Rec): Receiver {
     if (rc.value.length === 1) {
-      const rec = rc.value[0];
-      if (rec.type === 'var') {
-        return rec.value[0];
-      }
-      const cond = this.eager(this.express(rec.value[0]));
-      checkb(cond);
-      if (cond.value) {
-        return this.resolveReceiver(rec.value[1]);
-      } else {
-        return this.resolveReceiver(rec.value[2]);
-      }
+      return rc.value[0].value[0];
     } else {
-      assert(rc.value[1].value === '.');
-      const left = this.context.getVar(rc.value[0]);
+      const left = this.express(rc.value[0]);
       checko(left);
-      const right = rc.value[2];
+      const right = rc.value[1];
       return [left, right.value];
     }
   }
@@ -206,7 +189,7 @@ class Executor {
     return new Obj(fields.vars);
   }
 
-  private callfun(fun: Fun): LazyValue {
+  private callfun(fun: Fun): Value {
     assert(fun.args.length === fun.applied.length, `Function missing ${fun.args.length - fun.applied.length} arguments`);
     const innerContext = new ExecContext(fun.context);
     for (const [i, a] of fun.applied.entries()) {
@@ -222,14 +205,14 @@ class Executor {
     }
   }
 
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Vcf): LazyValue {
+  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo | Vcf): Value {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
       return this.evalVcf(exp);
     }
     return this.express(exp);
   }
 
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd): LazyValue {
+  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo): Value {
     if (exp.type === 'fnd') {
       if (exp.value[1].type !== 'tc') {
         const args = exp.value[0].map(v => v.value[0]);
@@ -243,26 +226,27 @@ class Executor {
       return this.exprOrVcf(exp.value[0]);
     } else if (exp.value.length === 2) {
       const left = this.exprOrVcf(exp.value[0]);
-      const sc = exp.value[1];
-      return this.doMonoOp(this.eager(left), sc);
+      const right = exp.value[1];
+      if (right.type === 'sc') {
+        return this.doMonoOp(left, right);
+      } else {
+        checko(left);
+        return left.getMember(right.value);
+      }
     } else {
       const left = this.exprOrVcf(exp.value[0]);
       const op = exp.value[1];
       let right = this.exprOrVcf(exp.value[2]);
-      if (op.value === '.:' || op.value === '.') {
-        assert(right.type === 'vr', 'Invalid object member dereference', right);
-        right = {type: 's', value: right.value};
-      }
       const sc = exp.value.length === 4 ? exp.value[3] : undefined;
-      const result = this.doOp(op, this.eager(left), this.eager(right));
+      const result = this.doOp(op, left, right);
       if (!sc) return result;
-      return this.doMonoOp(this.eager(result), sc);
+      return this.doMonoOp(result, sc);
     }
   }
 
-  private evalVcf(vcf: Vcf): LazyValue {
+  private evalVcf(vcf: Vcf): Value {
     if (vcf.type === 'vr') {
-      return vcf;
+      return this.context.getVar(vcf);
     } else if (vcf.type === 'cnst') {
       if (vcf.value === 'true') {
         return {type: 'b', value: 1};
@@ -277,9 +261,11 @@ class Executor {
       } else {
         return {type: 'i', value: Number.parseInt(vcf.value)};
       }
+    } else if (vcf.type === 'exp') {
+      return this.express(vcf);
     } else if (vcf.type === 'ife') {
       const [c, y, n] = vcf.value;
-      const cond = this.eager(this.express(c));
+      const cond = this.express(c);
       checkb(cond);
       if (cond.value) {
         return this.express(y);
@@ -291,13 +277,13 @@ class Executor {
     }
   }
 
-  private doMonoOp(val: Value, sc: Sc): LazyValue {
+  private doMonoOp(val: Value, sc: Sc): Value {
     assert(sc.value === ';');
     checkf(val);
     return this.callfun(val);
   }
 
-  private doOp(op: Op, left: Value, right: Value): LazyValue {
+  private doOp(op: Op, left: Value, right: Value): Value {
     if (op.value === ':' || op.value === '::') {
       checkf(left);
       return this.partApply(left, right, op.value === '::');
@@ -305,11 +291,6 @@ class Executor {
       const l = ist(left) ? left.values : [left];
       const r = ist(right) ? right.values : [right];
       return {type: 't', values: l.concat(r)};
-    } else if (op.value === '.' || op.value === '.:') {
-      assert(op.value === '.');
-      checko(left);
-      checks(right);
-      return left.getMember(right.value);
     } else if (op.value === '+' && iss(left)) {
       checks(right);
       return {type: 's', value: left.value + right.value};

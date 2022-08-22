@@ -66,3 +66,8 @@ export function makeLazySingleton<T>(initialiser: Getter<T>): Getter<T> {
 export function errorString(e: unknown): string {
   return e instanceof Error ? (e.stack || `${e.name}: ${e.message}`) : JSON.stringify(e);
 }
+
+export function numToLetter(start: 'a' | 'A', ...nums: number[]): string {
+  const k = start === 'a' ? 97 : 65;
+  return String.fromCharCode(...nums.map(n => n + k));
+}

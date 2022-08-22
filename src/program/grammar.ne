@@ -6,10 +6,11 @@
 doc -> sta %nl doc | %nl doc | sta %nl | sta | %nl
 # Assignment statement
 sta -> rec %eq exp
-# If-expression and if-receiver
-ife -> "if" exp "then" exp "else" exp "endif"
-ifr -> "if" exp "then" rec "else" rec "endif"
+# Receivers: the complement to expressions
+rec -> var | exp %dt %vr
 
+# If-expression
+ife -> "if" exp "then" exp "else" exp "endif"
 # General expression
 exp -> exp2 | fnd
 # Function definition expression
@@ -17,7 +18,8 @@ fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
 exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
 exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
-exp0 -> exp0 op0 vcf mc0 | vcf mc0
+exp0 -> exp0 op0 expo mc0 | expo mc0
+expo -> vcf | vcf %dt %vr
 
 # Maybe whitespace
 mws -> ws | null
@@ -42,6 +44,5 @@ var -> %vr | %vr mws typ
 # Variable list
 vrl -> vrl ws var | var | null
 # Variable / constant / if: primitive expressions
-vcf -> %vr | %cnst | ife
-# Receivers: the complement to expressions
-rec -> var | ifr | %vr mws "." mws %vr
+vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
+

@@ -7,7 +7,7 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
-const compOps = ['.:', '.', '::', ':', ','] as const;
+const compOps = ['::', ':', ','] as const;
 export type PrimOps = typeof primOps[number];
 export type CompOps = typeof compOps[number];
 const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct'] as const;
@@ -41,11 +41,12 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   rt: {match: / *-> */, value: trim},
   op: primOps.concat(compOps as any) as any,
   sc: [';'],
+  dt: ['.'],
   eq: {match: / *= *(?!=)/, value: trim},
   kw: kwrx,
   ms: /  +/,
   os: ' ',
-  br: ['{', '}'],
+  br: ['{', '}', '(', ')'],
   vr: /[idbsctofa][A-Z]\w*/,
   tc: /[A-Z]\w*/,
   cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
@@ -81,9 +82,10 @@ export type ObjType = 'o';
 export type ArrType = 'a';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
-export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta'] as const;
+export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'dt', 'br', 'ta'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames[number];
 export type DirtyLexerName = LexerName | FilteredLexerName;
+export type VrName = Vr['value'];
 export interface Vr {
   type: 'vr';
   value: `${ValueType}${string}`;

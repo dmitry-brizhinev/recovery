@@ -13,10 +13,11 @@ import compileGrammar from "./NearleyGrammar";
 doc -> sta %nl doc | %nl doc | sta %nl | sta | %nl
 # Assignment statement
 sta -> rec %eq exp
-# If-expression and if-receiver
-ife -> "if" exp "then" exp "else" exp "endif"
-ifr -> "if" exp "then" rec "else" rec "endif"
+# Receivers: the complement to expressions
+rec -> var | exp %dt %vr
 
+# If-expression
+ife -> "if" exp "then" exp "else" exp "endif"
 # General expression
 exp -> exp2 | fnd
 # Function definition expression
@@ -24,7 +25,8 @@ fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
 exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
 exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
-exp0 -> exp0 op0 vcf mc0 | vcf mc0
+exp0 -> exp0 op0 expo mc0 | expo mc0
+expo -> vcf | vcf %dt %vr
 
 # Maybe whitespace
 mws -> ws | null
@@ -49,9 +51,7 @@ var -> %vr | %vr mws typ
 # Variable list
 vrl -> vrl ws var | var | null
 # Variable / constant / if: primitive expressions
-vcf -> %vr | %cnst | ife
-# Receivers: the complement to expressions
-rec -> var | ifr | %vr mws "." mws %vr
+vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
 */
 
 export type ParserName = ParserOpts['type'];
@@ -67,13 +67,14 @@ export function checkParserName(name: string): DirtyParserName {
 const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => CleanerOutput | undefined} = {
   doc: flattenAndFilter,
   sta: filterAndLabel,
+  rec: filterAndLabel,
   ife: filterAndLabel,
-  ifr: filterAndLabel,
   exp: filterAndLabel,
   fnd: filterAndLabel,
   exp2: filterAndLabel,
   exp1: filterAndLabel,
   exp0: filterAndLabel,
+  expo: filterAndLabel,
   mws: discard,
   ws: discard,
   mc2: filterAndUnwrapSingle,
@@ -91,18 +92,19 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   var: filterAndLabel,
   vrl: flattenAndFilter,
   vcf: filterAndUnwrapSingle,
-  rec: filterAndLabel,
+
 } as const;
 
 export type Doc = Sta[];
 export interface Sta {type: 'sta'; value: [Rec, Exp];}
+export interface Rec {type: 'rec'; value: [Var] | [Exp, Vr];}
 export interface Ife {type: 'ife'; value: [Exp, Exp, Exp];}
-export interface Ifr {type: 'ifr'; value: [Exp, Rec, Rec];}
 export interface Exp {type: 'exp'; value: [Exp2] | [Fnd];}
 export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, Tc];}
 export interface Exp2 {type: 'exp2'; value: [Exp2, Op, Exp1] | [Exp2, Op, Exp1, Sc] | [Exp1] | [Exp1, Sc];}
 export interface Exp1 {type: 'exp1'; value: [Exp1, Op, Exp0] | [Exp1, Op, Exp0, Sc] | [Exp0] | [Exp0, Sc];}
-export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Vcf] | [Exp0, Op, Vcf, Sc] | [Vcf] | [Vcf, Sc];}
+export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Expo] | [Exp0, Op, Expo, Sc] | [Expo] | [Expo, Sc];}
+export interface Expo {type: 'expo'; value: [Vcf] | [Vcf, Vr];}
 export type Typ = Ftp | Ttp | Atp | Tc | Tp;
 export interface Ttp {type: 'ttp'; value: [Typ, Op] | [Ttp, Typ, Op];}
 export interface Atp {type: 'atp'; value: [Typ];}
@@ -110,10 +112,10 @@ export interface Ftp {type: 'ftp'; value: [Typ] | [Tps, Typ];}
 export type Tps = (Typ | Op)[];
 export interface Var {type: 'var'; value: [Vr] | [Vr, Typ];}
 export type Vrl = Var[];
-export type Vcf = Vr | Cnst | Ife;
-export interface Rec {type: 'rec'; value: [Var | Ifr] | [Vr, Op, Vr];}
+export type Vcf = Vr | Cnst | Ife | Exp;
 
-type ParserOpts = Sta | Ife | Ifr | Exp | Fnd | Exp2 | Exp1 | Exp0 | Ttp | Atp | Ftp | Var | Rec;
+
+type ParserOpts = Sta | Rec | Ife | Exp | Fnd | Exp2 | Exp1 | Exp0 | Expo | Ttp | Atp | Ftp | Var;
 
 type ParsedRule = {
   type: DirtyParserName,

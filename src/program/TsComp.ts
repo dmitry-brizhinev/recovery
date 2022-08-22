@@ -8,14 +8,26 @@ function getOptions() {
     module: ts.ModuleKind.ES2022,
     target: ts.ScriptTarget.ES2022,
     lib: ['es2022'] as [string],
-    noImplicitAny: false,
-    noImplicitThis: false,
-    noImplicitReturns: true,
+    // strict group
     strict: true, // This maybe doesnt override the optionals????
-    noPropertyAccessFromIndexSignature: false,
-    noUncheckedIndexedAccess: false,
+    alwaysStrict: true,
+    strictNullChecks: true,
+    strictBindCallApply: true,
+    strictFunctionTypes: true,
+    strictPropertyInitialization: true,
+    noImplicitAny: true,
+    noImplicitThis: true,
+    useUnknownInCatchVariables: true,
+    // End of strict group
+    noImplicitOverride: true,
+    noImplicitReturns: true,
+    exactOptionalPropertyTypes: true,
+    noPropertyAccessFromIndexSignature: true,
+    noUncheckedIndexedAccess: true,
+    noFallthroughCasesInSwitch: true,
     noUnusedLocals: true,
     noUnusedParameters: true,
+    // End of type checking section
     allowUmdGlobalAccess: false,
     removeComments: true,
     isolatedModules: true,
@@ -34,9 +46,22 @@ export async function compile(code: string): Promise<CompilationResult> {
 }
 
 function flatten(message: string | ts.DiagnosticMessageChain): string {
-  if (typeof message === 'string') return message;
-  return message.messageText + '\n' + (message.next ?? []).map(flatten).join('\n');
+  return ts.flattenDiagnosticMessageText(message, '\n');
 }
+
+/*
+    allDiagnostics.forEach(diagnostic => {
+      let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+      if (diagnostic.file) {
+        let { line, character } = diagnostic.file.getLineAndCharacterOfPosition(
+          diagnostic.start!
+        );
+        console.log(`  Error ${diagnostic.file.fileName} (${line + 1},${character +1}): ${message}`);
+      } else {
+        console.log(`  Error: ${message}`);
+      }
+    });
+*/
 
 function normalise(output: ts.TranspileOutput | InternalResult): CompilationResult {
   const {outputText, diagnostics} = output;
