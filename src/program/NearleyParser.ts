@@ -42,7 +42,7 @@ op0 -> %op
 # Type annotations
 typ -> "{" ctp "}" | %tc | %tp
 ctp -> ftp | ttp | atp
-ttp -> typ "," | ttp typ ","
+ttp -> typ "," typ | ttp "," typ
 atp -> "a" typ
 ftp -> %rt typ | tps %rt typ
 tps -> typ | tps ":" typ
@@ -106,7 +106,7 @@ export interface Exp1 {type: 'exp1'; value: [Exp1, Op, Exp0] | [Exp1, Op, Exp0, 
 export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Expo] | [Exp0, Op, Expo, Sc] | [Expo] | [Expo, Sc];}
 export interface Expo {type: 'expo'; value: [Vcf] | [Vcf, Vr];}
 export type Typ = Ftp | Ttp | Atp | Tc | Tp;
-export interface Ttp {type: 'ttp'; value: [Typ, Op] | [Ttp, Typ, Op];}
+export interface Ttp {type: 'ttp'; value: [Typ, Op, Typ] | [Ttp, Op, Typ];}
 export interface Atp {type: 'atp'; value: [Typ];}
 export interface Ftp {type: 'ftp'; value: [Typ] | [Tps, Typ];}
 export type Tps = (Typ | Op)[];

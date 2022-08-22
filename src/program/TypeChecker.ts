@@ -392,7 +392,7 @@ class TypeChecker {
       return this.partApply(left, right, op.value === '::');
     } else if (op.value === ',') {
       const l = ist(left) ? left.values : [left];
-      const r = ist(right) ? right.values : [right];
+      const r = [right];
       return {type: 't', values: l.concat(r)};
     } else if (op.value === '+' && iss(left)) {
       checks(right);
@@ -438,9 +438,10 @@ class TypeChecker {
 
 
 function ttpValues(ttp: Ttp): Value[] {
-  if (ttp.value.length === 2) return [parseTypeAnnotation(ttp.value[0])];
-  const vals = ttpValues(ttp.value[0]);
-  vals.push(parseTypeAnnotation(ttp.value[1]));
+  const [l, , r] = ttp.value;
+  if (l.type !== 'ttp') return [parseTypeAnnotation(l), parseTypeAnnotation(r)];
+  const vals = ttpValues(l);
+  vals.push(parseTypeAnnotation(r));
   return vals;
 }
 

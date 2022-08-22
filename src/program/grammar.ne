@@ -35,7 +35,7 @@ op0 -> %op
 # Type annotations
 typ -> "{" ctp "}" | %tc | %tp
 ctp -> ftp | ttp | atp
-ttp -> typ "," | ttp typ ","
+ttp -> typ "," typ | ttp "," typ
 atp -> "a" typ
 ftp -> %rt typ | tps %rt typ
 tps -> typ | tps ":" typ

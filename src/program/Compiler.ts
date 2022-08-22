@@ -71,9 +71,11 @@ class Compiler {
   }
 
   private ttpValues(ttp: Ttp): string[] {
-    if (ttp.value.length === 2) return [this.annotation(ttp.value[0])];
-    const vals = this.ttpValues(ttp.value[0]);
-    vals.push(this.annotation(ttp.value[1]));
+    const l = ttp.value[0];
+    const r = ttp.value[2];
+    if (l.type !== 'ttp') return [this.annotation(l), this.annotation(r)];
+    const vals = this.ttpValues(l);
+    vals.push(this.annotation(r));
     return vals;
   }
 
@@ -83,7 +85,7 @@ class Compiler {
     if (ftp.value.length === 2) {
       ret = this.annotation(ftp.value[1]);
       args = ftp.value[0].flatMap(t => t.type === 'op' ? [] : [t]).map((t, i) => `${numToLetter('a', i)}:(${this.annotation(t)})`);
-      return `(${args.join('),(')}) => (${ret})`;
+      return `(${args.join(',')}) => (${ret})`;
     } else {
       ret = this.annotation(ftp.value[0]);
       args = [];
@@ -180,7 +182,7 @@ class Compiler {
     } else if (op.value === '::') {
       return `(${left}).bind(undefined,...(${right}))`;
     } else if (op.value === ',') {
-      return `[(${left}),(${right})].flat()`;
+      return `[(${left}),(${right})]`;  ///// TODO TODOTODO TODO
     } else if (op.value === '//') {
       return `Math.trunc((${left})/(${right}))`;
     } else {
