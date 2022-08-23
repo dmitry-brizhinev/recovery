@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable} from '../util/Utils';
-import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName} from './CustomLexer';
-import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Var, Typ, Ttp, Ftp, Expo} from './NearleyParser';
+import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName, Cnst, Cl} from './CustomLexer';
+import type {Exp, Exl, Exc, Exm, Exo, Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 interface Num {
@@ -293,15 +293,10 @@ class TypeChecker {
     return fun.ret;
   }
 
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo | Vcf): Value {
+  private express(exp: Exp | Exl | Exc | Exm | Exo | Dot | Fnd | Vr | Cnst | Ife): Value {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
       return this.evalVcf(exp);
-    }
-    return this.express(exp);
-  }
-
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo): Value {
-    if (exp.type === 'fnd') {
+    } else if (exp.type === 'fnd') {
       if (exp.value[1].type !== 'tc') {
         const args = exp.value[0].map(vr => ({...this.unwrapVar(vr), name: vr.value[0].value}));
         const innerContext = new ExecContext(this.context.snapshot());
@@ -320,34 +315,31 @@ class TypeChecker {
         return {type: 'f', args, ret};
       }
     } else if (exp.value.length === 1) {
-      return this.exprOrVcf(exp.value[0]);
+      return this.express(exp.value[0]);
     } else if (exp.value.length === 2) {
-      const left = this.exprOrVcf(exp.value[0]);
+      const left = this.express(exp.value[0]);
       const right = exp.value[1];
-      if (right.type === 'sc') {
-        return this.doMonoOp(left, right);
-      } else {
-        checko(left);
-        const con = this.context.getCon(left.con);
-        assertNonNull(con);
-        const field = con.fields.get(right.value);
-        assert(field, `Unknown object member ${right.value}`);
-        return field;
-      }
-    } else if (exp.value.length === 3 || exp.value.length === 4) {
-      const left = this.exprOrVcf(exp.value[0]);
+      return this.doMonoOp(left, right);
+    } else if (exp.type === 'dot') {
+      const left = this.express(exp.value[0]);
+      const right = exp.value[2];
+      checko(left);
+      const con = this.context.getCon(left.con);
+      assertNonNull(con);
+      const field = con.fields.get(right.value);
+      assert(field, `Unknown object member ${right.value}`);
+      return field;
+    } else if (exp.value.length === 3) {
+      const left = this.express(exp.value[0]);
       const op = exp.value[1];
-      const right = this.exprOrVcf(exp.value[2]);
-      const sc = exp.value.length === 4 ? exp.value[3] : undefined;
-      const result = this.doOp(op, left, right);
-      if (!sc) return result;
-      return this.doMonoOp(result, sc);
+      const right = this.express(exp.value[2]);
+      return this.doOp(op, left, right);
     } else {
       return unreachable(exp.value);
     }
   }
 
-  private evalVcf(vcf: Vcf): Value {
+  private evalVcf(vcf: Vr | Cnst | Ife): Value {
     if (vcf.type === 'vr') {
       const v = this.context.getVarOrRecursive(vcf.value);
       assert(v, `undefined variable ${vcf.value}`);
@@ -366,8 +358,6 @@ class TypeChecker {
       } else {
         return {type: 'i'};
       }
-    } else if (vcf.type === 'exp') {
-      return this.express(vcf);
     } else if (vcf.type === 'ife') {
       const [c, y, n] = vcf.value;
       const cond = this.express(c);
@@ -386,7 +376,7 @@ class TypeChecker {
     return this.callfun(val);
   }
 
-  private doOp(op: Op, left: Value, right: Value): Value {
+  private doOp(op: Op | Cl | {value: ','}, left: Value, right: Value): Value {
     if (op.value === ':' || op.value === '::') {
       checkf(left);
       return this.partApply(left, right, op.value === '::');
@@ -438,8 +428,8 @@ class TypeChecker {
 
 
 function ttpValues(ttp: Ttp): Value[] {
-  const [l, , r] = ttp.value;
-  if (l.type !== 'ttp') return [parseTypeAnnotation(l), parseTypeAnnotation(r)];
+  if (ttp.value.length === 1) return [parseTypeAnnotation(ttp.value[0])];
+  const [l, r] = ttp.value;
   const vals = ttpValues(l);
   vals.push(parseTypeAnnotation(r));
   return vals;
@@ -450,7 +440,7 @@ function parseFtp(ftp: Ftp): Fun {
   let args: Value[];
   if (ftp.value.length === 2) {
     ret = parseTypeAnnotation(ftp.value[1]);
-    args = ftp.value[0].flatMap(t => t.type === 'op' ? [] : [t]).map(t => parseTypeAnnotation(t));
+    args = ftp.value[0].flatMap(t => t.type === 'cl' ? [] : [t]).map(t => parseTypeAnnotation(t));
   } else {
     ret = parseTypeAnnotation(ftp.value[0]);
     args = [];

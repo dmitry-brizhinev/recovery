@@ -1,4 +1,4 @@
-import type {Cnst, DirtyLexerName, LexedToken, LexerName, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
+import type {Cl, Cm, Cnst, DirtyLexerName, Dt, LexedToken, LexerName, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
 import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert} from "../util/Utils";
@@ -19,30 +19,52 @@ rec -> var | exp %dt %vr
 # If-expression
 ife -> "if" exp "then" exp "else" exp "endif"
 # General expression
-exp -> exp2 | fnd
+exp -> exc2 | fnd
 # Function definition expression
 fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
-exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
-exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
-exp0 -> exp0 op0 expo mc0 | expo mc0
-expo -> vcf | vcf %dt %vr
+exc2 -> exl2 sc2      | exl2
+exl2 -> exl2 cl2 exm2 | exm2
+exm2 -> exm2 cm2 exo2 | exo2
+exo2 -> exo2 op2 exc1 | exc1
+# One space
+exc1 -> exl1 sc1      | exl1
+exl1 -> exl1 cl1 exm1 | exm1
+exm1 -> exm1 cm1 exo1 | exo1
+exo1 -> exo1 op1 exc0 | exc0
+# No spaces
+exc0 -> exl0 sc0      | exl0
+exl0 -> exl0 cl0 exm0 | exm0
+exm0 -> exm0 cm0 exo0 | exo0
+exo0 -> exo0 op0 dot  | dot
+# Dot operator
+dot -> vcf | vcf %dt %vr
+# Variable / constant / if: primitive expressions
+vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
 
 # Maybe whitespace
 mws -> ws | null
 ws -> %os | %ms
-# Maybe (semi)colon
-mc2 -> %ms %sc | null
-mc1 -> %os %sc | null
-mc0 -> %sc | null
+# Semicolon
+sc2 -> %ms %sc
+sc1 -> %os %sc
+sc0 -> %sc
 # Binary operators
 op2 -> %ms %op mws | %os %op %ms | %op %ms
 op1 -> %os %op | %op %os | %os %op %os
 op0 -> %op
+# Comma
+cm2 -> %ms %cm mws | %os %cm %ms | %cm %ms
+cm1 -> %os %cm | %cm %os | %os %cm %os
+cm0 -> %cm
+# Colon / double-colon
+cl2 -> %ms %cl mws | %os %cl %ms | %cl %ms
+cl1 -> %os %cl | %cl %os | %os %cl %os
+cl0 -> %cl
 # Type annotations
 typ -> "{" ctp "}" | %tc | %tp
 ctp -> ftp | ttp | atp
-ttp -> typ "," typ | ttp "," typ
+ttp -> "," typ | ttp "," typ
 atp -> "a" typ
 ftp -> %rt typ | tps %rt typ
 tps -> typ | tps ":" typ
@@ -50,12 +72,10 @@ tps -> typ | tps ":" typ
 var -> %vr | %vr mws typ
 # Variable list
 vrl -> vrl ws var | var | null
-# Variable / constant / if: primitive expressions
-vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
 */
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['doc', 'mws', 'ws', 'mc2', 'mc1', 'mc0', 'op2', 'op1', 'op0', 'typ', 'ctp', 'tps', 'vrl', 'vcf'] as const;
+const FilteredParserNames = ['doc', 'exp', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -67,22 +87,30 @@ export function checkParserName(name: string): DirtyParserName {
 const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => CleanerOutput | undefined} = {
   doc: flattenAndFilter,
   sta: filterAndLabel,
-  rec: filterAndLabel,
+  rec: filterAndLabelOrUnwrap,
   ife: filterAndLabel,
-  exp: filterAndLabel,
+  exp: filterAndUnwrapSingle,
   fnd: filterAndLabel,
-  exp2: filterAndLabel,
-  exp1: filterAndLabel,
-  exp0: filterAndLabel,
-  expo: filterAndLabel,
+  exc0: filterAndLabelOrUnwrap, exc1: filterAndLabelOrUnwrap, exc2: filterAndLabelOrUnwrap,
+  exl0: filterAndLabelOrUnwrap, exl1: filterAndLabelOrUnwrap, exl2: filterAndLabelOrUnwrap,
+  exm0: filterAndLabelOrUnwrap, exm1: filterAndLabelOrUnwrap, exm2: filterAndLabelOrUnwrap,
+  exo0: filterAndLabelOrUnwrap, exo1: filterAndLabelOrUnwrap, exo2: filterAndLabelOrUnwrap,
+  dot: filterAndLabelOrUnwrap,
+  vcf: filterAndUnwrapSingle,
   mws: discard,
   ws: discard,
-  mc2: filterAndUnwrapSingle,
-  mc1: filterAndUnwrapSingle,
-  mc0: filterAndUnwrapSingle,
+  sc2: filterAndUnwrapSingle,
+  sc1: filterAndUnwrapSingle,
+  sc0: filterAndUnwrapSingle,
   op2: filterAndUnwrapSingle,
   op1: filterAndUnwrapSingle,
   op0: filterAndUnwrapSingle,
+  cm2: filterAndUnwrapSingle,
+  cm1: filterAndUnwrapSingle,
+  cm0: filterAndUnwrapSingle,
+  cl2: filterAndUnwrapSingle,
+  cl1: filterAndUnwrapSingle,
+  cl0: filterAndUnwrapSingle,
   typ: filterAndUnwrapSingle,
   ctp: filterAndUnwrapSingle,
   ttp: filterAndLabel,
@@ -91,31 +119,37 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   tps: flattenAndFilter,
   var: filterAndLabel,
   vrl: flattenAndFilter,
-  vcf: filterAndUnwrapSingle,
-
 } as const;
 
 export type Doc = Sta[];
-export interface Sta {type: 'sta'; value: [Rec, Exp];}
-export interface Rec {type: 'rec'; value: [Var] | [Exp, Vr];}
+export interface Sta {type: 'sta'; value: [Rec | Var, Exp];}
+export interface Rec {type: 'rec'; value: [Exp, Dt, Vr];}
 export interface Ife {type: 'ife'; value: [Exp, Exp, Exp];}
-export interface Exp {type: 'exp'; value: [Exp2] | [Fnd];}
+// export interface Exp {type: 'exp'; value: [ExAny] | [Fnd];}
 export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, Tc];}
-export interface Exp2 {type: 'exp2'; value: [Exp2, Op, Exp1] | [Exp2, Op, Exp1, Sc] | [Exp1] | [Exp1, Sc];}
-export interface Exp1 {type: 'exp1'; value: [Exp1, Op, Exp0] | [Exp1, Op, Exp0, Sc] | [Exp0] | [Exp0, Sc];}
-export interface Exp0 {type: 'exp0'; value: [Exp0, Op, Expo] | [Exp0, Op, Expo, Sc] | [Expo] | [Expo, Sc];}
-export interface Expo {type: 'expo'; value: [Vcf] | [Vcf, Vr];}
+
+export interface Exc {type: 'exc0' | 'exc1' | 'exc2'; value: [AnyExp, Sc];}
+export interface Exl {type: 'exl0' | 'exl1' | 'exl2'; value: [AnyExp, Cl, AnyExp];}
+export interface Exm {type: 'exm0' | 'exm1' | 'exm2'; value: [AnyExp, Cm, AnyExp];}
+export interface Exo {type: 'exo0' | 'exo1' | 'exo2'; value: [AnyExp, Op, AnyExp];}
+
+export interface Dot {type: 'dot'; value: [Vcf, Dt, Vr];}
+
 export type Typ = Ftp | Ttp | Atp | Tc | Tp;
-export interface Ttp {type: 'ttp'; value: [Typ, Op, Typ] | [Ttp, Op, Typ];}
+export interface Ttp {type: 'ttp'; value: [Typ] | [Ttp, Typ];}
 export interface Atp {type: 'atp'; value: [Typ];}
 export interface Ftp {type: 'ftp'; value: [Typ] | [Tps, Typ];}
-export type Tps = (Typ | Op)[];
+export type Tps = (Typ | Cl)[];
 export interface Var {type: 'var'; value: [Vr] | [Vr, Typ];}
 export type Vrl = Var[];
-export type Vcf = Vr | Cnst | Ife | Exp;
+
+type Vcf = AnyExp;
+type Exp = AnyExp;
+export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Fnd;
+
+type ParserOpts = Sta | Rec | Ife | Fnd | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
 
 
-type ParserOpts = Sta | Rec | Ife | Exp | Fnd | Exp2 | Exp1 | Exp0 | Expo | Ttp | Atp | Ftp | Var;
 
 type ParsedRule = {
   type: DirtyParserName,
@@ -134,7 +168,7 @@ type Raw = LexedToken | ParsedRule;
 type Processed = DirtyToken | DirtyRule;
 type Clean = CleanedRule | CleanedToken;
 
-function discard(_name: 'mws' | 'ws', _rs: CleanerInput[]): undefined {
+function discard(_name: FilteredParserName, _rs: CleanerInput[]): undefined {
   return undefined;
 }
 
@@ -159,12 +193,18 @@ function filterAndLabel(name: ParserName, rs: CleanerInput[]): CleanerOutput {
   return {type: name, value: r};
 }
 
+function filterAndLabelOrUnwrap(name: ParserName, rs: CleanerInput[]): CleanerOutput {
+  const r = filterAndClean(rs);
+  if (r.length === 1) return unwrapSingle(name, r);
+  return {type: name, value: r};
+}
+
 function unwrapSingle(name: DirtyParserName, rs: CleanerInput[]): CleanerOutput {
   assert(rs.length === 1, `${name} had multiple children: ${JSON.stringify(rs)}`);
   return clean(rs[0]);
 }
 
-function filterAndUnwrapSingle(name: DirtyParserName, rs: CleanerInput[]): CleanerOutput | undefined {
+function filterAndUnwrapSingle(name: FilteredParserName, rs: CleanerInput[]): CleanerOutput | undefined {
   const r = rs.filter(cleaningFilter);
   if (r.length === 0) {
     return undefined;

@@ -12,30 +12,52 @@ rec -> var | exp %dt %vr
 # If-expression
 ife -> "if" exp "then" exp "else" exp "endif"
 # General expression
-exp -> exp2 | fnd
+exp -> exc2 | fnd
 # Function definition expression
 fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
-exp2 -> exp2 op2 exp1 mc2 | exp1 mc2
-exp1 -> exp1 op1 exp0 mc1 | exp0 mc1
-exp0 -> exp0 op0 expo mc0 | expo mc0
-expo -> vcf | vcf %dt %vr
+exc2 -> exl2 sc2      | exl2
+exl2 -> exl2 cl2 exm2 | exm2
+exm2 -> exm2 cm2 exo2 | exo2
+exo2 -> exo2 op2 exc1 | exc1
+# One space
+exc1 -> exl1 sc1      | exl1
+exl1 -> exl1 cl1 exm1 | exm1
+exm1 -> exm1 cm1 exo1 | exo1
+exo1 -> exo1 op1 exc0 | exc0
+# No spaces
+exc0 -> exl0 sc0      | exl0
+exl0 -> exl0 cl0 exm0 | exm0
+exm0 -> exm0 cm0 exo0 | exo0
+exo0 -> exo0 op0 dot  | dot
+# Dot operator
+dot -> vcf | vcf %dt %vr
+# Variable / constant / if: primitive expressions
+vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
 
 # Maybe whitespace
 mws -> ws | null
 ws -> %os | %ms
-# Maybe (semi)colon
-mc2 -> %ms %sc | null
-mc1 -> %os %sc | null
-mc0 -> %sc | null
+# Semicolon
+sc2 -> %ms %sc
+sc1 -> %os %sc
+sc0 -> %sc
 # Binary operators
 op2 -> %ms %op mws | %os %op %ms | %op %ms
 op1 -> %os %op | %op %os | %os %op %os
 op0 -> %op
+# Comma
+cm2 -> %ms %cm mws | %os %cm %ms | %cm %ms
+cm1 -> %os %cm | %cm %os | %os %cm %os
+cm0 -> %cm
+# Colon / double-colon
+cl2 -> %ms %cl mws | %os %cl %ms | %cl %ms
+cl1 -> %os %cl | %cl %os | %os %cl %os
+cl0 -> %cl
 # Type annotations
 typ -> "{" ctp "}" | %tc | %tp
 ctp -> ftp | ttp | atp
-ttp -> typ "," typ | ttp "," typ
+ttp -> "," typ | ttp "," typ
 atp -> "a" typ
 ftp -> %rt typ | tps %rt typ
 tps -> typ | tps ":" typ
@@ -43,6 +65,3 @@ tps -> typ | tps ":" typ
 var -> %vr | %vr mws typ
 # Variable list
 vrl -> vrl ws var | var | null
-# Variable / constant / if: primitive expressions
-vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
-

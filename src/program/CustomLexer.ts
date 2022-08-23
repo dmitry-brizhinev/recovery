@@ -7,9 +7,7 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
-const compOps = ['::', ':', ','] as const;
 export type PrimOps = typeof primOps[number];
-export type CompOps = typeof compOps[number];
 const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct'] as const;
 const kwrx = [
   {match: /if +/, value: trim},
@@ -39,9 +37,11 @@ const kwrx = [
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   nl: {match: /(?: *#.*\n| *\n)+/, lineBreaks: true},
   rt: {match: / *-> */, value: trim},
-  op: primOps.concat(compOps as any) as any,
+  op: primOps as any,
   sc: [';'],
   dt: ['.'],
+  cm: [','],
+  cl: ['::', ':'],
   eq: {match: / *= *(?!=)/, value: trim},
   kw: kwrx,
   ms: /  +/,
@@ -82,7 +82,7 @@ export type ObjType = 'o';
 export type ArrType = 'a';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
-export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'dt', 'br', 'ta'] as const;
+export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames[number];
 export type DirtyLexerName = LexerName | FilteredLexerName;
 export type VrName = Vr['value'];
@@ -96,7 +96,7 @@ interface Eq {
 }
 export interface Op {
   type: 'op';
-  value: PrimOps | CompOps;
+  value: PrimOps;
 }
 export interface Sc {
   type: 'sc';
@@ -114,6 +114,18 @@ export interface Tp {
   type: 'tp';
   value: NumType | StrType;
 }
+export interface Cm {
+  type: 'cm';
+  value: ',';
+}
+export interface Cl {
+  type: 'cl';
+  value: ':' | '::';
+}
+export interface Dt {
+  type: 'dt';
+  value: '.';
+}
 interface Rt {
   type: 'rt';
   value: '->';
@@ -122,7 +134,7 @@ interface Kw {
   type: 'kw';
   value: typeof kws[number];
 }
-export type LexerOpts = Vr | Tc | Tp | Op | Sc | Cnst;
+export type LexerOpts = Vr | Tc | Tp | Cl | Cm | Dt | Op | Sc | Cnst;
 
 
 

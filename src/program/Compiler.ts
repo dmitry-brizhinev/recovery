@@ -1,7 +1,7 @@
 
 import {assert, numToLetter, unreachable} from '../util/Utils';
 import type {Op, Sc, PrimOps, Vr, VrName} from './CustomLexer';
-import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Var, Typ, Ttp, Ftp, Expo} from './NearleyParser';
+import type {Exp, Exl, Exm, Exc, Fnd, Sta, Vcf, Rec, Var, Typ, Ttp, Ftp, Exo, Dot} from './NearleyParser';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -51,7 +51,7 @@ class Compiler {
   }
 
 
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo | Vcf): string {
+  private exprOrVcf(exp: Exp | Exm | Exl | Exc | Exo | Dot | Fnd | Vcf): string {
     if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
       return this.evalVcf(exp);
     }
@@ -71,9 +71,10 @@ class Compiler {
   }
 
   private ttpValues(ttp: Ttp): string[] {
+    if (ttp.value.length === 1) return [this.annotation(ttp.value[0])];
     const l = ttp.value[0];
-    const r = ttp.value[2];
-    if (l.type !== 'ttp') return [this.annotation(l), this.annotation(r)];
+    const r = ttp.value[1];
+
     const vals = this.ttpValues(l);
     vals.push(this.annotation(r));
     return vals;
@@ -84,7 +85,7 @@ class Compiler {
     let args: string[];
     if (ftp.value.length === 2) {
       ret = this.annotation(ftp.value[1]);
-      args = ftp.value[0].flatMap(t => t.type === 'op' ? [] : [t]).map((t, i) => `${numToLetter('a', i)}:(${this.annotation(t)})`);
+      args = ftp.value[0].flatMap(t => t.type === 'cl' ? [] : [t]).map((t, i) => `${numToLetter('a', i)}:(${this.annotation(t)})`);
       return `(${args.join(',')}) => (${ret})`;
     } else {
       ret = this.annotation(ftp.value[0]);
@@ -124,7 +125,7 @@ class Compiler {
     return `${vr.value}${aa}`;
   }
 
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo): string {
+  private express(exp: Exp | Exm | Exl | Exc | Exo | Dot | Fnd): string {
     if (exp.type === 'fnd') {
       const args = exp.value[0].map(vr => this.maybeAnnotate(vr)).join(', ');
       if (exp.value[1].type !== 'tc') {
