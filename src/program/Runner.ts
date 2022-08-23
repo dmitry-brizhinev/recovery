@@ -4,8 +4,8 @@ import {NearleyParser, type Parser} from './NearleyParser';
 import {delay, errorString} from '../util/Utils';
 import RootExecutor from './Executor';
 import RootCompiler from './Compiler';
-import RootTypeChecker from './TypeChecker';
 import {errorToString} from './TsComp';
+import {RootPostprocessor, type Statement} from './ParsePostprocessor';
 
 async function getParser(mine?: boolean): Promise<Parser> {
   if (mine) {
@@ -31,7 +31,7 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
   const parser = await getParser();
   const exec = new RootExecutor();
   const comp = new RootCompiler();
-  const chec = new RootTypeChecker();
+  const post = new RootPostprocessor();
   await delay(100);
   for (const line of code.split('\n')) {
     let statements;
@@ -42,8 +42,9 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
       return;
     }
     for (const sta of statements) {
+      let statement: Statement;
       try {
-        chec.check(sta);
+        statement = post.convert(sta);
       } catch (e) {
         yield myErrorString('check', line, e);
         return;
@@ -51,10 +52,10 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
       try {
         if (mode !== 'check') {
           if (mode === 'run') {
-            const r = exec.run(sta);
+            const r = exec.run(statement);
             if (r) yield r;
           } else {
-            const r = comp.compile(sta);
+            const r = comp.compile(statement);
             if (mode.ts && r) yield r;
           }
         }

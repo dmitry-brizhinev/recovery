@@ -26,12 +26,12 @@ export default async function compileGrammar(getPostprocessor: (name: DirtyParse
   for (const gg of (await fetchGrammar()).trim().split('\n')) {
     const g = gg.split(/[#@]/)[0].trim();
     if (g.length === 0) continue;
-    const gs = g.split(' -> ');
+    const gs = g.split(/ +-> +/);
     assert(gs.length === 2, g);
     const [nn, ruless] = gs;
     const name = checkParserName(nn);
     if (!result.ParserStart) result.ParserStart = name;
-    const rules = ruless.split(' | ');
+    const rules = ruless.split(/ +\| +/);
     assert(rules.length >= 1, g);
     for (const rule of rules) {
       const tokens = rule.split(/ +/);

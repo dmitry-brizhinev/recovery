@@ -24,18 +24,18 @@ exp -> exc2 | fnd
 fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
 exc2 -> exl2 sc2      | exl2
-exl2 -> exl2 cl2 exm2 | exm2
-exm2 -> exm2 cm2 exo2 | exo2
+exl2 -> exl2 cl2 exm2 | exm2 | exo2 | exl2 cl2 exo2
+exm2 -> exm2 cm2 exo2 | cm2 exo2
 exo2 -> exo2 op2 exc1 | exc1
 # One space
 exc1 -> exl1 sc1      | exl1
-exl1 -> exl1 cl1 exm1 | exm1
-exm1 -> exm1 cm1 exo1 | exo1
+exl1 -> exl1 cl1 exm1 | exm1 | exo1 | exl1 cl1 exo1
+exm1 -> exm1 cm1 exo1 | cm1 exo1
 exo1 -> exo1 op1 exc0 | exc0
 # No spaces
 exc0 -> exl0 sc0      | exl0
-exl0 -> exl0 cl0 exm0 | exm0
-exm0 -> exm0 cm0 exo0 | exo0
+exl0 -> exl0 cl0 exm0 | exm0 | exo0 | exl0 cl0 exo0
+exm0 -> exm0 cm0 exo0 | cm0 exo0
 exo0 -> exo0 op0 dot  | dot
 # Dot operator
 dot -> vcf | vcf %dt %vr
@@ -64,7 +64,7 @@ cl0 -> %cl
 # Type annotations
 typ -> "{" ctp "}" | %tc | %tp
 ctp -> ftp | ttp | atp
-ttp -> "," typ | ttp "," typ
+ttp -> %cm typ | ttp %cm typ
 atp -> "a" typ
 ftp -> %rt typ | tps %rt typ
 tps -> typ | tps ":" typ
@@ -130,13 +130,13 @@ export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, T
 
 export interface Exc {type: 'exc0' | 'exc1' | 'exc2'; value: [AnyExp, Sc];}
 export interface Exl {type: 'exl0' | 'exl1' | 'exl2'; value: [AnyExp, Cl, AnyExp];}
-export interface Exm {type: 'exm0' | 'exm1' | 'exm2'; value: [AnyExp, Cm, AnyExp];}
+export interface Exm {type: 'exm0' | 'exm1' | 'exm2'; value: [AnyExp, Cm, AnyExp] | [Cm, AnyExp];}
 export interface Exo {type: 'exo0' | 'exo1' | 'exo2'; value: [AnyExp, Op, AnyExp];}
 
 export interface Dot {type: 'dot'; value: [Vcf, Dt, Vr];}
 
 export type Typ = Ftp | Ttp | Atp | Tc | Tp;
-export interface Ttp {type: 'ttp'; value: [Typ] | [Ttp, Typ];}
+export interface Ttp {type: 'ttp'; value: [Cm, Typ] | [Ttp, Cm, Typ];}
 export interface Atp {type: 'atp'; value: [Typ];}
 export interface Ftp {type: 'ftp'; value: [Typ] | [Tps, Typ];}
 export type Tps = (Typ | Cl)[];

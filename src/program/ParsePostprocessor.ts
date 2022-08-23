@@ -1,38 +1,38 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName, Cnst, Cl, Cm} from './CustomLexer';
-import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp} from './NearleyParser';
+import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName, Cnst, Cl} from './CustomLexer';
+import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
-interface Num {
+export interface Num {
   readonly type: NumType;
 }
-interface Str {
+export interface Str {
   readonly type: StrType;
 }
-interface Fun {
+export interface Fun {
   readonly type: FunType;
   readonly args: Value[];
   readonly ret: Value;
 }
-interface Con {
+export interface Con {
   readonly name: string;
   readonly fields: IMap<VrName, Value>;
 }
-interface Tup {
+export interface Tup {
   readonly type: TupType;
   readonly values: Value[];
 }
-interface Obj {
+export interface Obj {
   readonly type: ObjType;
   readonly con: string;
 }
-interface Arr {
+export interface Arr {
   readonly type: ArrType;
   readonly subtype: Value;
 }
 
-type Value = Num | Str | Fun | Tup | Obj | Arr;
+export type Value = Num | Str | Fun | Tup | Obj | Arr;
 
 class ContextSnapshot {
   constructor(
@@ -176,20 +176,6 @@ export interface IfExpression {
   ifNo: Expression;
 }
 
-export interface FunctionExpression {
-  kind: 'function';
-  type: Fun;
-  args: VrName[];
-  body: Expression;
-}
-
-export interface Constructor {
-  kind: 'constructor';
-  type: Fun;
-  args: VrName[];
-  name: string;
-}
-
 export interface BinaryOperation {
   kind: 'binary';
   type: Value;
@@ -204,12 +190,31 @@ export interface Tuple {
   elements: Expression[];
 }
 
+export interface FunctionExpression {
+  kind: 'function';
+  type: Fun;
+  args: VrName[];
+  body: Expression;
+}
+
+export interface Constructor {
+  kind: 'constructor';
+  type: Fun;
+  args: VrName[];
+  name: string;
+}
+
 export interface FunctionBind {
   kind: 'bind';
   type: Value;
   call: boolean;
   func: Expression;
-  args: (Expression | undefined)[];
+  args: FunctionBindArg[];
+}
+
+export interface FunctionBindArg {
+  exp: Expression;
+  tupleSize?: number | undefined;
 }
 
 export class RootPostprocessor {
@@ -332,7 +337,7 @@ class Postprocessor {
       case 'exc2': return this.callfun(...exp.value);
       case 'exm0':
       case 'exm1':
-      case 'exm2': return this.tuple(...exp.value);
+      case 'exm2': return this.tuple(exp);
       case 'exl0':
       case 'exl1':
       case 'exl2': return this.bindfun(...exp.value);
@@ -429,27 +434,28 @@ class Postprocessor {
   private bindfun(l: AnyExp, op: Cl, r: AnyExp): FunctionBind {
     const kind = 'bind';
     const call = false;
-    const func = this.expression(l);
+    let func = this.expression(l);
     const curried = op.value === '::';
     const arg = this.expression(r);
-    checkf(func.type)
+    checkf(func.type);
     const {args, ret} = func.type;
     let type: Fun;
-    let argExps: (Expression | undefined)[];
+    let argExps: FunctionBindArg[];
     if (curried) {
       checkt(arg.type);
       assert(args.length >= arg.type.values.length, 'Too many arguments');
       arg.type.values.forEach((a, i) => this.checkAssignment(args[i], a));
       type = {type: 'f', args: args.slice(arg.type.values.length), ret};
-      argExps = Array(arg.type.values.length).fill(undefined);
-      if (argExps.length) {
-        argExps[0] = arg;
-      }
+      argExps = [{exp: arg, tupleSize: arg.type.values.length}];
     } else {
       assert(args.length >= 1, 'Too many arguments');
       this.checkAssignment(args[0], arg.type);
       type = {type: 'f', args: args.slice(1), ret};
-      argExps = [arg];
+      argExps = [{exp: arg}];
+    }
+    if (func.kind === 'bind') {
+      argExps = func.args.concat(argExps);
+      func = func.func;
     }
     return {kind, type, call, func, args: argExps};
   }
@@ -457,21 +463,28 @@ class Postprocessor {
   private callfun(e: AnyExp, _sc: Sc): FunctionBind {
     const kind = 'bind';
     const call = true;
-    const func = this.expression(e);
+    let func = this.expression(e);
     checkf(func.type);
     assert(func.type.args.length === 0, `Function missing ${func.type.args.length} arguments`);
+    const args = func.kind === 'bind' ? func.args : [];
     const type = func.type.ret;
-    return {kind, type, call, func, args: []};
+    func = func.kind === 'bind' ? func.func : func;
+    return {kind, type, call, func, args};
   }
 
-  private tuple(l: AnyExp, _op: Cm, r: AnyExp): Tuple {
+  private tuple(e: Exm): Tuple {
     const kind = 'tuple';
-    const left = this.expression(l);
-    const right = this.expression(r);
-    const ll = ist(left.type) ? left.type.values : [left.type];
-    const rr = [right.type];
-    const type: Tup = {type: 't', values: ll.concat(rr)};
-    return {kind, type, elements: [left, right]};
+    const type = 't';
+    if (e.value.length === 3) {
+      const tt = this.expression(e.value[0]);
+      assert(tt.kind === 'tuple');
+      checkt(tt.type);
+      const v = this.expression(e.value[2]);
+      return {kind, type: {type, values: tt.type.values.concat(v.type)}, elements: tt.elements.concat(v)};
+    } else {
+      const v = this.expression(e.value[1]);
+      return {kind, type: {type, values: [v.type]}, elements: [v]};
+    }
   }
 
   private binary(l: AnyExp, op: Op, r: AnyExp): BinaryOperation {
@@ -520,8 +533,8 @@ class Postprocessor {
 
 
 function ttpValues(ttp: Ttp): Value[] {
-  if (ttp.value.length === 1) return [parseTypeAnnotation(ttp.value[0])];
-  const [l, r] = ttp.value;
+  if (ttp.value.length === 2) return [parseTypeAnnotation(ttp.value[1])];
+  const [l, , r] = ttp.value;
   const vals = ttpValues(l);
   vals.push(parseTypeAnnotation(r));
   return vals;

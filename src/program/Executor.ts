@@ -1,7 +1,7 @@
 
-import {assert, unreachable} from '../util/Utils';
-import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName} from './CustomLexer';
-import type {Exp, Exp0, Exp1, Exp2, Fnd, Sta, Vcf, Rec, Expo} from './NearleyParser';
+import {assert, throwIfNull, unreachable} from '../util/Utils';
+import type {NumType, StrType, FunType, TupType, ObjType, ArrType, PrimOps, VrName} from './CustomLexer';
+import type {BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Num {
@@ -14,11 +14,11 @@ interface Str {
 }
 interface Fun {
   readonly type: FunType;
-  readonly args: Vr[];
+  readonly args: VrName[];
   readonly applied: Value[];
   readonly context?: ContextSnapshot | undefined;
   readonly selfref?: {name: VrName; value: Fun;} | undefined;
-  readonly ret: Exp | 'struct';
+  readonly ret: Expression | 'struct';
 }
 interface Tup {
   readonly type: TupType;
@@ -29,19 +29,16 @@ class Obj {
   constructor(private fields: IMap<VrName, Value>,
     private readonly methods: IMap<VrName, Fun> = IMap()) {}
 
-  getMember(name: VrName): Value {
-    const m = this.fields.get(name) ?? this.methods.get(name);
-    assert(m, `No member named ${name}`);
-    return m;
+  getMember(name: VrName): Value | undefined {
+    return this.fields.get(name) ?? this.methods.get(name);
   }
   setMember(name: VrName, v: Value) {
-    const current = this.getMember(name);
-    assert(current.type === v.type, `${name} cannot be assigned a value of type ${v.type}`);
     this.fields = this.fields.set(name, v);
   }
 }
 interface Arr {
   readonly type: ArrType;
+  readonly values: Value[];
 }
 type Value = Num | Str | Fun | Tup | Obj | Arr;
 
@@ -50,11 +47,8 @@ class ContextSnapshot {
     private readonly parent: ContextSnapshot | undefined,
     readonly vars: IMap<VrName, Value>) {}
 
-  getVar(vr: Vr): Value {
-    const v = this.vars.get(vr.value);
-    if (v != null) return v;
-    assert(this.parent, `undefined variable ${vr.value}`);
-    return this.parent.getVar(vr);
+  getVar(vr: VrName): Value | undefined {
+    return this.vars.get(vr) || this.parent?.getVar(vr);
   }
 }
 
@@ -62,25 +56,16 @@ class ExecContext {
   constructor(private readonly parent: ContextSnapshot | undefined) {}
   private readonly vars = new Map<VrName, Value>();
 
-  getVar(vr: Vr): Value {
-    const v = this.vars.get(vr.value);
-    if (v != null) return v;
-    assert(this.parent, `undefined variable ${vr.value}`);
-    return this.parent.getVar(vr);
+  getVar(vr: VrName): Value | undefined {
+    return this.vars.get(vr) || this.parent?.getVar(vr);
   }
-  setVar(vr: Vr, val: Value) {
-    checkType(vr, val);
-    this.vars.set(vr.value, val);
+  setVar(vr: VrName, val: Value) {
+    this.vars.set(vr, val);
   }
   snapshot(): ContextSnapshot {
     return new ContextSnapshot(this.parent, IMap(this.vars));
   }
 }
-
-function checkType(vr: Vr, val: Value) {
-  assert(vr.value.charAt(0) === val.type, `${vr.value} cannot be assigned a value of type ${val.type}`);
-}
-
 
 function ist(val: Value): val is Tup {
   return val.type === 't';
@@ -111,32 +96,43 @@ function checkn(val: Value): asserts val is Num {
   assert(val.type === 'b' || val.type === 'i' || val.type === 'd', `${val.type} is not numeric`);
 }
 
-function checkb(val: Value): asserts val is Num {
-  assert(val.type === 'b', `${val.type} is not a boolean`);
-}
-
 export default class RootExecutor {
   private readonly rootContext: ExecContext = new ExecContext(undefined);
 
-  run(sta: Sta): string | undefined {
+  run(sta: Statement): string | undefined {
     return new Executor(this.rootContext).run(sta);
   }
 }
 
-type Receiver = Vr | [Obj, VrName];
+type RecVal = VrName | [Obj, VrName];
+
+function valRep(v: Value): string {
+  return isf(v) ? `function` :
+    v.type === 't' ? `tuple` :
+      v.type === 'o' ? `object` :
+        v.type === 'a' ? `array` :
+          `${v.value}`;
+}
+
+function recRep(r: RecVal): string {
+  if (Array.isArray(r)) {
+    return `${valRep(r[0])}.${r[1]}`;
+  }
+  return r;
+}
 
 class Executor {
   constructor(private readonly context: ExecContext) {}
-  private currentVar?: Vr | undefined;
+  private currentVar?: VrName | undefined;
 
-  run(sta: Sta): string | undefined {
-    const left = this.resolveReceiver(sta.value[0]);
-    if (!Array.isArray(left) && left.value.charAt(0) === 'f') {
+  run(sta: Statement): string | undefined {
+    const left = this.receiver(sta.receiver);
+    if (!Array.isArray(left) && left.charAt(0) === 'f') {
       this.currentVar = left;
     }
-    let right = this.express(sta.value[1]);
+    let right = this.expression(sta.expression);
     if (this.currentVar && right.type === 'f') {
-      right = {...right, selfref: {name: this.currentVar.value, value: right}};
+      right = {...right, selfref: {name: this.currentVar, value: right}};
       assert(right.selfref);
       right.selfref.value = right;
     }
@@ -144,213 +140,181 @@ class Executor {
     return this.assign(left, right);
   }
 
-  private recRep(r: Receiver): string {
-    if (Array.isArray(r)) {
-      return `object.${r[1]}`;
-    }
-    return r.value;
-  }
-
-  private valRep(v: Value): string {
-    return isf(v) ? `function` :
-      v.type === 't' ? `tuple` :
-        v.type === 'o' ? `object` :
-          v.type === 'a' ? `array` :
-            `${v.value}`;
-  }
-
-  private assign(left: Receiver, right: Value): string | undefined {
+  private assign(left: RecVal, right: Value): string | undefined {
     if (Array.isArray(left)) {
       left[0].setMember(left[1], right);
     } else {
       this.context.setVar(left, right);
     }
-    return `${this.recRep(left)} = ${this.valRep(right)}`;
+    return `${recRep(left)} = ${valRep(right)}`;
   }
 
-  private resolveReceiver(rc: Rec): Receiver {
-    if (rc.value.length === 1) {
-      return rc.value[0].value[0];
-    } else {
-      const left = this.express(rc.value[0]);
-      checko(left);
-      const right = rc.value[1];
-      return [left, right.value];
+  private receiver(r: Receiver): RecVal {
+    switch (r.kind) {
+      case 'definition': return this.definition(r);
+      case 'variable': return this.varReceiver(r);
+      case 'field': return this.fieldReceiver(r);
+      default: return unreachable(r);
     }
   }
 
-  private partApply(fun: Fun, arg: Value, curried: boolean): Fun {
-    const {type, args, applied, context, selfref, ret} = fun;
-    if (curried) checkt(arg);
-    return {type, args, applied: curried && ist(arg) ? applied.concat(arg.values) : applied.concat(arg), context, selfref, ret};
+  private definition(v: NewVariable): RecVal {
+    return v.name;
+  }
+
+  private varReceiver(v: DefinedVariable): RecVal {
+    return v.name;
+  }
+
+  private fieldReceiver(f: Field): RecVal {
+    const obj = this.expression(f.obj);
+    checko(obj);
+    const name = f.name;
+    return [obj, name];
+  }
+
+  private expression(exp: Expression): Value {
+    switch (exp.kind) {
+      case 'variable': return this.variable(exp);
+      case 'field': return this.field(exp);
+      case 'constant': return this.constant(exp);
+      case 'if': return this.ifexp(exp);
+      case 'function': return this.callable(exp);
+      case 'constructor': return this.callable(exp);
+      case 'binary': return this.binary(exp);
+      case 'tuple': return this.tuple(exp);
+      case 'bind': return this.bindfun(exp);
+      default: return unreachable(exp);
+    }
+  }
+
+  private variable(v: DefinedVariable): Value {
+    return throwIfNull(this.context.getVar(v.name), `undefined variable ${v.name}`);
+  }
+
+  private field(f: Field): Value {
+    const obj = this.expression(f.obj);
+    checko(obj);
+    return throwIfNull(obj.getMember(f.name), `Unknown object member ${f.name}`);
+  }
+
+  private constant(c: Constant): Num | Str {
+    const type = c.type.type;
+    const v = c.value;
+    if (type === 'b') {
+      return {type, value: v === 'true' ? 1 : 0};
+    } else if (type === 'c' || type === 's') {
+      return {type, value: v.slice(1, -1)};
+    } else if (type === 'd') {
+      return {type, value: Number.parseFloat(v)};
+    } else if (type === 'i') {
+      return {type, value: Number.parseInt(v)};
+    } else {
+      return unreachable(type);
+    }
+  }
+
+  private ifexp(e: IfExpression): Value {
+    const {cond, ifYes, ifNo} = e;
+    const c = this.expression(cond);
+    checkn(c);
+    if (c.value) {
+      return this.expression(ifYes);
+    } else {
+      return this.expression(ifNo);
+    }
+  }
+
+  private callable(f: FunctionExpression | Constructor): Fun {
+    const args = f.args;
+    if (f.kind === 'function') {
+      return {type: 'f', args, applied: [], context: this.context.snapshot(), ret: f.body};
+    } else {
+      return {type: 'f', args, applied: [], ret: 'struct'};
+    }
+  }
+
+  private binary(b: BinaryOperation): Value {
+    const {left, op, right, type} = b;
+    const l = this.expression(left);
+    const r = this.expression(right);
+
+    if (op.value === '+' && iss(l)) {
+      checks(r);
+      return {type: 's', value: l.value + r.value};
+    } else {
+      checkn(l);
+      checkn(r);
+      assert(type.type === 'b' || type.type === 'i' || type.type === 'd');
+      const value = doOpValues(op.value, l.value, r.value);
+      return {type: type.type, value};
+    }
+  }
+
+  private tuple(t: Tuple): Tup {
+    const es = t.elements.map(e => this.expression(e));
+    return {type: 't', values: es};
+  }
+
+  private bindfun(f: FunctionBind): Value {
+    const {func, args, call} = f;
+    let ff = this.expression(func);
+    checkf(ff);
+    const as = args.flatMap(a => this.funcArg(a));
+    ff = {...ff, applied: ff.applied.concat(as)};
+    if (!call) return ff;
+
+    return this.callfun(ff);
+  }
+
+  private funcArg(arg: FunctionBindArg): Value[] {
+    const a = this.expression(arg.exp);
+    const s = arg.tupleSize;
+    if (s != null) {
+      checkt(a);
+      return a.values;
+    } else {
+      return [a];
+    }
+  }
+
+  private callfun(fun: Fun): Value {
+    const innerContext = new ExecContext(fun.context);
+    for (const [i, a] of fun.applied.entries()) {
+      innerContext.setVar(fun.args[i], a);
+    }
+    if (fun.ret === 'struct') {
+      return this.makeStruct(innerContext.snapshot());
+    } else {
+      if (fun.selfref) {
+        innerContext.setVar(fun.selfref.name, fun.selfref.value);
+      }
+      return new Executor(innerContext).expression(fun.ret);
+    }
   }
 
   private makeStruct(fields: ContextSnapshot): Obj {
     return new Obj(fields.vars);
   }
+}
 
-  private callfun(fun: Fun): Value {
-    assert(fun.args.length === fun.applied.length, `Function missing ${fun.args.length - fun.applied.length} arguments`);
-    const innerContext = new ExecContext(fun.context);
-    for (const [i, a] of fun.applied.entries()) {
-      innerContext.setVar(fun.args[i], a);
-    }
-    if (fun.selfref && fun.ret !== 'struct') {
-      innerContext.setVar({type: 'vr', value: fun.selfref.name}, fun.selfref.value);
-    }
-    if (fun.ret === 'struct') {
-      return this.makeStruct(innerContext.snapshot());
-    } else {
-      return new Executor(innerContext).express(fun.ret);
-    }
-  }
-
-  private exprOrVcf(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo | Vcf): Value {
-    if (exp.type === 'ife' || exp.type === 'cnst' || exp.type === 'vr') {
-      return this.evalVcf(exp);
-    }
-    return this.express(exp);
-  }
-
-  private express(exp: Exp | Exp0 | Exp1 | Exp2 | Fnd | Expo): Value {
-    if (exp.type === 'fnd') {
-      if (exp.value[1].type !== 'tc') {
-        const args = exp.value[0].map(v => v.value[0]);
-        const ret = exp.value.length === 3 ? exp.value[2] : exp.value[1];
-        return {type: 'f', args, applied: [], context: this.context.snapshot(), ret};
-      } else {
-        const args = exp.value[0].map(v => v.value[0]);
-        return {type: 'f', args, applied: [], ret: 'struct'};
-      }
-    } else if (exp.value.length === 1) {
-      return this.exprOrVcf(exp.value[0]);
-    } else if (exp.value.length === 2) {
-      const left = this.exprOrVcf(exp.value[0]);
-      const right = exp.value[1];
-      if (right.type === 'sc') {
-        return this.doMonoOp(left, right);
-      } else {
-        checko(left);
-        return left.getMember(right.value);
-      }
-    } else {
-      const left = this.exprOrVcf(exp.value[0]);
-      const op = exp.value[1];
-      let right = this.exprOrVcf(exp.value[2]);
-      const sc = exp.value.length === 4 ? exp.value[3] : undefined;
-      const result = this.doOp(op, left, right);
-      if (!sc) return result;
-      return this.doMonoOp(result, sc);
-    }
-  }
-
-  private evalVcf(vcf: Vcf): Value {
-    if (vcf.type === 'vr') {
-      return this.context.getVar(vcf);
-    } else if (vcf.type === 'cnst') {
-      if (vcf.value === 'true') {
-        return {type: 'b', value: 1};
-      } else if (vcf.value === 'false') {
-        return {type: 'b', value: 0};
-      } else if (vcf.value.startsWith('"')) {
-        return {type: 's', value: vcf.value.slice(1, -1)};
-      } else if (vcf.value.startsWith("'")) {
-        return {type: vcf.value.length === 3 ? 'c' : 's', value: vcf.value.slice(1, -1)};
-      } else if (vcf.value.includes('.')) {
-        return {type: 'd', value: Number.parseFloat(vcf.value)};
-      } else {
-        return {type: 'i', value: Number.parseInt(vcf.value)};
-      }
-    } else if (vcf.type === 'exp') {
-      return this.express(vcf);
-    } else if (vcf.type === 'ife') {
-      const [c, y, n] = vcf.value;
-      const cond = this.express(c);
-      checkb(cond);
-      if (cond.value) {
-        return this.express(y);
-      } else {
-        return this.express(n);
-      }
-    } else {
-      return unreachable(vcf);
-    }
-  }
-
-  private doMonoOp(val: Value, sc: Sc): Value {
-    assert(sc.value === ';');
-    checkf(val);
-    return this.callfun(val);
-  }
-
-  private doOp(op: Op, left: Value, right: Value): Value {
-    if (op.value === ':' || op.value === '::') {
-      checkf(left);
-      return this.partApply(left, right, op.value === '::');
-    } else if (op.value === ',') {
-      const l = ist(left) ? left.values : [left];
-      const r = [right];
-      return {type: 't', values: l.concat(r)};
-    } else if (op.value === '+' && iss(left)) {
-      checks(right);
-      return {type: 's', value: left.value + right.value};
-    } else {
-      checkn(left);
-      checkn(right);
-      return this.doNumOp(op.value, left, right);
-    }
-  }
-
-  private doNumOp(op: PrimOps, left: Num, right: Num): Num {
-    const type = this.doOpTypes(op, left.type, right.type);
-    assert(type, `type ${left.type} cannot ${op} with type ${right.type}`);
-    const value = this.doOpValues(op, left.value, right.value);
-    return {type, value};
-  }
-
-  private doOpTypes(op: PrimOps, l: NumType, r: NumType): NumType | undefined {
-    type T = NumType;
-
-    const not = (l: T, ...ts: T[]) => ts.every(t => t !== l);
-    const one = (l: T, ...ts: T[]) => ts.some(t => t === l);
-
-    switch (op) {
-      case '+': return l === r && not(l, 'b') ? l : undefined;
-      case '-':
-      case '*': return l === r && not(l, 'b') ? l : undefined;
-      case '/': return l === r && one(l, 'd') ? l : undefined;
-      case '//':
-      case '%': return l === r && one(l, 'i') ? l : undefined;
-      case '!=':
-      case '==': return l === r ? 'b' : undefined;
-      case '<<':
-      case '>>':
-      case '<=':
-      case '>=': return l === r && not(l, 'b') ? 'b' : undefined;
-      case '&&':
-      case '||': return l === r && one(l, 'b') ? l : undefined;
-      default: return unreachable(op);
-    }
-  }
-
-  private doOpValues(op: PrimOps, l: number, r: number): number {
-    switch (op) {
-      case '+': return l + r;
-      case '-': return l - r;
-      case '*': return l * r;
-      case '/': return l / r;
-      case '//': return Math.trunc(l / r);
-      case '%': return l % r;
-      case '!=': return l !== r ? 1 : 0;
-      case '==': return l === r ? 1 : 0;
-      case '<<': return l < r ? 1 : 0;
-      case '>>': return l > r ? 1 : 0;
-      case '<=': return l <= r ? 1 : 0;
-      case '>=': return l >= r ? 1 : 0;
-      case '&&': return l && r;
-      case '||': return l || r;
-      default: return unreachable(op);
-    }
+function doOpValues(op: PrimOps, l: number, r: number): number {
+  switch (op) {
+    case '+': return l + r;
+    case '-': return l - r;
+    case '*': return l * r;
+    case '/': return l / r;
+    case '//': return Math.trunc(l / r);
+    case '%': return l % r;
+    case '!=': return l !== r ? 1 : 0;
+    case '==': return l === r ? 1 : 0;
+    case '<<': return l < r ? 1 : 0;
+    case '>>': return l > r ? 1 : 0;
+    case '<=': return l <= r ? 1 : 0;
+    case '>=': return l >= r ? 1 : 0;
+    case '&&': return l && r;
+    case '||': return l || r;
+    default: return unreachable(op);
   }
 }
 /*
