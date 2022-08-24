@@ -2,7 +2,7 @@
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -77,6 +77,7 @@ class Compiler {
       case 'binary': return this.binary(exp);
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
+      case 'array': return this.array(exp);
       default: return unreachable(exp);
     }
   }
@@ -87,7 +88,8 @@ class Compiler {
       case 'field':
       case 'constant':
       case 'tuple':
-      case 'bind': return this.expression(exp);
+      case 'bind':
+      case 'array': return this.expression(exp);
       case 'if':
       case 'function':
       case 'constructor':
@@ -106,7 +108,7 @@ class Compiler {
   }
 
   private constant(c: Constant): string {
-    return c.value;
+    return c.value === '_' ? 'undefined' : c.value;
   }
 
   private ifexp(e: IfExpression): string {
@@ -143,6 +145,11 @@ class Compiler {
 
   private tuple(t: Tuple): string {
     const es = t.elements.map(e => this.expressionp(e)).join(', ');
+    return `[${es}]`;
+  }
+
+  private array(a: ArrayExpression): string {
+    const es = a.elements.map(e => this.expressionp(e)).join(', ');
     return `[${es}]`;
   }
 
@@ -211,6 +218,7 @@ function annotationp(t: Type): string {
 
 function annotation(t: Type): string {
   switch (t.t) {
+    case '_': return 'undefined';
     case 'i': return 'number';
     case 'd': return 'number';
     case 'b': return 'boolean';

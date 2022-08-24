@@ -1,9 +1,12 @@
 
 import {assert, throwIfNull, unreachable} from '../util/Utils';
-import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT} from './CustomLexer';
-import type {BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Statement, Tuple, TupType} from './ParsePostprocessor';
+import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT} from './CustomLexer';
+import type {ArrayExpression, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Statement, Tuple, TupType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
+interface Nul {
+  readonly t: NulT;
+}
 interface Num {
   readonly t: NumT;
   readonly value: number;
@@ -41,6 +44,7 @@ interface Arr {
   readonly values: Value[];
 }
 type Values = {
+  _: Nul,
   d: Num,
   i: Num,
   b: Num,
@@ -51,7 +55,7 @@ type Values = {
   o: Obj,
   a: Arr,
 };
-type Value = Values[ValueT];//Num | Str | Fun | Tup | Obj | Arr;
+type Value = Values[ValueT | '_'];//Nul | Num | Str | Fun | Tup | Obj | Arr;
 
 class ContextSnapshot {
   constructor(
@@ -102,7 +106,8 @@ function valRep(v: Value): string {
     v.t === 't' ? `tuple` :
       v.t === 'o' ? `object` :
         v.t === 'a' ? `array` :
-          `${v.value}`;
+          v.t === '_' ? 'null' :
+            `${v.value}`;
 }
 
 function recRep(r: RecVal): string {
@@ -204,6 +209,7 @@ class Executor {
       case 'binary': return this.binary(exp);
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
+      case 'array': return this.array(exp);
       default: return unreachable(exp);
     }
   }
@@ -217,7 +223,7 @@ class Executor {
     return throwIfNull(obj.getMember(f.name), `Unknown object member ${f.name}`);
   }
 
-  private constant(c: Constant): Num | Str {
+  private constant(c: Constant): Num | Str | Nul {
     const t = c.type.t;
     const v = c.value;
     if (t === 'b') {
@@ -228,9 +234,10 @@ class Executor {
       return {t, value: Number.parseFloat(v)};
     } else if (t === 'i') {
       return {t, value: Number.parseInt(v)};
+    } else if (t === '_') {
+      return {t};
     } else {
-      assert(false);  // TODO TODO
-      //return unreachable(type);
+      return unreachable(t);
     }
   }
 
@@ -271,8 +278,13 @@ class Executor {
   }
 
   private tuple(tt: Tuple): Tup {
-    const es = tt.elements.map(e => this.expression(e));
-    return {t: 't', values: es};
+    const values = tt.elements.map(e => this.expression(e));
+    return {t: 't', values};
+  }
+
+  private array(a: ArrayExpression): Arr {
+    const values = a.elements.map(e => this.expression(e));
+    return {t: 'a', values};
   }
 
   private bindfun(f: FunctionBind): Value {

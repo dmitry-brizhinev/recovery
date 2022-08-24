@@ -68,7 +68,7 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
   try {
     await parser.finish();
   } catch (e: unknown) {
-    yield myErrorString('parse', '', e);
+    yield myErrorString('parse', 'at the end', e);
     return;
   }
   if (mode !== 'run' && mode !== 'check') {

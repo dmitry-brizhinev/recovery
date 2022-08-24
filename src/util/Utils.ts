@@ -34,7 +34,7 @@ export interface Day {
 }
 
 export function unreachable(x: never, s?: string): never {
-  throw new Error(`Unreachable code reached! ${s} ${x}`);
+  throw new Error(`Unreachable code reached! ${s ?? ''} ${JSON.stringify(x)}`);
 }
 
 export function assert(x: unknown, message?: string, extraData?: unknown): asserts x {

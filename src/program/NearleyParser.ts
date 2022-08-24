@@ -21,28 +21,41 @@ ife -> ifs ifn
 ifn -> "endif" | "else" exp "endif" | "elif" exp "then" exp ifn
 ifs -> "if" exp "then" exp
 # General expression
-exp -> exc2 | fnd
+exp -> exa2 | fnd
 # Function definition expression
 fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
+exa2 -> exc2 #| arr2
+#arr2 -> ars2 %ms "]"
 exc2 -> exl2 sc2      | exl2
-exl2 -> exl2 cl2 exm2 | exm2 | exo2 | exl2 cl2 exo2
+exl2 -> exl2 cl2 emo2 | emo2
+emo2 -> exo2 | exm2 | ars2 %ms "]"
+ars2 -> ars2 cm2 exo2 | "[" %ms exo2
 exm2 -> exm2 cm2 exo2 | cm2 exo2
-exo2 -> exo2 op2 exc1 | exc1
+exo2 -> exo2 op2 exa1 | exa1
 # One space
+exa1 -> exc1 #| arr1
+#arr1 -> ars1 %os "]"
 exc1 -> exl1 sc1      | exl1
-exl1 -> exl1 cl1 exm1 | exm1 | exo1 | exl1 cl1 exo1
+exl1 -> exl1 cl1 emo1 | emo1
+emo1 -> exo1 | exm1 | ars1 %os "]"
+ars1 -> ars1 cm1 exo1 | "[" %os exo1
 exm1 -> exm1 cm1 exo1 | cm1 exo1
-exo1 -> exo1 op1 exc0 | exc0
+exo1 -> exo1 op1 exa0 | exa0
 # No spaces
+exa0 -> exc0 #| arr0
+#arr0 -> ars0 "]"
 exc0 -> exl0 sc0      | exl0
-exl0 -> exl0 cl0 exm0 | exm0 | exo0 | exl0 cl0 exo0
+exl0 -> exl0 cl0 emo0 | emo0
+emo0 -> exo0 | exm0 | ars0 "]"
+ars0 -> ars0 cm0 exo0 | "[" exo0
 exm0 -> exm0 cm0 exo0 | cm0 exo0
 exo0 -> exo0 op0 dot  | dot
 # Dot operator
 dot -> vcf | vcf %dt %vr
 # Variable / constant / if: primitive expressions
-vcf -> %vr | %cnst | ife | "(" mws exp mws ")"
+vcf -> %vr | %cnst | ife | "(" mws exp mws ")" | arre
+arre -> "[" mws "]"
 
 # Maybe whitespace
 mws -> ws | null
@@ -77,7 +90,7 @@ vrl -> vrl ws var | var | null
 */
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['doc', 'exp', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
+const FilteredParserNames = ['doc', 'exp', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -95,12 +108,17 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   ifs: filterAndLabel,
   exp: filterAndUnwrapSingle,
   fnd: filterAndLabel,
+  exa0: filterAndUnwrapSingle, exa1: filterAndUnwrapSingle, exa2: filterAndUnwrapSingle,
+  //  arr0: filterAndUnwrapSingle, arr1: filterAndUnwrapSingle, arr2: filterAndUnwrapSingle,
+  ars0: filterAndLabel, ars1: filterAndLabel, ars2: filterAndLabel,
   exc0: filterAndLabelOrUnwrap, exc1: filterAndLabelOrUnwrap, exc2: filterAndLabelOrUnwrap,
   exl0: filterAndLabelOrUnwrap, exl1: filterAndLabelOrUnwrap, exl2: filterAndLabelOrUnwrap,
+  emo0: filterAndUnwrapSingle, emo1: filterAndUnwrapSingle, emo2: filterAndUnwrapSingle,
   exm0: filterAndLabelOrUnwrap, exm1: filterAndLabelOrUnwrap, exm2: filterAndLabelOrUnwrap,
   exo0: filterAndLabelOrUnwrap, exo1: filterAndLabelOrUnwrap, exo2: filterAndLabelOrUnwrap,
   dot: filterAndLabelOrUnwrap,
   vcf: filterAndUnwrapSingle,
+  arre: filterAndLabel,
   mws: discard,
   ws: discard,
   sc2: filterAndUnwrapSingle,
@@ -140,6 +158,7 @@ export interface Exm {type: 'exm0' | 'exm1' | 'exm2'; value: [AnyExp, Cm, AnyExp
 export interface Exo {type: 'exo0' | 'exo1' | 'exo2'; value: [AnyExp, Op, AnyExp];}
 
 export interface Dot {type: 'dot'; value: [Vcf, Dt, Vr];}
+export interface Arr {type: 'ars0' | 'ars1' | 'ars2' | 'arre'; value: [Arr, Cm, AnyExp] | [AnyExp] | [];}
 
 export type Typ = Ftp | Ttp | Atp | Tc | Tp;
 export interface Ttp {type: 'ttp'; value: [Cm, Typ] | [Ttp, Cm, Typ];}
@@ -151,9 +170,9 @@ export type Vrl = Var[];
 
 type Vcf = AnyExp;
 type Exp = AnyExp;
-export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Fnd;
+export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Fnd | Arr;
 
-type ParserOpts = Sta | Rec | Ife | Ifn | Ifs | Fnd | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
+type ParserOpts = Sta | Rec | Ife | Ifn | Ifs | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
 
 
 
@@ -272,7 +291,6 @@ export class NearleyParser implements Parser {
     }
   }
 }
-
 
 function compareParses(a: Doc, b: Doc): [string, string] {
   if (a.length > b.length) {

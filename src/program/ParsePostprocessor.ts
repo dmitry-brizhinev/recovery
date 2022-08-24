@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl} from './CustomLexer';
-import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn} from './NearleyParser';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT} from './CustomLexer';
+import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 export interface NumType {
@@ -9,6 +9,9 @@ export interface NumType {
 }
 export interface StrType {
   readonly t: StrT;
+}
+export interface NulType {
+  readonly t: NulT;
 }
 export interface FunType {
   readonly t: FunT;
@@ -32,8 +35,8 @@ export interface ArrType {
   readonly subtype: Type;
 }
 
-export type Type = NumType | StrType | FunType | TupType | ObjType | ArrType;
-type AnyType = Type['t'];
+export type Type = NumType | StrType | NulType | FunType | TupType | ObjType | ArrType;
+type AnyT = Type['t'];
 
 class ContextSnapshot {
   constructor(
@@ -112,10 +115,10 @@ function isff(val: NewVariable): val is NewVariableFun {
   return val.type?.t === 'f';
 }
 
-function iss(t: AnyType): StrT | undefined {
+function iss(t: AnyT): StrT | undefined {
   return t === 's' || t === 'c' ? t : undefined;
 }
-function isn(t: AnyType): NumT | undefined {
+function isn(t: AnyT): NumT | undefined {
   return t === 'b' || t === 'i' || t === 'd' ? t : undefined;
 }
 
@@ -186,11 +189,11 @@ function ttest() {
 
 type ExpNarrow<T extends Type> = {type: T;};
 export type NarrowedExpression<T extends Type> = ExpNarrow<T> & Expression;
-export type Expression = Constant | DefinedVariable | Field | IfExpression | FunctionExpression | Constructor | BinaryOperation | Tuple | FunctionBind;
+export type Expression = Constant | DefinedVariable | Field | IfExpression | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
 
 export interface Constant {
   kind: 'constant';
-  type: NumType | StrType;
+  type: NumType | StrType | NulType;
   value: string;
 }
 
@@ -199,7 +202,7 @@ export interface IfExpression {
   type: Type;
   cond: NarrowedExpression<NumType>;
   ifYes: Expression;
-  ifNo?: Expression;
+  ifNo: Expression;
 }
 
 export interface BinaryOperation {
@@ -213,6 +216,12 @@ export interface BinaryOperation {
 export interface Tuple {
   kind: 'tuple';
   type: TupType;
+  elements: Expression[];
+}
+
+export interface ArrayExpression {
+  kind: 'array';
+  type: ArrType;
   elements: Expression[];
 }
 
@@ -324,6 +333,7 @@ class Postprocessor {
   private checkAssignment(target: Type, source: Type) {
     const t = target.t;
     switch (t) {
+      case '_':
       case 'i':
       case 'd':
       case 'b':
@@ -375,11 +385,15 @@ class Postprocessor {
       case 'exo0':
       case 'exo1':
       case 'exo2': return this.binary(...exp.value);
+      case 'arre':
+      case 'ars0':
+      case 'ars1':
+      case 'ars2': return this.array(exp);
       default: return unreachable(exp);
     }
   }
 
-  private constantType(value: string): NumType | StrType {
+  private constantType(value: string): NumType | StrType | NulType {
     if (value === 'true') {
       return {t: 'b'};
     } else if (value === 'false') {
@@ -390,6 +404,8 @@ class Postprocessor {
       return {t: value.length === 3 ? 'c' : 's'};
     } else if (value.includes('.')) {
       return {t: 'd'};
+    } else if (value === '_') {
+      return {t: '_'};
     } else {
       return {t: 'i'};
     }
@@ -413,20 +429,19 @@ class Postprocessor {
     const cond = checkbb(this.expression(c));
     const ifYes = this.expression(y);
     const type = ifYes.type;
+    let ifNo: Expression;
     if (next.value.length === 0) {
-      return {kind, type, cond, ifYes};
+      ifNo = {kind: 'constant', type: {t: '_'}, value: ''};
     } else if (next.value.length === 1) {
       const n = next.value[0];
-      const ifNo = this.expression(n);
-      this.checkAssignment(type, ifNo.type);
-      return {kind, type, cond, ifYes, ifNo};
+      ifNo = this.expression(n);
     } else if (next.value.length === 3) {
-      const ifNo = this.ifexpInner(...next.value);
-      this.checkAssignment(type, ifNo.type);
-      return {kind, type, cond, ifYes, ifNo};
+      ifNo = this.ifexpInner(...next.value);
     } else {
       return unreachable(next.value);
     }
+    this.checkAssignment(type, ifNo.type);
+    return {kind, type, cond, ifYes, ifNo};
   }
 
   private variable(v: Vr): DefinedVariable {
@@ -529,6 +544,23 @@ class Postprocessor {
     }
   }
 
+  private array(a: Arr): ArrayExpression {
+    const kind = 'array';
+    const t = 'a';
+    if (a.value.length === 0) {
+      return {kind, type: {t, subtype: {t: '_'}}, elements: []};
+    } else if (a.value.length === 1) {
+      const el = this.expression(a.value[0]);
+      return {kind, type: {t, subtype: el.type}, elements: [el]};
+    } else {
+      const [aa, , e] = a.value;
+      const aaa = this.array(aa);
+      const el = this.expression(e);
+      this.checkAssignment(aaa.type.subtype, el.type);
+      return {kind, type: aaa.type, elements: aaa.elements.concat(el)};
+    }
+  }
+
   private binary(l: AnyExp, op: Op, r: AnyExp): BinaryOperation {
     const kind = 'binary';
     const left = this.expression(l);
@@ -539,7 +571,7 @@ class Postprocessor {
     return {kind, type, left, right, op};
   }
 
-  private doOpTypes(op: PrimOps, l: AnyType, r: AnyType): NumT | StrT | undefined {
+  private doOpTypes(op: PrimOps, l: AnyT, r: AnyT): NumT | StrT | undefined {
     if (op === '+' && iss(l) && iss(r)) {
       return 's';
     }

@@ -46,10 +46,10 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   kw: kwrx,
   ms: /  +/,
   os: ' ',
-  br: ['{', '}', '(', ')'],
+  br: ['{', '}', '(', ')', '[', ']'],
   vr: /[idbsctofa][A-Z]\w*/,
   tc: /[A-Z]\w*/,
-  cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
+  cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"|_/,
   tp: /[idbsc]/,
   ta: 'a',
   //word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
@@ -80,6 +80,7 @@ export type FunT = 'f';
 export type TupT = 't';
 export type ObjT = 'o';
 export type ArrT = 'a';
+export type NulT = '_';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
 export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta'] as const;
