@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT} from './CustomLexer';
-import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr} from './NearleyParser';
+import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Dos, Ret} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 export interface NumType {
@@ -126,7 +126,7 @@ function checkFirstAssignment(target: VrName, source: Type) {
   assert(target.charAt(0) === source.t);
 }
 
-export type Statement = Assignment;
+export type Statement = Assignment | Return;
 
 export interface Assignment {
   kind: 'assignment';
@@ -134,7 +134,16 @@ export interface Assignment {
   expression: Expression;
 }
 
-export type Receiver = NewVariable | DefinedVariable | Field;
+export interface Return {
+  kind: 'return';
+  expression: Expression;
+}
+
+export type Receiver = NewVariable | DefinedVariable | Field | Discard;
+
+export interface Discard {
+  kind: 'discard';
+}
 
 export interface NewVariable {
   kind: 'definition';
@@ -157,39 +166,9 @@ export interface Field {
   obj: NarrowedExpression<ObjType>;
 }
 
-
-/*
-function ttest() {
-  type TTT = Fun | Num | Str;
-  type AA<T extends TTT> = {k: 'a', readonly r: T['type'], a: number, t: T;};
-  type A = AA<Fun> | AA<Num> | AA<Str>;
-  type B<T extends TTT> = {k: 'b', b: number, t: T;};
-  type C<T extends TTT> = {k: 'c', c: number, t: Fun & T;};
-  type D<T extends TTT> = {k: 'd', d: number, t: Num & T;};
-
-  type XX<T extends TTT> = B<T> | C<T> | D<T>;
-  //function rr(r: X): asserts r is R {}
-  function aa(a: AA<TTT>): AA<Fun> | null {
-    if (a.r === 'f' && a.t.type === 'f') {
-      const t = a.t;
-      return {...a, r: t.type, t};
-    }
-    return null;
-  }
-  function rrr(a: XX<TTT>): XX<Fun> | null {
-    if (a.t.type === 'f') {
-      const t = a.t;
-      return {...a, t};
-    }
-    return null;
-  }
-  //if (r.t.type === 'f') return r;
-}
-*/
-
 type ExpNarrow<T extends Type> = {type: T;};
 export type NarrowedExpression<T extends Type> = ExpNarrow<T> & Expression;
-export type Expression = Constant | DefinedVariable | Field | IfExpression | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
+export type Expression = Constant | DefinedVariable | Field | IfExpression | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind | DoExpression;
 
 export interface Constant {
   kind: 'constant';
@@ -247,6 +226,12 @@ export interface FunctionBind {
   args: FunctionBindArg[];
 }
 
+export interface DoExpression {
+  kind: 'do';
+  type: Type;
+  statements: Statement[];
+}
+
 export type FunctionBindArg = FunctionBindArgTup | FunctionBindArgNorm;
 interface FunctionBindArgTup {
   exp: NarrowedExpression<TupType>;
@@ -260,15 +245,15 @@ interface FunctionBindArgNorm {
 export class RootPostprocessor {
   private readonly rootContext: ExecContext = new ExecContext(undefined);
 
-  convert(sta: Sta): Statement {
-    return new Postprocessor(this.rootContext).statement(sta);
+  convert(sta: Sta): Assignment {
+    return new Postprocessor(this.rootContext).assignment(sta);
   }
 }
 
 class Postprocessor {
   constructor(private readonly context: ExecContext) {}
 
-  statement(sta: Sta): Statement {
+  assignment(sta: Sta): Assignment {
     const kind = 'assignment';
     const receiver = this.receiver(sta.value[0]);
 
@@ -296,17 +281,34 @@ class Postprocessor {
       }
     } else if (left.kind === 'variable') {
       this.checkAssignment(left.type, right);
+    } else if (left.kind === 'discard') {
+      // Any assignment is fine
     } else {
       unreachable(left);
     }
   }
 
-  private receiver(r: Rec | Var): Receiver {
+  private receiver(r: Rec | Var | Cnst): Receiver {
     switch (r.type) {
       case 'var': return this.varReceiver(r);
       case 'rec': return this.field(r);
+      case 'cnst': assert(r.value === '_'); return {kind: 'discard'};
       default: return unreachable(r);
     }
+  }
+
+  private statement(s: Sta | Ret): Statement {
+    switch (s.type) {
+      case 'ass': return this.assignment(s);
+      case 'ret': return this.return(s);
+      default: return unreachable(s);
+    }
+  }
+
+  private return(r: Ret): Return {
+    const kind = 'return';
+    const expression = this.expression(...r.value);
+    return {kind, expression};
   }
 
   private varReceiver(v: Var): DefinedVariable | NewVariable {
@@ -389,6 +391,7 @@ class Postprocessor {
       case 'ars0':
       case 'ars1':
       case 'ars2': return this.array(exp);
+      case 'doo': return this.do(...exp.value);
       default: return unreachable(exp);
     }
   }
@@ -559,6 +562,26 @@ class Postprocessor {
       this.checkAssignment(aaa.type.subtype, el.type);
       return {kind, type: aaa.type, elements: aaa.elements.concat(el)};
     }
+  }
+
+  private do(ss: Dos): Expression {
+    const kind = 'do';
+    const statements = ss.map(ar => this.statement(ar));
+    let type: Type | undefined = undefined;
+    for (const s of statements) {
+      if (s.kind === 'return') {
+        type = type ?? s.expression.type;
+        this.checkAssignment(type, s.expression.type);
+      }
+    }
+    if (statements.length === 0) {
+      type = {t: '_'};
+    } else {
+      const last = statements[statements.length - 1].expression.type;
+      type = type ?? last;
+      this.checkAssignment(type, last);
+    }
+    return {kind, type, statements};
   }
 
   private binary(l: AnyExp, op: Op, r: AnyExp): BinaryOperation {

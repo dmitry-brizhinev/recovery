@@ -1,7 +1,7 @@
 
 import {assert, throwIfNull, unreachable} from '../util/Utils';
 import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT} from './CustomLexer';
-import type {ArrayExpression, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Statement, Tuple, TupType} from './ParsePostprocessor';
+import type {ArrayExpression, Assignment, BinaryOperation, Constant, Constructor, DefinedVariable, DoExpression, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Nul {
@@ -94,12 +94,12 @@ function checkn(val: Value): Num {
 export default class RootExecutor {
   private readonly rootContext: ExecContext = new ExecContext(undefined);
 
-  run(sta: Statement): string | undefined {
-    return new Executor(this.rootContext).run(sta);
+  run(sta: Assignment): string | undefined {
+    return new Executor(this.rootContext).assignment(sta);
   }
 }
 
-type RecVal = VrName | [Obj, VrName];
+type RecVal = VrName | [Obj, VrName] | null;
 
 function valRep(v: Value): string {
   return v.t === 'f' ? `function` :
@@ -114,16 +114,16 @@ function recRep(r: RecVal): string {
   if (Array.isArray(r)) {
     return `${valRep(r[0])}.${r[1]}`;
   }
-  return r;
+  return r ?? '_';
 }
 
 class Executor {
   constructor(private readonly context: ExecContext) {}
   private currentVar?: VrName | undefined;
 
-  run(sta: Statement): string | undefined {
+  assignment(sta: Assignment): string | undefined {
     const left = this.receiver(sta.receiver);
-    if (!Array.isArray(left) && left.charAt(0) === 'f') {
+    if (!Array.isArray(left) && left?.charAt(0) === 'f') {
       this.currentVar = left;
     }
     let right = this.expression(sta.expression);
@@ -139,10 +139,22 @@ class Executor {
   private assign(left: RecVal, right: Value): string | undefined {
     if (Array.isArray(left)) {
       left[0].setMember(left[1], right);
-    } else {
+    } else if (left != null) {
       this.context.setVar(left, right);
     }
     return `${recRep(left)} = ${valRep(right)}`;
+  }
+
+  private statement(s: Statement) {
+    switch (s.kind) {
+      case 'assignment': return this.assignment(s);
+      case 'return': return this.return(s);
+      default: return unreachable(s);
+    }
+  }
+
+  private return(r: Return): Value {
+    return this.expression(r.expression);
   }
 
   private receiver(r: Receiver): RecVal {
@@ -150,6 +162,7 @@ class Executor {
       case 'definition': return this.definition(r);
       case 'variable': return this.varReceiver(r);
       case 'field': return this.fieldReceiver(r);
+      case 'discard': return null;
       default: return unreachable(r);
     }
   }
@@ -210,6 +223,7 @@ class Executor {
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
       case 'array': return this.array(exp);
+      case 'do': return this.do(exp);
       default: return unreachable(exp);
     }
   }
@@ -323,6 +337,13 @@ class Executor {
   private makeStruct(fields: ContextSnapshot): Obj {
     return new Obj(fields.vars);
   }
+
+  private do(d: DoExpression): Value {
+    for (const s of d.statements) {
+      this.statement(s);
+    }
+    return {t: '_'};
+  }
 }
 
 function doOpValues(op: PrimOps, l: number, r: number): number {
@@ -345,19 +366,13 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
   }
 }
 /*
-Todos:
-Abstract roots, join and split them, shared? saver and top-level data
-Tighter parser types
-arrays,
-generic types,
-methods + method calls,
-Maybe and Either/Union types,
-test assertions,
+
 do ... end (with 'return'!!)
+generic types,
+Tighter parser types
+
+Maybe and Either/Union types,
+methods + method calls,
+Abstract roots, join and split them, shared? saver and top-level data
+test assertions,
 */
-/*
-
-
-*/
-
-

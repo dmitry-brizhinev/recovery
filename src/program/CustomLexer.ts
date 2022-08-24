@@ -8,7 +8,7 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
-const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct'] as const;
+const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return'] as const;
 const kwrx = [
   {match: /if +/, value: trim},
   {match: / +then +/, value: trim},
@@ -16,6 +16,9 @@ const kwrx = [
   {match: / +elif +/, value: trim},
   {match: / +endif/, value: trim},
   {match: /struct +/, value: trim},
+  {match: /do +/, value: trim},
+  {match: / +end/, value: trim},
+  {match: /return +/, value: trim},
 ];
 
 /*

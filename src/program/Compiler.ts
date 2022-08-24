@@ -2,21 +2,21 @@
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, DoExpression} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
-  private results: string[] = ['const rrr: string[] = [];'];
+  private results: string[] = ['const r: string[] = []; let _: any;'];
   private compiler = new Compiler();
 
-  compile(sta: Statement): string {
-    const [main, extra] = this.compiler.compile(sta);
+  compile(sta: Assignment): string {
+    const [main, extra] = this.compiler.assignment(sta);
     this.results.push(main, extra);
     return main;
   }
 
   async finish(): Promise<CompilationResult> {
-    this.results.push('rrr.join("\\n");export {};');
+    this.results.push('r.join("\\n");export {};');
 
     const result = await compile(this.results.join('\n'));
 
@@ -29,17 +29,37 @@ export default class RootCompiler {
 }
 
 class Compiler {
-  compile(sta: Statement): [string, string] {
+  assignment(sta: Assignment): [string, string] {
     const right = this.expression(sta.expression);
-    const [dec, v] = this.receiver(sta.receiver);
-    return [`${dec} = ${right}`, `rrr.push(\`${v} = \${${v}}\`);`];
+    const rec = this.receiver(sta.receiver);
+
+    if (rec != null) {
+      const [dec, v] = rec;
+      return [`${dec} = ${right}`, `r.push(\`${v} = \${${v}}\`);`];
+    } else {
+      return [`_ = ${right}`, `r.push(\`_ = \${_}\`);`];
+    }
   }
 
-  private receiver(r: Receiver): [string, string] {
+  private statement(s: Statement): string {
+    switch (s.kind) {
+      case 'assignment': return this.assignment(s)[0];
+      case 'return': return this.return(s);
+      default: return unreachable(s);
+    }
+  }
+
+  private return(r: Return): string {
+    const e = this.expression(r.expression);
+    return `return ${e}`;
+  }
+
+  private receiver(r: Receiver): [string, string] | null {
     switch (r.kind) {
       case 'definition': return this.definition(r);
       case 'variable': return this.varReceiver(r);
       case 'field': return this.fieldReceiver(r);
+      case 'discard': return null;
       default: return unreachable(r);
     }
   }
@@ -78,6 +98,7 @@ class Compiler {
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
       case 'array': return this.array(exp);
+      case 'do': return this.do(exp);
       default: return unreachable(exp);
     }
   }
@@ -89,7 +110,8 @@ class Compiler {
       case 'constant':
       case 'tuple':
       case 'bind':
-      case 'array': return this.expression(exp);
+      case 'array':
+      case 'do': return this.expression(exp);
       case 'if':
       case 'function':
       case 'constructor':
@@ -171,6 +193,11 @@ class Compiler {
     } else {
       return this.expression(arg.exp);
     }
+  }
+
+  private do(d: DoExpression): string {
+    const ss = d.statements.map(s => this.statement(s)).join('\n');
+    return `{\n${ss}\n}`;
   }
 }
 

@@ -3,18 +3,26 @@
 @lexer lexer
 
 # Whole document
-doc -> sta %nl doc | %nl doc | sta %nl | sta | %nl
+top -> mnl doc mnl
+mnl -> %nl | null
+doc -> doc sep ass | ass
 # Assignment statement
-sta -> rec %eq exp
+ass -> rec %eq exp
+ret -> "return" exp
+sta -> ass | ret
+sep -> %nl
 # Receivers: the complement to expressions
-rec -> var | exp %dt %vr
+rec -> var | exp %dt %vr | "_"
 
 # If-expression
 ife -> ifs ifn
 ifn -> "endif" | "else" exp "endif" | "elif" exp "then" exp ifn
 ifs -> "if" exp "then" exp
+# Do-expression
+dos -> dos sep sta | sta
+doo -> "do" mnl dos mnl "end"
 # General expression
-exp -> exa2 | fnd
+exp -> exa2 | fnd | doo
 # Function definition expression
 fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
 # Compound expressions with binary operators
