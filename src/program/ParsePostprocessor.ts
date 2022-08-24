@@ -1,133 +1,126 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumType, StrType, Vr, FunType, TupType, ObjType, ArrType, PrimOps, VrName, Cnst, Cl} from './CustomLexer';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl} from './CustomLexer';
 import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
-export interface Num {
-  readonly type: NumType;
+export interface NumType {
+  readonly t: NumT;
 }
-export interface Str {
-  readonly type: StrType;
+export interface StrType {
+  readonly t: StrT;
 }
-export interface Fun {
-  readonly type: FunType;
-  readonly args: Value[];
-  readonly ret: Value;
+export interface FunType {
+  readonly t: FunT;
+  readonly args: Type[];
+  readonly ret: Type;
 }
-export interface Con {
+export interface ConType {
   readonly name: string;
-  readonly fields: IMap<VrName, Value>;
+  readonly fields: IMap<VrName, Type>;
 }
-export interface Tup {
-  readonly type: TupType;
-  readonly values: Value[];
+export interface TupType {
+  readonly t: TupT;
+  readonly values: Type[];
 }
-export interface Obj {
-  readonly type: ObjType;
+export interface ObjType {
+  readonly t: ObjT;
   readonly con: string;
 }
-export interface Arr {
-  readonly type: ArrType;
-  readonly subtype: Value;
+export interface ArrType {
+  readonly t: ArrT;
+  readonly subtype: Type;
 }
 
-export type Value = Num | Str | Fun | Tup | Obj | Arr;
+export type Type = NumType | StrType | FunType | TupType | ObjType | ArrType;
+type AnyType = Type['t'];
 
 class ContextSnapshot {
   constructor(
     private readonly parent: ContextSnapshot | undefined,
-    private readonly vars: IMap<VrName, Value>,
-    private readonly cons: IMap<string, Con>,
-    private readonly currentVar?: NewVariable | DefinedVariable | undefined) {}
+    private readonly vars: IMap<VrName, Type>,
+    private readonly cons: IMap<string, ConType>,
+    private readonly currentVar?: NewVariableFun | undefined) {}
 
-  getVarOrRecursive(vr: VrName): Value | undefined {
+  getVarOrRecursive(vr: VrName): Type | undefined {
     const v = this.vars.get(vr);
     if (v) return v;
-    if (this.currentVar?.type) {
-      const {name, type} = this.currentVar;
-      return name === vr && isf(type) ? type : undefined;
+    if (this.currentVar?.type && this.currentVar.name === vr) {
+      return this.currentVar.type;
     }
     return this.parent?.getVarOrRecursive(vr);
   }
 
-  getVar(vr: VrName): Value | undefined {
+  getVar(vr: VrName): Type | undefined {
     return this.vars.get(vr) || this.parent?.getVar(vr);
   }
 
-  getCon(s: string): Con | undefined {
+  getCon(s: string): ConType | undefined {
     return this.cons.get(s) || this.parent?.getCon(s);
   }
 }
 
 class ExecContext {
   constructor(private readonly parent: ContextSnapshot | undefined) {}
-  private readonly vars = new Map<VrName, Value>();
-  private readonly cons = new Map<string, Con>();
-  currentVar?: NewVariable | undefined;
+  private readonly vars = new Map<VrName, Type>();
+  private readonly cons = new Map<string, ConType>();
+  currentVar?: NewVariableFun | undefined;
 
-  getVarOrRecursive(vr: VrName): Value | undefined {
+  getVarOrRecursive(vr: VrName): Type | undefined {
     const v = this.vars.get(vr);
     if (v) return v;
-    if (this.currentVar?.type) {
-      const {name, type} = this.currentVar;
-      return name === vr && isf(type) ? type : undefined;
+    if (this.currentVar?.type && this.currentVar.name === vr) {
+      return this.currentVar.type;
     }
     return this.parent?.getVarOrRecursive(vr);
   }
 
-  getVar(vr: VrName): Value | undefined {
+  getVar(vr: VrName): Type | undefined {
     return this.vars.get(vr) || this.parent?.getVar(vr);
   }
-  setVar(vr: VrName, val: Value) {
+  setVar(vr: VrName, val: Type) {
     this.vars.set(vr, val);
   }
   snapshot(): ContextSnapshot {
     return new ContextSnapshot(this.parent, IMap(this.vars), IMap(this.cons), this.currentVar);
   }
-  getCon(s: string): Con | undefined {
+  getCon(s: string): ConType | undefined {
     return this.cons.get(s) || this.parent?.getCon(s);
   }
-  setCon(s: string, c: Con) {
+  setCon(s: string, c: ConType) {
     this.cons.set(s, c);
   }
 }
 
-function ist(val: Value): val is Tup {
-  return val.type === 't';
+function checktt(val: Expression): NarrowedExpression<TupType> {
+  assert(val.type.t === 't', `${val.type.t} is not a tuple`);
+  return val as NarrowedExpression<TupType>;
 }
-function checkt(val: Value): asserts val is Tup {
-  assert(ist(val), `${val.type} is not a tuple`);
+function checkoo(val: Expression): NarrowedExpression<ObjType> {
+  assert(val.type.t === 'o', `${val.type.t} is not an object`);
+  return val as NarrowedExpression<ObjType>;
 }
-function iso(val: Value): val is Obj {
-  return val.type === 'o';
+function checkff(val: Expression): NarrowedExpression<FunType> {
+  assert(val.type.t === 'f', `${val.type.t} is not a function`);
+  return val as NarrowedExpression<FunType>;
 }
-function checko(val: Value): asserts val is Obj {
-  assert(iso(val), `${val.type} is not an object`);
+function checkbb(val: Expression): NarrowedExpression<NumType> {
+  assert(val.type.t === 'b', `${val.type.t} is not a boolean`);
+  return val as NarrowedExpression<NumType>;
 }
-function isf(val: Value): val is Fun {
-  return val.type === 'f';
-}
-function checkf(val: Value): asserts val is Fun {
-  assert(isf(val), `${val.type} is not a function`);
-}
-function iss(val: Value): val is Str {
-  return val.type === 's' || val.type === 'c';
-}
-function checks(val: Value): asserts val is Str {
-  assert(iss(val), `${val.type} is not stringy`);
+function isff(val: NewVariable): val is NewVariableFun {
+  return val.type?.t === 'f';
 }
 
-function checkn(val: Value): asserts val is Num {
-  assert(val.type === 'b' || val.type === 'i' || val.type === 'd', `${val.type} is not numeric`);
+function iss(t: AnyType): StrT | undefined {
+  return t === 's' || t === 'c' ? t : undefined;
+}
+function isn(t: AnyType): NumT | undefined {
+  return t === 'b' || t === 'i' || t === 'd' ? t : undefined;
 }
 
-function checkb(val: Value): asserts val is Num {
-  assert(val.type === 'b', `${val.type} is not a boolean`);
-}
-
-function checkFirstAssignment(target: VrName, source: Value) {
-  assert(target.charAt(0) === source.type);
+function checkFirstAssignment(target: VrName, source: Type) {
+  assert(target.charAt(0) === source.t);
 }
 
 export type Statement = Assignment;
@@ -142,43 +135,76 @@ export type Receiver = NewVariable | DefinedVariable | Field;
 
 export interface NewVariable {
   kind: 'definition';
-  type?: Value | undefined;
+  type?: Type | undefined; // TODO
   name: VrName;
 }
+
+type NewVariableFun = NewVariable & ExpNarrow<FunType>;
 
 export interface DefinedVariable {
   kind: 'variable';
-  type: Value; // todo: add the concept of the 'currently assigned' type vs the general declared type that might be wider
+  type: Type; // todo: add the concept of the 'currently assigned' type vs the general declared type that might be wider
   name: VrName; // And possibly for fields as well
 }
 
-
 export interface Field {
   kind: 'field';
-  type: Value;
+  type: Type;
   name: VrName;
-  obj: Expression;
+  obj: NarrowedExpression<ObjType>;
 }
 
+
+/*
+function ttest() {
+  type TTT = Fun | Num | Str;
+  type AA<T extends TTT> = {k: 'a', readonly r: T['type'], a: number, t: T;};
+  type A = AA<Fun> | AA<Num> | AA<Str>;
+  type B<T extends TTT> = {k: 'b', b: number, t: T;};
+  type C<T extends TTT> = {k: 'c', c: number, t: Fun & T;};
+  type D<T extends TTT> = {k: 'd', d: number, t: Num & T;};
+
+  type XX<T extends TTT> = B<T> | C<T> | D<T>;
+  //function rr(r: X): asserts r is R {}
+  function aa(a: AA<TTT>): AA<Fun> | null {
+    if (a.r === 'f' && a.t.type === 'f') {
+      const t = a.t;
+      return {...a, r: t.type, t};
+    }
+    return null;
+  }
+  function rrr(a: XX<TTT>): XX<Fun> | null {
+    if (a.t.type === 'f') {
+      const t = a.t;
+      return {...a, t};
+    }
+    return null;
+  }
+  //if (r.t.type === 'f') return r;
+}
+*/
+
+type ExpNarrow<T extends Type> = {type: T;};
+export type NarrowedExpression<T extends Type> = ExpNarrow<T> & Expression;
 export type Expression = Constant | DefinedVariable | Field | IfExpression | FunctionExpression | Constructor | BinaryOperation | Tuple | FunctionBind;
 
 export interface Constant {
   kind: 'constant';
-  type: Num | Str;
+  type: NumType | StrType;
   value: string;
 }
 
 export interface IfExpression {
   kind: 'if';
-  type: Value;
-  cond: Expression;
+  type: Type;
+  cond: NarrowedExpression<NumType>;
   ifYes: Expression;
   ifNo: Expression;
 }
 
 export interface BinaryOperation {
   kind: 'binary';
-  type: Value;
+  type: Type;
   left: Expression;
   right: Expression;
   op: Op;
@@ -186,35 +212,40 @@ export interface BinaryOperation {
 
 export interface Tuple {
   kind: 'tuple';
-  type: Tup;
+  type: TupType;
   elements: Expression[];
 }
 
 export interface FunctionExpression {
   kind: 'function';
-  type: Fun;
+  type: FunType;
   args: VrName[];
   body: Expression;
 }
 
 export interface Constructor {
   kind: 'constructor';
-  type: Fun;
+  type: FunType;
   args: VrName[];
   name: string;
 }
 
 export interface FunctionBind {
   kind: 'bind';
-  type: Value;
+  type: Type;
   call: boolean;
-  func: Expression;
+  func: NarrowedExpression<FunType>;
   args: FunctionBindArg[];
 }
 
-export interface FunctionBindArg {
+export type FunctionBindArg = FunctionBindArgTup | FunctionBindArgNorm;
+interface FunctionBindArgTup {
+  exp: NarrowedExpression<TupType>;
+  tupleSize: number;
+}
+interface FunctionBindArgNorm {
   exp: Expression;
-  tupleSize?: number | undefined;
+  tupleSize?: undefined;
 }
 
 export class RootPostprocessor {
@@ -232,7 +263,7 @@ class Postprocessor {
     const kind = 'assignment';
     const receiver = this.receiver(sta.value[0]);
 
-    if (receiver.kind === 'definition' && receiver.type && isf(receiver.type)) {
+    if (receiver.kind === 'definition' && isff(receiver)) {
       this.context.currentVar = receiver;
     }
     const expression = this.expression(sta.value[1]);
@@ -245,7 +276,7 @@ class Postprocessor {
     return {kind, receiver, expression};
   }
 
-  private checkReceiverAssignment(left: Receiver, right: Value) {
+  private checkReceiverAssignment(left: Receiver, right: Type) {
     if (left.kind === 'field') {
       this.checkAssignment(left.type, right);
     } else if (left.kind === 'definition') {
@@ -282,7 +313,7 @@ class Postprocessor {
     }
   }
 
-  private checkConAssignment(target: Con, source: Con) {
+  private checkConAssignment(target: ConType, source: ConType) {
     for (const [n, f] of target.fields) {
       const s = source.fields.get(n);
       assertNonNull(s);
@@ -290,21 +321,21 @@ class Postprocessor {
     }
     assert(target.name === source.name);
   }
-  private checkAssignment(target: Value, source: Value) {
-    const t = target.type;
+  private checkAssignment(target: Type, source: Type) {
+    const t = target.t;
     switch (t) {
       case 'i':
       case 'd':
       case 'b':
       case 's':
-      case 'c': assert(t === source.type, `Assigning ${source.type} to ${t}`); return;
+      case 'c': assert(t === source.t, `Assigning ${source.t} to ${t}`); return;
       case 't':
-        assert(t === source.type, `Assigning ${source.type} to ${t}`);
+        assert(t === source.t, `Assigning ${source.t} to ${t}`);
         assert(target.values.length === source.values.length);
         target.values.forEach((v, i) => this.checkAssignment(v, source.values[i]));
         return;
       case 'o':
-        assert(t === source.type, `Assigning ${source.type} to ${t}`);
+        assert(t === source.t, `Assigning ${source.t} to ${t}`);
         const tcon = this.context.getCon(target.con);
         const scon = this.context.getCon(source.con);
         assertNonNull(tcon);
@@ -312,13 +343,13 @@ class Postprocessor {
         this.checkConAssignment(tcon, scon);
         return;
       case 'f':
-        assert(t === source.type, `Assigning ${source.type} to ${t}`);
+        assert(t === source.t, `Assigning ${source.t} to ${t}`);
         this.checkAssignment(target.ret, source.ret);
         assert(target.args.length === source.args.length);
         target.args.forEach((v, i) => this.checkAssignment(source.args[i], v));
         return;
       case 'a':
-        assert(t === source.type, `Assigning ${source.type} to ${t}`);
+        assert(t === source.t, `Assigning ${source.t} to ${t}`);
         this.checkAssignment(target.subtype, source.subtype);
         return;
       default: unreachable(target, 'checkAssignment');
@@ -348,19 +379,19 @@ class Postprocessor {
     }
   }
 
-  private constantType(value: string): Num | Str {
+  private constantType(value: string): NumType | StrType {
     if (value === 'true') {
-      return {type: 'b'};
+      return {t: 'b'};
     } else if (value === 'false') {
-      return {type: 'b'};
+      return {t: 'b'};
     } else if (value.startsWith('"')) {
-      return {type: 's'};
+      return {t: 's'};
     } else if (value.startsWith("'")) {
-      return {type: value.length === 3 ? 'c' : 's'};
+      return {t: value.length === 3 ? 'c' : 's'};
     } else if (value.includes('.')) {
-      return {type: 'd'};
+      return {t: 'd'};
     } else {
-      return {type: 'i'};
+      return {t: 'i'};
     }
   }
 
@@ -374,8 +405,7 @@ class Postprocessor {
   private ifexp(e: Ife): IfExpression {
     const kind = 'if';
     const [c, y, n] = e.value;
-    const cond = this.expression(c);
-    checkb(cond.type);
+    const cond = checkbb(this.expression(c));
     const ifYes = this.expression(y);
     const ifNo = this.expression(n);
     this.checkAssignment(ifYes.type, ifNo.type);
@@ -393,8 +423,7 @@ class Postprocessor {
 
   private field(d: Dot | Rec): Field {
     const kind = 'field';
-    const obj = this.expression(d.value[0]);
-    checko(obj.type);
+    const obj = checkoo(this.expression(d.value[0]));
     const con = this.context.getCon(obj.type.con);
     assertNonNull(con);
     const name = d.value[2].value;
@@ -417,40 +446,39 @@ class Postprocessor {
       const inn = f.value.length === 3 ? f.value[2] : f.value[1];
       const body = new Postprocessor(innerContext).expression(inn);
       ret && this.checkAssignment(ret, body.type);
-      const type: Fun = {type: 'f', args: argValues, ret: body.type};
+      const type: FunType = {t: 'f', args: argValues, ret: body.type};
       return {kind, args: argNames, type, body};
     } else {
       const kind = 'constructor';
       const fields = IMap(args.map(a => [a.name, a.value]));
       const name = f.value[1].value;
-      const con: Con = {fields, name};
+      const con: ConType = {fields, name};
       this.context.setCon(name, con);
-      const ret: Obj = {type: 'o', con: name};
-      const type: Fun = {type: 'f', args: argValues, ret};
+      const ret: ObjType = {t: 'o', con: name};
+      const type: FunType = {t: 'f', args: argValues, ret};
       return {kind, args: argNames, type, name};
     }
   }
 
-  private bindfun(l: AnyExp, op: Cl, r: AnyExp): FunctionBind {
+  private bindfun(l: AnyExp, op: Cl, r: AnyExp): FunctionBind & ExpNarrow<FunType> {
     const kind = 'bind';
     const call = false;
-    let func = this.expression(l);
+    let func = checkff(this.expression(l));
     const curried = op.value === '::';
-    const arg = this.expression(r);
-    checkf(func.type);
     const {args, ret} = func.type;
-    let type: Fun;
+    let type: FunType;
     let argExps: FunctionBindArg[];
     if (curried) {
-      checkt(arg.type);
+      const arg = checktt(this.expression(r));
       assert(args.length >= arg.type.values.length, 'Too many arguments');
       arg.type.values.forEach((a, i) => this.checkAssignment(args[i], a));
-      type = {type: 'f', args: args.slice(arg.type.values.length), ret};
+      type = {t: 'f', args: args.slice(arg.type.values.length), ret};
       argExps = [{exp: arg, tupleSize: arg.type.values.length}];
     } else {
+      const arg = this.expression(r);
       assert(args.length >= 1, 'Too many arguments');
       this.checkAssignment(args[0], arg.type);
-      type = {type: 'f', args: args.slice(1), ret};
+      type = {t: 'f', args: args.slice(1), ret};
       argExps = [{exp: arg}];
     }
     if (func.kind === 'bind') {
@@ -463,8 +491,7 @@ class Postprocessor {
   private callfun(e: AnyExp, _sc: Sc): FunctionBind {
     const kind = 'bind';
     const call = true;
-    let func = this.expression(e);
-    checkf(func.type);
+    let func = checkff(this.expression(e));
     assert(func.type.args.length === 0, `Function missing ${func.type.args.length} arguments`);
     const args = func.kind === 'bind' ? func.args : [];
     const type = func.type.ret;
@@ -474,16 +501,15 @@ class Postprocessor {
 
   private tuple(e: Exm): Tuple {
     const kind = 'tuple';
-    const type = 't';
+    const t = 't';
     if (e.value.length === 3) {
-      const tt = this.expression(e.value[0]);
+      const tt = checktt(this.expression(e.value[0]));
       assert(tt.kind === 'tuple');
-      checkt(tt.type);
       const v = this.expression(e.value[2]);
-      return {kind, type: {type, values: tt.type.values.concat(v.type)}, elements: tt.elements.concat(v)};
+      return {kind, type: {t, values: tt.type.values.concat(v.type)}, elements: tt.elements.concat(v)};
     } else {
       const v = this.expression(e.value[1]);
-      return {kind, type: {type, values: [v.type]}, elements: [v]};
+      return {kind, type: {t, values: [v.type]}, elements: [v]};
     }
   }
 
@@ -491,22 +517,25 @@ class Postprocessor {
     const kind = 'binary';
     const left = this.expression(l);
     const right = this.expression(r);
-    let type: Value;
-    if (op.value === '+' && iss(left.type)) {
-      checks(right.type);
-      type = {type: 's'};
-    } else {
-      checkn(left.type);
-      checkn(right.type);
-      const tt = this.doOpTypes(op.value, left.type.type, right.type.type);
-      assert(tt, `type ${left.type.type} cannot ${op} with type ${right.type.type}`);
-      type = {type: tt};
-    }
+    const t = this.doOpTypes(op.value, left.type.t, right.type.t);
+    assert(t, `type ${left.type.t} cannot ${op} with type ${right.type.t}`);
+    const type = {t};
     return {kind, type, left, right, op};
   }
 
-  private doOpTypes(op: PrimOps, l: NumType, r: NumType): NumType | undefined {
-    type T = NumType;
+  private doOpTypes(op: PrimOps, l: AnyType, r: AnyType): NumT | StrT | undefined {
+    if (op === '+' && iss(l) && iss(r)) {
+      return 's';
+    }
+    let ll; let rr;
+    if ((ll = isn(l)) && (rr = isn(r))) {
+      return this.doNumOpTypes(op, ll, rr);
+    }
+    return undefined;
+  }
+
+  private doNumOpTypes(op: PrimOps, l: NumT, r: NumT): NumT | undefined {
+    type T = NumT;
 
     const not = (l: T, ...ts: T[]) => ts.every(t => t !== l);
     const one = (l: T, ...ts: T[]) => ts.some(t => t === l);
@@ -532,7 +561,7 @@ class Postprocessor {
 }
 
 
-function ttpValues(ttp: Ttp): Value[] {
+function ttpValues(ttp: Ttp): Type[] {
   if (ttp.value.length === 2) return [parseTypeAnnotation(ttp.value[1])];
   const [l, , r] = ttp.value;
   const vals = ttpValues(l);
@@ -540,9 +569,9 @@ function ttpValues(ttp: Ttp): Value[] {
   return vals;
 }
 
-function parseFtp(ftp: Ftp): Fun {
+function parseFtp(ftp: Ftp): FunType {
   let ret;
-  let args: Value[];
+  let args: Type[];
   if (ftp.value.length === 2) {
     ret = parseTypeAnnotation(ftp.value[1]);
     args = ftp.value[0].flatMap(t => t.type === 'cl' ? [] : [t]).map(t => parseTypeAnnotation(t));
@@ -550,21 +579,21 @@ function parseFtp(ftp: Ftp): Fun {
     ret = parseTypeAnnotation(ftp.value[0]);
     args = [];
   }
-  return {type: 'f', args, ret};
+  return {t: 'f', args, ret};
 }
 
-function parseTypeAnnotation(typ: Typ): Value {
+function parseTypeAnnotation(typ: Typ): Type {
   switch (typ.type) {
-    case 'tp': return {type: typ.value};
-    case 'tc': return {type: 'o', con: typ.value};
-    case 'atp': return {type: 'a', subtype: parseTypeAnnotation(typ.value[0])};
-    case 'ttp': return {type: 't', values: ttpValues(typ)};
+    case 'tp': return {t: typ.value};
+    case 'tc': return {t: 'o', con: typ.value};
+    case 'atp': return {t: 'a', subtype: parseTypeAnnotation(typ.value[0])};
+    case 'ttp': return {t: 't', values: ttpValues(typ)};
     case 'ftp': return parseFtp(typ);
     default: unreachable(typ, (typ as any).type);
   }
 }
 
-function unwrapVar(vvr: Var): Value | undefined {
+function unwrapVar(vvr: Var): Type | undefined {
   const vr = vvr.value[0];
   if (vvr.value.length === 1) {
     const t = vr.value.charAt(0);
@@ -573,7 +602,7 @@ function unwrapVar(vvr: Var): Value | undefined {
       case 'd':
       case 'b':
       case 's':
-      case 'c': return {type: t};
+      case 'c': return {t};
       case 't':
       case 'o':
       case 'f':

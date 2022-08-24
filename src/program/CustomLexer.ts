@@ -73,13 +73,13 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-export type ValueType = NumType | StrType | FunType | TupType | ObjType | ArrType;
-export type NumType = 'i' | 'd' | 'b';
-export type StrType = 's' | 'c';
-export type FunType = 'f';
-export type TupType = 't';
-export type ObjType = 'o';
-export type ArrType = 'a';
+export type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT;
+export type NumT = 'i' | 'd' | 'b';
+export type StrT = 's' | 'c';
+export type FunT = 'f';
+export type TupT = 't';
+export type ObjT = 'o';
+export type ArrT = 'a';
 export type LexerName = LexerOpts['type'];
 export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
 export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta'] as const;
@@ -88,7 +88,7 @@ export type DirtyLexerName = LexerName | FilteredLexerName;
 export type VrName = Vr['value'];
 export interface Vr {
   type: 'vr';
-  value: `${ValueType}${string}`;
+  value: `${ValueT}${string}`;
 }
 interface Eq {
   type: 'eq';
@@ -112,7 +112,7 @@ export interface Tc {
 }
 export interface Tp {
   type: 'tp';
-  value: NumType | StrType;
+  value: NumT | StrT;
 }
 export interface Cm {
   type: 'cm';

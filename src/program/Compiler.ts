@@ -2,7 +2,7 @@
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Value as Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, Fun, FunctionBindArg} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -199,18 +199,18 @@ function implicitAnnotation(n: VrName): string | undefined {
   }
 }
 
-function parseFun(f: Fun): string {
+function parseFun(f: FunType): string {
   const ret = annotationp(f.ret);
   const args = f.args.map((t, i) => `${numToLetter('a', i)}:${annotationp(t)}`);
   return `(${args.join(',')}) => ${ret}`;
 }
 
 function annotationp(t: Type): string {
-  return t.type === 'f' ? `(${annotation(t)})` : annotation(t);
+  return t.t === 'f' ? `(${annotation(t)})` : annotation(t);
 }
 
 function annotation(t: Type): string {
-  switch (t.type) {
+  switch (t.t) {
     case 'i': return 'number';
     case 'd': return 'number';
     case 'b': return 'boolean';

@@ -1,19 +1,19 @@
 
 import {assert, throwIfNull, unreachable} from '../util/Utils';
-import type {NumType, StrType, FunType, TupType, ObjType, ArrType, PrimOps, VrName} from './CustomLexer';
-import type {BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple} from './ParsePostprocessor';
+import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT} from './CustomLexer';
+import type {BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Statement, Tuple, TupType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Num {
-  readonly type: NumType;
+  readonly type: NumT;
   readonly value: number;
 }
 interface Str {
-  readonly type: StrType;
+  readonly type: StrT;
   readonly value: string;
 }
 interface Fun {
-  readonly type: FunType;
+  readonly type: FunT;
   readonly args: VrName[];
   readonly applied: Value[];
   readonly context?: ContextSnapshot | undefined;
@@ -21,11 +21,11 @@ interface Fun {
   readonly ret: Expression | 'struct';
 }
 interface Tup {
-  readonly type: TupType;
+  readonly type: TupT;
   readonly values: Value[];
 }
 class Obj {
-  readonly type: ObjType = 'o';
+  readonly type: ObjT = 'o';
   constructor(private fields: IMap<VrName, Value>,
     private readonly methods: IMap<VrName, Fun> = IMap()) {}
 
@@ -37,10 +37,21 @@ class Obj {
   }
 }
 interface Arr {
-  readonly type: ArrType;
+  readonly type: ArrT;
   readonly values: Value[];
 }
-type Value = Num | Str | Fun | Tup | Obj | Arr;
+type Values = {
+  d: Num,
+  i: Num,
+  b: Num,
+  s: Str,
+  c: Str,
+  f: Fun,
+  t: Tup,
+  o: Obj,
+  a: Arr,
+};
+type Value = Values[ValueT];//Num | Str | Fun | Tup | Obj | Arr;
 
 class ContextSnapshot {
   constructor(
@@ -67,33 +78,13 @@ class ExecContext {
   }
 }
 
-function ist(val: Value): val is Tup {
-  return val.type === 't';
-}
-function checkt(val: Value): asserts val is Tup {
-  assert(ist(val), `${val.type} is not a tuple`);
-}
-function iso(val: Value): val is Obj {
-  return val.type === 'o';
-}
-function checko(val: Value): asserts val is Obj {
-  assert(iso(val), `${val.type} is not an object`);
-}
-function isf(val: Value): val is Fun {
-  return val.type === 'f';
-}
-function checkf(val: Value): asserts val is Fun {
-  assert(isf(val), `${val.type} is not a function`);
-}
-function iss(val: Value): val is Str {
-  return val.type === 's' || val.type === 'c';
-}
-function checks(val: Value): asserts val is Str {
-  assert(iss(val), `${val.type} is not stringy`);
+function iss(val: Value): Str | undefined {
+  return val.type === 's' || val.type === 'c' ? val : undefined;
 }
 
-function checkn(val: Value): asserts val is Num {
+function checkn(val: Value): Num {
   assert(val.type === 'b' || val.type === 'i' || val.type === 'd', `${val.type} is not numeric`);
+  return val;
 }
 
 export default class RootExecutor {
@@ -107,7 +98,7 @@ export default class RootExecutor {
 type RecVal = VrName | [Obj, VrName];
 
 function valRep(v: Value): string {
-  return isf(v) ? `function` :
+  return v.type === 'f' ? `function` :
     v.type === 't' ? `tuple` :
       v.type === 'o' ? `object` :
         v.type === 'a' ? `array` :
@@ -167,13 +158,42 @@ class Executor {
   }
 
   private fieldReceiver(f: Field): RecVal {
-    const obj = this.expression(f.obj);
-    checko(obj);
+    const obj = this.expressionO(f.obj);
     const name = f.name;
     return [obj, name];
   }
 
+  private expressionT(exp: NarrowedExpression<TupType>): Tup {
+    const v = this.expression(exp);
+    assert(v.type === exp.type.t);
+    return v;
+  }
+
+  private expressionF(exp: NarrowedExpression<FunType>): Fun {
+    const v = this.expression(exp);
+    assert(v.type === exp.type.t);
+    return v;
+  }
+
+  private expressionB(exp: NarrowedExpression<NumType>): Num {
+    const v = this.expression(exp);
+    assert(v.type === exp.type.t);
+    return v;
+  }
+
+  private expressionO(exp: NarrowedExpression<ObjType>): Obj {
+    const v = this.expression(exp);
+    assert(v.type === exp.type.t);
+    return v;
+  }
+
   private expression(exp: Expression): Value {
+    const v = this.expressionInner(exp);
+    assert(v.type === exp.type.t, `Expected ${exp.kind} expression to produce ${exp.type.t} but got ${v.type}`);
+    return v;
+  }
+
+  private expressionInner(exp: Expression): Value {
     switch (exp.kind) {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
@@ -193,13 +213,12 @@ class Executor {
   }
 
   private field(f: Field): Value {
-    const obj = this.expression(f.obj);
-    checko(obj);
+    const obj = this.expressionO(f.obj);
     return throwIfNull(obj.getMember(f.name), `Unknown object member ${f.name}`);
   }
 
   private constant(c: Constant): Num | Str {
-    const type = c.type.type;
+    const type = c.type.t;
     const v = c.value;
     if (type === 'b') {
       return {type, value: v === 'true' ? 1 : 0};
@@ -210,14 +229,14 @@ class Executor {
     } else if (type === 'i') {
       return {type, value: Number.parseInt(v)};
     } else {
-      return unreachable(type);
+      assert(false);  // TODO TODO
+      //return unreachable(type);
     }
   }
 
   private ifexp(e: IfExpression): Value {
     const {cond, ifYes, ifNo} = e;
-    const c = this.expression(cond);
-    checkn(c);
+    const c = this.expressionB(cond);
     if (c.value) {
       return this.expression(ifYes);
     } else {
@@ -239,15 +258,15 @@ class Executor {
     const l = this.expression(left);
     const r = this.expression(right);
 
-    if (op.value === '+' && iss(l)) {
-      checks(r);
-      return {type: 's', value: l.value + r.value};
+    let ll; let rr;
+    if (op.value === '+' && (ll = iss(l)) && (rr = iss(r))) {
+      return {type: 's', value: ll.value + rr.value};
     } else {
-      checkn(l);
-      checkn(r);
-      assert(type.type === 'b' || type.type === 'i' || type.type === 'd');
-      const value = doOpValues(op.value, l.value, r.value);
-      return {type: type.type, value};
+      const ll = checkn(l);
+      const rr = checkn(r);
+      assert(type.t === 'b' || type.t === 'i' || type.t === 'd');
+      const value = doOpValues(op.value, ll.value, rr.value);
+      return {type: type.t, value};
     }
   }
 
@@ -258,8 +277,7 @@ class Executor {
 
   private bindfun(f: FunctionBind): Value {
     const {func, args, call} = f;
-    let ff = this.expression(func);
-    checkf(ff);
+    let ff = this.expressionF(func);
     const as = args.flatMap(a => this.funcArg(a));
     ff = {...ff, applied: ff.applied.concat(as)};
     if (!call) return ff;
@@ -268,13 +286,10 @@ class Executor {
   }
 
   private funcArg(arg: FunctionBindArg): Value[] {
-    const a = this.expression(arg.exp);
-    const s = arg.tupleSize;
-    if (s != null) {
-      checkt(a);
-      return a.values;
+    if (arg.tupleSize != null) {
+      return this.expressionT(arg.exp).values;
     } else {
-      return [a];
+      return [this.expression(arg.exp)];
     }
   }
 
@@ -320,7 +335,7 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
 /*
 Todos:
 Abstract roots, join and split them, shared? saver and top-level data
-Parser type checking
+Tighter parser types
 arrays,
 generic types,
 methods + method calls,
