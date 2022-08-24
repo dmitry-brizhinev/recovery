@@ -17,7 +17,9 @@ sta -> rec %eq exp
 rec -> var | exp %dt %vr
 
 # If-expression
-ife -> "if" exp "then" exp "else" exp "endif"
+ife -> ifs ifn
+ifn -> "endif" | "else" exp "endif" | "elif" exp "then" exp ifn
+ifs -> "if" exp "then" exp
 # General expression
 exp -> exc2 | fnd
 # Function definition expression
@@ -89,6 +91,8 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   sta: filterAndLabel,
   rec: filterAndLabelOrUnwrap,
   ife: filterAndLabel,
+  ifn: filterAndLabel,
+  ifs: filterAndLabel,
   exp: filterAndUnwrapSingle,
   fnd: filterAndLabel,
   exc0: filterAndLabelOrUnwrap, exc1: filterAndLabelOrUnwrap, exc2: filterAndLabelOrUnwrap,
@@ -124,7 +128,9 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
 export type Doc = Sta[];
 export interface Sta {type: 'sta'; value: [Rec | Var, Exp];}
 export interface Rec {type: 'rec'; value: [Exp, Dt, Vr];}
-export interface Ife {type: 'ife'; value: [Exp, Exp, Exp];}
+export interface Ife {type: 'ife'; value: [Ifs, Ifn];}
+export interface Ifn {type: 'ifn'; value: [] | [Exp] | [Exp, Exp, Ifn];}
+export interface Ifs {type: 'ifs'; value: [Exp, Exp];}
 // export interface Exp {type: 'exp'; value: [ExAny] | [Fnd];}
 export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, Tc];}
 
@@ -147,7 +153,7 @@ type Vcf = AnyExp;
 type Exp = AnyExp;
 export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Fnd;
 
-type ParserOpts = Sta | Rec | Ife | Fnd | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
+type ParserOpts = Sta | Rec | Ife | Ifn | Ifs | Fnd | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
 
 
 

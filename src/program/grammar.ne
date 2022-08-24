@@ -10,7 +10,9 @@ sta -> rec %eq exp
 rec -> var | exp %dt %vr
 
 # If-expression
-ife -> "if" exp "then" exp "else" exp "endif"
+ife -> ifs ifn
+ifn -> "endif" | "else" exp "endif" | "elif" exp "then" exp ifn
+ifs -> "if" exp "then" exp
 # General expression
 exp -> exc2 | fnd
 # Function definition expression

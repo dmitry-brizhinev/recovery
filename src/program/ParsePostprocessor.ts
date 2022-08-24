@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl} from './CustomLexer';
-import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm} from './NearleyParser';
+import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 export interface NumType {
@@ -199,7 +199,7 @@ export interface IfExpression {
   type: Type;
   cond: NarrowedExpression<NumType>;
   ifYes: Expression;
-  ifNo: Expression;
+  ifNo?: Expression;
 }
 
 export interface BinaryOperation {
@@ -403,14 +403,30 @@ class Postprocessor {
   }
 
   private ifexp(e: Ife): IfExpression {
+    const [s, next] = e.value;
+    const [c, y] = s.value;
+    return this.ifexpInner(c, y, next);
+  }
+
+  private ifexpInner(c: AnyExp, y: AnyExp, next: Ifn): IfExpression {
     const kind = 'if';
-    const [c, y, n] = e.value;
     const cond = checkbb(this.expression(c));
     const ifYes = this.expression(y);
-    const ifNo = this.expression(n);
-    this.checkAssignment(ifYes.type, ifNo.type);
     const type = ifYes.type;
-    return {kind, type, cond, ifYes, ifNo};
+    if (next.value.length === 0) {
+      return {kind, type, cond, ifYes};
+    } else if (next.value.length === 1) {
+      const n = next.value[0];
+      const ifNo = this.expression(n);
+      this.checkAssignment(type, ifNo.type);
+      return {kind, type, cond, ifYes, ifNo};
+    } else if (next.value.length === 3) {
+      const ifNo = this.ifexpInner(...next.value);
+      this.checkAssignment(type, ifNo.type);
+      return {kind, type, cond, ifYes, ifNo};
+    } else {
+      return unreachable(next.value);
+    }
   }
 
   private variable(v: Vr): DefinedVariable {
