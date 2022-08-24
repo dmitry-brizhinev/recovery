@@ -5,15 +5,15 @@ import type {BinaryOperation, Constant, Constructor, DefinedVariable, Expression
 import {Map as IMap} from 'immutable';
 
 interface Num {
-  readonly type: NumT;
+  readonly t: NumT;
   readonly value: number;
 }
 interface Str {
-  readonly type: StrT;
+  readonly t: StrT;
   readonly value: string;
 }
 interface Fun {
-  readonly type: FunT;
+  readonly t: FunT;
   readonly args: VrName[];
   readonly applied: Value[];
   readonly context?: ContextSnapshot | undefined;
@@ -21,11 +21,11 @@ interface Fun {
   readonly ret: Expression | 'struct';
 }
 interface Tup {
-  readonly type: TupT;
+  readonly t: TupT;
   readonly values: Value[];
 }
 class Obj {
-  readonly type: ObjT = 'o';
+  readonly t: ObjT = 'o';
   constructor(private fields: IMap<VrName, Value>,
     private readonly methods: IMap<VrName, Fun> = IMap()) {}
 
@@ -37,7 +37,7 @@ class Obj {
   }
 }
 interface Arr {
-  readonly type: ArrT;
+  readonly t: ArrT;
   readonly values: Value[];
 }
 type Values = {
@@ -79,11 +79,11 @@ class ExecContext {
 }
 
 function iss(val: Value): Str | undefined {
-  return val.type === 's' || val.type === 'c' ? val : undefined;
+  return val.t === 's' || val.t === 'c' ? val : undefined;
 }
 
 function checkn(val: Value): Num {
-  assert(val.type === 'b' || val.type === 'i' || val.type === 'd', `${val.type} is not numeric`);
+  assert(val.t === 'b' || val.t === 'i' || val.t === 'd', `${val.t} is not numeric`);
   return val;
 }
 
@@ -98,10 +98,10 @@ export default class RootExecutor {
 type RecVal = VrName | [Obj, VrName];
 
 function valRep(v: Value): string {
-  return v.type === 'f' ? `function` :
-    v.type === 't' ? `tuple` :
-      v.type === 'o' ? `object` :
-        v.type === 'a' ? `array` :
+  return v.t === 'f' ? `function` :
+    v.t === 't' ? `tuple` :
+      v.t === 'o' ? `object` :
+        v.t === 'a' ? `array` :
           `${v.value}`;
 }
 
@@ -122,7 +122,7 @@ class Executor {
       this.currentVar = left;
     }
     let right = this.expression(sta.expression);
-    if (this.currentVar && right.type === 'f') {
+    if (this.currentVar && right.t === 'f') {
       right = {...right, selfref: {name: this.currentVar, value: right}};
       assert(right.selfref);
       right.selfref.value = right;
@@ -165,31 +165,31 @@ class Executor {
 
   private expressionT(exp: NarrowedExpression<TupType>): Tup {
     const v = this.expression(exp);
-    assert(v.type === exp.type.t);
+    assert(v.t === exp.type.t);
     return v;
   }
 
   private expressionF(exp: NarrowedExpression<FunType>): Fun {
     const v = this.expression(exp);
-    assert(v.type === exp.type.t);
+    assert(v.t === exp.type.t);
     return v;
   }
 
   private expressionB(exp: NarrowedExpression<NumType>): Num {
     const v = this.expression(exp);
-    assert(v.type === exp.type.t);
+    assert(v.t === exp.type.t);
     return v;
   }
 
   private expressionO(exp: NarrowedExpression<ObjType>): Obj {
     const v = this.expression(exp);
-    assert(v.type === exp.type.t);
+    assert(v.t === exp.type.t);
     return v;
   }
 
   private expression(exp: Expression): Value {
     const v = this.expressionInner(exp);
-    assert(v.type === exp.type.t, `Expected ${exp.kind} expression to produce ${exp.type.t} but got ${v.type}`);
+    assert(v.t === exp.type.t, `Expected ${exp.kind} expression to produce ${exp.type.t} but got ${v.t}`);
     return v;
   }
 
@@ -218,16 +218,16 @@ class Executor {
   }
 
   private constant(c: Constant): Num | Str {
-    const type = c.type.t;
+    const t = c.type.t;
     const v = c.value;
-    if (type === 'b') {
-      return {type, value: v === 'true' ? 1 : 0};
-    } else if (type === 'c' || type === 's') {
-      return {type, value: v.slice(1, -1)};
-    } else if (type === 'd') {
-      return {type, value: Number.parseFloat(v)};
-    } else if (type === 'i') {
-      return {type, value: Number.parseInt(v)};
+    if (t === 'b') {
+      return {t, value: v === 'true' ? 1 : 0};
+    } else if (t === 'c' || t === 's') {
+      return {t, value: v.slice(1, -1)};
+    } else if (t === 'd') {
+      return {t, value: Number.parseFloat(v)};
+    } else if (t === 'i') {
+      return {t, value: Number.parseInt(v)};
     } else {
       assert(false);  // TODO TODO
       //return unreachable(type);
@@ -247,9 +247,9 @@ class Executor {
   private callable(f: FunctionExpression | Constructor): Fun {
     const args = f.args;
     if (f.kind === 'function') {
-      return {type: 'f', args, applied: [], context: this.context.snapshot(), ret: f.body};
+      return {t: 'f', args, applied: [], context: this.context.snapshot(), ret: f.body};
     } else {
-      return {type: 'f', args, applied: [], ret: 'struct'};
+      return {t: 'f', args, applied: [], ret: 'struct'};
     }
   }
 
@@ -260,19 +260,19 @@ class Executor {
 
     let ll; let rr;
     if (op.value === '+' && (ll = iss(l)) && (rr = iss(r))) {
-      return {type: 's', value: ll.value + rr.value};
+      return {t: 's', value: ll.value + rr.value};
     } else {
       const ll = checkn(l);
       const rr = checkn(r);
       assert(type.t === 'b' || type.t === 'i' || type.t === 'd');
       const value = doOpValues(op.value, ll.value, rr.value);
-      return {type: type.t, value};
+      return {t: type.t, value};
     }
   }
 
-  private tuple(t: Tuple): Tup {
-    const es = t.elements.map(e => this.expression(e));
-    return {type: 't', values: es};
+  private tuple(tt: Tuple): Tup {
+    const es = tt.elements.map(e => this.expression(e));
+    return {t: 't', values: es};
   }
 
   private bindfun(f: FunctionBind): Value {
