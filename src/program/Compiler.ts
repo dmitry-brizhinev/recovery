@@ -2,7 +2,7 @@
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, DoExpression} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, DoExpression, DoWhile, WhileDo, ForStatement} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -34,6 +34,9 @@ class Compiler {
       case 'assignment': return this.assignment(s);
       case 'return': return [this.return(s), ''];
       case 'if': return [this.ifexp(s.expression), ''];
+      case 'dowhile': return [this.dowhile(s), ''];
+      case 'whiledo': return [this.whiledo(s), ''];
+      case 'for': return [this.for(s), ''];
       default: return unreachable(s);
     }
   }
@@ -53,6 +56,25 @@ class Compiler {
   private return(r: Return): string {
     const e = this.expression(r.expression);
     return `return ${e}`;
+  }
+
+  private dowhile(e: DoWhile): string {
+    const c = this.expression(e.cond);
+    const b = this.expression(e.body);
+    return `do { ${b} } while(${c})`;
+  }
+
+  private whiledo(e: WhileDo): string {
+    const c = this.expression(e.cond);
+    const b = this.expression(e.body);
+    return `while(${c}) { ${b} }`;
+  }
+
+  private for(f: ForStatement): string {
+    const n = f.name;
+    const a = this.expressionp(f.iter);
+    const b = this.expression(f.body);
+    return `for (const ${n} of ${a}) { ${b} }`;
   }
 
   private receiver(r: Receiver): [string, string] | null {

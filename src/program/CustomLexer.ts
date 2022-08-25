@@ -8,7 +8,7 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
-const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return'] as const;
+const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return', 'while', 'for', 'in'] as const;
 
 /*
 

@@ -1,7 +1,7 @@
 
 import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
 import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT} from './CustomLexer';
-import type {ArrayExpression, Assignment, BinaryOperation, Constant, Constructor, DefinedVariable, DoExpression, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType} from './ParsePostprocessor';
+import type {ArrayExpression, ArrType, Assignment, BinaryOperation, Constant, Constructor, DefinedVariable, DoExpression, DoWhile, Expression, Field, ForStatement, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, WhileDo} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Nul {
@@ -129,6 +129,9 @@ class Executor {
       case 'assignment': this.assignment(s); return;
       case 'return': this.return(s); return;
       case 'if': this.ifexp(s.expression); return;
+      case 'dowhile': this.dowhile(s); return;
+      case 'whiledo': this.whiledo(s); return;
+      case 'for': this.for(s); return;
       default: unreachable(s);
     }
   }
@@ -159,6 +162,29 @@ class Executor {
 
   private return(r: Return): Value {
     return this.expression(r.expression);
+  }
+
+  private dowhile(e: DoWhile): void {
+    const {cond, body} = e;
+    do {
+      this.expression(body);
+    } while (this.expressionB(cond).value);
+  }
+
+  private whiledo(e: WhileDo): void {
+    const {cond, body} = e;
+    while (this.expressionB(cond).value) {
+      this.expression(body);
+    };
+  }
+
+  private for(f: ForStatement): void {
+    const {name, iter, body} = f;
+    const a = this.expressionA(iter);
+    for (const v of a.values) {
+      this.context.setVar(name, v);
+      this.expression(body);
+    }
   }
 
   private receiver(r: Receiver): RecVal {
@@ -204,6 +230,12 @@ class Executor {
   }
 
   private expressionO(exp: NarrowedExpression<ObjType>): Obj {
+    const v = this.expression(exp);
+    assert(v.t === exp.type.t);
+    return v;
+  }
+
+  private expressionA(exp: NarrowedExpression<ArrType>): Arr {
     const v = this.expression(exp);
     assert(v.t === exp.type.t);
     return v;
@@ -371,7 +403,41 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
 }
 /*
 
-do ... end (with 'return'!!)
+
+iX = if true then return 1 else 2 endif
+
+iX = if true then
+  iY = 8
+elif false then 12 else
+  iY = 7
+  return 9
+endif
+
+if true then
+  iX = 2
+else
+  iX = 3
+endif
+
+fA = -> do
+  iX = 5
+  return iX + 1
+end
+
+iX = fA;
+
+fB = iX -> do
+  _ = if true then _ else return 5 endif
+  if iX == 2 then
+    return 9
+  elif iX == 6 then
+    return 10
+  else
+    return 20
+  endif
+end
+
+
 generic types,
 Tighter parser types
 

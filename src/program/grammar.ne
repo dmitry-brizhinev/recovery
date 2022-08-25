@@ -9,24 +9,28 @@ wnl -> ws | mnl mws %nl mws
 # Statements
 ass -> rec %eq exp
 ret -> "return" ws exp
-sta -> ass | ret | ife
+sta -> ass | ret | ife | dow | wdo | for
 sep -> mnl mws %nl mws
 # Receivers: the complement to expressions
 rec -> var | exp %dt %vr | "_"
 
 # If-statement and If-expression
-eod -> ws exp ws | wnl blo wnl
+eob -> ws exp ws | wnl blo wnl
 #ifs -> ife
 ife -> ifb ifn
-ifn -> "endif" | "else" eod "endif" | "elif" ws exp ws "then" eod ifn
-ifb -> "if" ws exp ws "then" eod
+ifn -> "endif" | "else" eob "endif" | "elif" ws exp ws "then" eob ifn
+ifb -> "if" ws exp ws "then" eob
+dow -> "do" eob "while" ws exp ws "end"
+wdo -> "while" ws exp ws "do" eob "end"
+for -> "for" ws var ws "in" ws exp ws "do" eod "end"
 # Do-expression
 blo -> blo sep sta | sta
 doo -> "do" wnl blo wnl "end"
 # General expression
-exp -> exa2 | fnd | doo
+exp -> exa2 | fnd
 # Function definition expression
-fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" ws %tc
+eod -> exp | doo
+fnd -> vrl %rt typ ws eod | vrl %rt eod | vrl %rt "struct" ws %tc
 # Compound expressions with binary operators
 exa2 -> exc2 #| arr2
 #arr2 -> ars2 %ms "]"

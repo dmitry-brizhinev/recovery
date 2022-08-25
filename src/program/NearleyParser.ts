@@ -5,7 +5,7 @@ import {assert} from "../util/Utils";
 import compileGrammar from "./NearleyGrammar";
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['doc', 'mnl', 'wnl', 'blo', 'sta', 'sep', 'eod', 'exp', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
+const FilteredParserNames = ['doc', 'mnl', 'wnl', 'blo', 'sta', 'sep', 'eob', 'eod', 'exp', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -23,13 +23,17 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   sta: filterAndUnwrapSingle,
   sep: discard,
   rec: filterAndLabelOrUnwrap,
-  eod: filterAndUnwrapSingle,
+  eob: filterAndUnwrapSingle,
   ife: filterAndLabel,
   ifn: filterAndLabel,
   ifb: filterAndLabel,
+  dow: filterAndLabel,
+  wdo: filterAndLabel,
+  for: filterAndLabel,
   blo: flattenAndFilter,
   doo: filterAndLabel,
   exp: filterAndUnwrapSingle,
+  eod: filterAndUnwrapSingle,
   fnd: filterAndLabel,
   exa0: filterAndUnwrapSingle, exa1: filterAndUnwrapSingle, exa2: filterAndUnwrapSingle,
   //  arr0: filterAndUnwrapSingle, arr1: filterAndUnwrapSingle, arr2: filterAndUnwrapSingle,
@@ -71,14 +75,18 @@ export interface Ass {type: 'ass'; value: [Rec | Var | Cnst, Exp];}
 export interface Ret {type: 'ret'; value: [Exp];}
 export interface Rec {type: 'rec'; value: [Exp, Dt, Vr];}
 export interface Ife {type: 'ife'; value: [Ifb, Ifn];}
-export interface Ifn {type: 'ifn'; value: [] | [Eod] | [Exp, Eod, Ifn];}
-export interface Ifb {type: 'ifb'; value: [Exp, Eod];}
-export type Eod = Exp | Doc;
-export type Sta = Ass | Ret | Ife;
+export interface Ifn {type: 'ifn'; value: [] | [Eob] | [Exp, Eob, Ifn];}
+export interface Ifb {type: 'ifb'; value: [Exp, Eob];}
+export interface Dow {type: 'dow'; value: [Eob, Exp]}
+export interface Wdo {type: 'wdo'; value: [Exp, Eob]}
+export interface For {type: 'for'; value: [Var, Exp, Eob]}
+export type Eob = Exp | Blo;
+export type Eod = Exp | Doo;
+export type Sta = Ass | Ret | Ife | Dow | Wdo | For;
 export type Blo = Sta[];
 export interface Doo {type: 'doo'; value: [Blo];}
 // export interface Exp {type: 'exp'; value: [ExAny] | [Fnd];}
-export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, Tc];}
+export interface Fnd {type: 'fnd'; value: [Vrl, Eod] | [Vrl, Typ, Eod] | [Vrl, Tc];}
 
 export interface Exc {type: 'exc0' | 'exc1' | 'exc2'; value: [AnyExp, Sc];}
 export interface Exl {type: 'exl0' | 'exl1' | 'exl2'; value: [AnyExp, Cl, AnyExp];}
@@ -98,9 +106,9 @@ export type Vrl = Var[];
 
 type Vcf = AnyExp;
 type Exp = AnyExp;
-export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Doo | Fnd | Arr;
+export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Fnd | Arr;
 
-type ParserOpts = Ass | Ret | Rec | Ife | Ifn | Ifb | Doo | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
+type ParserOpts = Ass | Ret | Rec | Doo | Ife | Ifn | Ifb | Dow | Wdo | For | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
 
 
 
