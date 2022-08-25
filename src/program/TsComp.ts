@@ -25,8 +25,8 @@ function getOptions() {
     noPropertyAccessFromIndexSignature: true,
     noUncheckedIndexedAccess: true,
     noFallthroughCasesInSwitch: true,
-    noUnusedLocals: true,
-    noUnusedParameters: true,
+    noUnusedLocals: false,
+    noUnusedParameters: false,
     // End of type checking section
     allowUmdGlobalAccess: false,
     removeComments: true,
@@ -149,13 +149,13 @@ done
     directoryExists: dirPath => dirPath === "/",
     getDirectories: () => [],
   };
-  
+
   TRANSPILE MODULE:
   var compilerHost = {
     getCurrentDirectory: function () { return ""; },
     directoryExists: function () { return true; },
     getDirectories: function () { return []; }
-  }; 
+  };
    */
 
   getSourceFile(fileName: string): ts.SourceFile | undefined {

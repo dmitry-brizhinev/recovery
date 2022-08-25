@@ -9,17 +9,6 @@ const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
 const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return'] as const;
-const kwrx = [
-  {match: /if +/, value: trim},
-  {match: / +then +/, value: trim},
-  {match: / +else +/, value: trim},
-  {match: / +elif +/, value: trim},
-  {match: / +endif/, value: trim},
-  {match: /struct +/, value: trim},
-  {match: /do +/, value: trim},
-  {match: / +end/, value: trim},
-  {match: /return +/, value: trim},
-];
 
 /*
 
@@ -38,7 +27,7 @@ const kwrx = [
 */
 
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
-  nl: {match: /(?: *#.*\n| *\n)+/, lineBreaks: true},
+  nl: {match: /(?:#.*)?\n/, lineBreaks: true},
   rt: {match: / *-> */, value: trim},
   op: primOps as any,
   sc: [';'],
@@ -46,7 +35,7 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   cm: [','],
   cl: ['::', ':'],
   eq: {match: / *= *(?!=)/, value: trim},
-  kw: kwrx,
+  kw: kws as any,
   ms: /  +/,
   os: ' ',
   br: ['{', '}', '(', ')', '[', ']'],

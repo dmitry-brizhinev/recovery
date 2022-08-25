@@ -9,8 +9,8 @@ export default class RootCompiler {
   private results: string[] = ['const r: string[] = []; let _: any;'];
   private compiler = new Compiler();
 
-  compile(sta: Assignment): string {
-    const [main, extra] = this.compiler.assignment(sta);
+  compile(sta: Statement): string {
+    const [main, extra] = this.compiler.statement(sta);
     this.results.push(main, extra);
     return main;
   }
@@ -29,7 +29,16 @@ export default class RootCompiler {
 }
 
 class Compiler {
-  assignment(sta: Assignment): [string, string] {
+  statement(s: Statement): [string, string] {
+    switch (s.kind) {
+      case 'assignment': return this.assignment(s);
+      case 'return': return [this.return(s), ''];
+      case 'if': return [this.ifexp(s.expression), ''];
+      default: return unreachable(s);
+    }
+  }
+
+  private assignment(sta: Assignment): [string, string] {
     const right = this.expression(sta.expression);
     const rec = this.receiver(sta.receiver);
 
@@ -38,14 +47,6 @@ class Compiler {
       return [`${dec} = ${right}`, `r.push(\`${v} = \${${v}}\`);`];
     } else {
       return [`_ = ${right}`, `r.push(\`_ = \${_}\`);`];
-    }
-  }
-
-  private statement(s: Statement): string {
-    switch (s.kind) {
-      case 'assignment': return this.assignment(s)[0];
-      case 'return': return this.return(s);
-      default: return unreachable(s);
     }
   }
 

@@ -52,8 +52,8 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
       try {
         if (mode !== 'check') {
           if (mode === 'run') {
-            const r = exec.run(statement);
-            if (r) yield r;
+            const rs = exec.run(statement);
+            for (const r of rs) yield r;
           } else {
             const r = comp.compile(statement);
             if (mode.ts && r) yield r;

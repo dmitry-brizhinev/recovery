@@ -5,7 +5,7 @@ import {assert} from "../util/Utils";
 import compileGrammar from "./NearleyGrammar";
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['top', 'mnl', 'doc', 'sta', 'sep', 'dos', 'exp', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
+const FilteredParserNames = ['doc', 'mnl', 'wnl', 'blo', 'sta', 'sep', 'eod', 'exp', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -15,18 +15,19 @@ export function checkParserName(name: string): DirtyParserName {
 }
 
 const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => CleanerOutput | undefined} = {
-  top: filterAndUnwrapSingle,
+  doc: filterAndUnwrapSingle,
   mnl: discard,
-  doc: flattenAndFilter,
+  wnl: discard,
   ass: filterAndLabel,
   ret: filterAndLabel,
   sta: filterAndUnwrapSingle,
   sep: discard,
   rec: filterAndLabelOrUnwrap,
+  eod: filterAndUnwrapSingle,
   ife: filterAndLabel,
   ifn: filterAndLabel,
-  ifs: filterAndLabel,
-  dos: flattenAndFilter,
+  ifb: filterAndLabel,
+  blo: flattenAndFilter,
   doo: filterAndLabel,
   exp: filterAndUnwrapSingle,
   fnd: filterAndLabel,
@@ -65,15 +66,17 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   vrl: flattenAndFilter,
 } as const;
 
-export type Doc = Sta[];
-export interface Sta {type: 'ass'; value: [Rec | Var | Cnst, Exp];}
+export type Doc = Blo;
+export interface Ass {type: 'ass'; value: [Rec | Var | Cnst, Exp];}
 export interface Ret {type: 'ret'; value: [Exp];}
 export interface Rec {type: 'rec'; value: [Exp, Dt, Vr];}
-export interface Ife {type: 'ife'; value: [Ifs, Ifn];}
-export interface Ifn {type: 'ifn'; value: [] | [Exp] | [Exp, Exp, Ifn];}
-export interface Ifs {type: 'ifs'; value: [Exp, Exp];}
-export type Dos = (Sta | Ret)[];
-export interface Doo {type: 'doo'; value: [Dos];}
+export interface Ife {type: 'ife'; value: [Ifb, Ifn];}
+export interface Ifn {type: 'ifn'; value: [] | [Eod] | [Exp, Eod, Ifn];}
+export interface Ifb {type: 'ifb'; value: [Exp, Eod];}
+export type Eod = Exp | Doc;
+export type Sta = Ass | Ret | Ife;
+export type Blo = Sta[];
+export interface Doo {type: 'doo'; value: [Blo];}
 // export interface Exp {type: 'exp'; value: [ExAny] | [Fnd];}
 export interface Fnd {type: 'fnd'; value: [Vrl, Exp] | [Vrl, Typ, Exp] | [Vrl, Tc];}
 
@@ -97,7 +100,7 @@ type Vcf = AnyExp;
 type Exp = AnyExp;
 export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Doo | Fnd | Arr;
 
-type ParserOpts = Sta | Ret | Rec | Ife | Ifn | Ifs | Doo | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
+type ParserOpts = Ass | Ret | Rec | Ife | Ifn | Ifb | Doo | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
 
 
 
@@ -162,7 +165,7 @@ function filterAndUnwrapSingle(name: FilteredParserName, rs: CleanerInput[]): Cl
   return unwrapSingle(name, r);
 }
 
-function flattenAndFilter(_name: 'vrl' | 'doc' | 'dos' | 'tps', rs: CleanerInput[]): CleanerOutput {
+function flattenAndFilter(_name: 'vrl' | 'blo' | 'tps', rs: CleanerInput[]): CleanerOutput {
   return filterAndClean(rs.flat());
 }
 
@@ -175,7 +178,7 @@ function getPostprocessor<T extends DirtyParserName>(name: T, _rule: string): Po
 const compiled: {v?: nearley.CompiledRules;} = {};
 
 export interface Parser {
-  parseLine: (line: string) => Promise<Sta[]>;
+  parseLine: (line: string) => Promise<Ass[]>;
   finish: () => Promise<void>;
 }
 
@@ -188,9 +191,9 @@ export class NearleyParser implements Parser {
     return new NearleyParser(new nearley.Parser(grammar, {lexer}));
   }
 
-  async parseLine(line: string): Promise<Sta[]> {
+  async parseLine(line: string): Promise<Ass[]> {
     this.parser.feed(line);
-    const result = this.parser.results as Sta[][];
+    const result = this.parser.results as Ass[][];
     if (result.length === 1) {
       const full = result[0];
       const part = full.slice(this.statements);

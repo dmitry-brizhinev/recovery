@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT} from './CustomLexer';
-import type {Dot, Fnd, Sta, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Dos, Ret} from './NearleyParser';
+import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Blo, Ret, Sta, Eod} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 export interface NumType {
@@ -126,7 +126,7 @@ function checkFirstAssignment(target: VrName, source: Type) {
   assert(target.charAt(0) === source.t);
 }
 
-export type Statement = Assignment | Return;
+export type Statement = Assignment | Return | IfStatement;
 
 export interface Assignment {
   kind: 'assignment';
@@ -137,6 +137,11 @@ export interface Assignment {
 export interface Return {
   kind: 'return';
   expression: Expression;
+}
+
+export interface IfStatement {
+  kind: 'if';
+  expression: IfExpression;
 }
 
 export type Receiver = NewVariable | DefinedVariable | Field | Discard;
@@ -245,15 +250,24 @@ interface FunctionBindArgNorm {
 export class RootPostprocessor {
   private readonly rootContext: ExecContext = new ExecContext(undefined);
 
-  convert(sta: Sta): Assignment {
-    return new Postprocessor(this.rootContext).assignment(sta);
+  convert(sta: Sta): Statement {
+    return new Postprocessor(this.rootContext).statement(sta);
   }
 }
 
 class Postprocessor {
   constructor(private readonly context: ExecContext) {}
 
-  assignment(sta: Sta): Assignment {
+  statement(s: Sta): Statement {
+    switch (s.type) {
+      case 'ass': return this.assignment(s);
+      case 'ret': return this.return(s);
+      case 'ife': return this.ifsta(s);
+      default: return unreachable(s);
+    }
+  }
+
+  private assignment(sta: Ass): Assignment {
     const kind = 'assignment';
     const receiver = this.receiver(sta.value[0]);
 
@@ -297,14 +311,6 @@ class Postprocessor {
     }
   }
 
-  private statement(s: Sta | Ret): Statement {
-    switch (s.type) {
-      case 'ass': return this.assignment(s);
-      case 'ret': return this.return(s);
-      default: return unreachable(s);
-    }
-  }
-
   private return(r: Ret): Return {
     const kind = 'return';
     const expression = this.expression(...r.value);
@@ -335,7 +341,7 @@ class Postprocessor {
   private checkAssignment(target: Type, source: Type) {
     const t = target.t;
     switch (t) {
-      case '_':
+      case '_': return;
       case 'i':
       case 'd':
       case 'b':
@@ -421,23 +427,35 @@ class Postprocessor {
     return {kind, type, value};
   }
 
+  private ifsta(e: Ife): IfStatement {
+    return {kind: 'if', expression: this.ifexp(e)};
+  }
+
+  private eod(e: Eod) {
+    if (Array.isArray(e)) {
+      return this.do(e);
+    } else {
+      return this.expression(e);
+    }
+  }
+
   private ifexp(e: Ife): IfExpression {
     const [s, next] = e.value;
     const [c, y] = s.value;
     return this.ifexpInner(c, y, next);
   }
 
-  private ifexpInner(c: AnyExp, y: AnyExp, next: Ifn): IfExpression {
+  private ifexpInner(c: AnyExp, y: Eod, next: Ifn): IfExpression {
     const kind = 'if';
     const cond = checkbb(this.expression(c));
-    const ifYes = this.expression(y);
+    const ifYes = this.eod(y);
     const type = ifYes.type;
     let ifNo: Expression;
     if (next.value.length === 0) {
       ifNo = {kind: 'constant', type: {t: '_'}, value: ''};
     } else if (next.value.length === 1) {
       const n = next.value[0];
-      ifNo = this.expression(n);
+      ifNo = this.eod(n);
     } else if (next.value.length === 3) {
       ifNo = this.ifexpInner(...next.value);
     } else {
@@ -564,7 +582,7 @@ class Postprocessor {
     }
   }
 
-  private do(ss: Dos): Expression {
+  private do(ss: Blo): Expression {
     const kind = 'do';
     const statements = ss.map(ar => this.statement(ar));
     let type: Type | undefined = undefined;

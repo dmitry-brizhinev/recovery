@@ -1,5 +1,5 @@
 
-import {assert, throwIfNull, unreachable} from '../util/Utils';
+import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
 import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT} from './CustomLexer';
 import type {ArrayExpression, Assignment, BinaryOperation, Constant, Constructor, DefinedVariable, DoExpression, Expression, Field, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
@@ -94,8 +94,10 @@ function checkn(val: Value): Num {
 export default class RootExecutor {
   private readonly rootContext: ExecContext = new ExecContext(undefined);
 
-  run(sta: Assignment): string | undefined {
-    return new Executor(this.rootContext).assignment(sta);
+  run(sta: Statement): string[] {
+    const rs: string[] = [];
+    new Executor(this.rootContext, r => rs.push(r)).statement(sta);
+    return rs;
   }
 }
 
@@ -118,10 +120,20 @@ function recRep(r: RecVal): string {
 }
 
 class Executor {
-  constructor(private readonly context: ExecContext) {}
+  constructor(private readonly context: ExecContext,
+    private readonly printer: Callback<string>) {}
   private currentVar?: VrName | undefined;
 
-  assignment(sta: Assignment): string | undefined {
+  statement(s: Statement): void {
+    switch (s.kind) {
+      case 'assignment': this.assignment(s); return;
+      case 'return': this.return(s); return;
+      case 'if': this.ifexp(s.expression); return;
+      default: unreachable(s);
+    }
+  }
+
+  private assignment(sta: Assignment): void {
     const left = this.receiver(sta.receiver);
     if (!Array.isArray(left) && left?.charAt(0) === 'f') {
       this.currentVar = left;
@@ -133,24 +145,16 @@ class Executor {
       right.selfref.value = right;
     }
     this.currentVar = undefined;
-    return this.assign(left, right);
+    this.assign(left, right);
   }
 
-  private assign(left: RecVal, right: Value): string | undefined {
+  private assign(left: RecVal, right: Value): void {
     if (Array.isArray(left)) {
       left[0].setMember(left[1], right);
     } else if (left != null) {
       this.context.setVar(left, right);
     }
-    return `${recRep(left)} = ${valRep(right)}`;
-  }
-
-  private statement(s: Statement) {
-    switch (s.kind) {
-      case 'assignment': return this.assignment(s);
-      case 'return': return this.return(s);
-      default: return unreachable(s);
-    }
+    this.printer(`${recRep(left)} = ${valRep(right)}`);
   }
 
   private return(r: Return): Value {
@@ -330,7 +334,7 @@ class Executor {
       if (fun.selfref) {
         innerContext.setVar(fun.selfref.name, fun.selfref.value);
       }
-      return new Executor(innerContext).expression(fun.ret);
+      return new Executor(innerContext, this.printer).expression(fun.ret);
     }
   }
 

@@ -3,28 +3,30 @@
 @lexer lexer
 
 # Whole document
-top -> mnl doc mnl
-mnl -> %nl | null
-doc -> doc sep ass | ass
-# Assignment statement
+doc -> mnl blo mnl
+mnl -> mnl mws %nl | null
+wnl -> ws | mnl mws %nl mws
+# Statements
 ass -> rec %eq exp
-ret -> "return" exp
-sta -> ass | ret
-sep -> %nl
+ret -> "return" ws exp
+sta -> ass | ret | ife
+sep -> mnl mws %nl mws
 # Receivers: the complement to expressions
 rec -> var | exp %dt %vr | "_"
 
-# If-expression
-ife -> ifs ifn
-ifn -> "endif" | "else" exp "endif" | "elif" exp "then" exp ifn
-ifs -> "if" exp "then" exp
+# If-statement and If-expression
+eod -> ws exp ws | wnl blo wnl
+#ifs -> ife
+ife -> ifb ifn
+ifn -> "endif" | "else" eod "endif" | "elif" ws exp ws "then" eod ifn
+ifb -> "if" ws exp ws "then" eod
 # Do-expression
-dos -> dos sep sta | sta
-doo -> "do" mnl dos mnl "end"
+blo -> blo sep sta | sta
+doo -> "do" wnl blo wnl "end"
 # General expression
 exp -> exa2 | fnd | doo
 # Function definition expression
-fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" %tc
+fnd -> vrl %rt typ ws exp | vrl %rt exp | vrl %rt "struct" ws %tc
 # Compound expressions with binary operators
 exa2 -> exc2 #| arr2
 #arr2 -> ars2 %ms "]"
