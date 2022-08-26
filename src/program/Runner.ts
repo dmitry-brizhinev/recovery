@@ -28,7 +28,13 @@ function myErrorString(mmm: 'check' | 'run' | 'parse' | 'compile', line: string,
 export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string, void, void> {
   const mmm = (typeof mode === 'string' ? mode : 'compile');
   yield word[mmm].star;
-  const parser = await getParser();
+  let parser;
+  try {
+    parser = await getParser();
+  } catch (e) {
+    yield myErrorString('parse', 'grammar', e);
+    return;
+  }
   const exec = new RootExecutor();
   const comp = new RootCompiler();
   const post = new RootPostprocessor();

@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT} from './CustomLexer';
-import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Blo, Ret, Sta, Eob, Eod, Dow, Wdo, For} from './NearleyParser';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu} from './CustomLexer';
+import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Ret, Sta, Eob, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 export interface NumType {
@@ -13,6 +13,7 @@ export interface StrType {
 export interface NulType {
   readonly t: NulT;
 }
+const Nul: NulType = {t: '_'};
 export interface FunType {
   readonly t: FunT;
   readonly args: Type[];
@@ -130,45 +131,45 @@ function checkFirstAssignment(target: VrName, source: Type) {
   assert(target.charAt(0) === source.t);
 }
 
-export type Statement = Assignment | Return | IfStatement | DoWhile | WhileDo | ForStatement;
+export type Statement = Assignment | Return | Break | Continue | BlockStatement | ExpressionStatement;
 
 export interface Assignment {
   kind: 'assignment';
+  type: Type;
   receiver: Receiver;
   expression: Expression;
 }
 
 export interface Return {
   kind: 'return';
+  type: NulType;
+  returnType: Type; // TODO TODO TODO
   expression: Expression;
 }
 
-export interface IfStatement {
-  kind: 'if';
-  expression: IfExpression;
+export interface Break {
+  kind: 'break';
+  type: NulType;
 }
 
-export interface DoWhile {
-  kind: 'dowhile';
-  cond: NarrowedExpression<NumType>;
-  body: Expression;
+export interface Continue {
+  kind: 'continue';
+  type: NulType;
 }
 
-export interface WhileDo {
-  kind: 'whiledo';
-  cond: NarrowedExpression<NumType>;
-  body: Expression;
+export interface BlockStatement {
+  kind: 'block';
+  type: Type;
+  block: Block;
 }
 
-export interface ForStatement {
-  kind: 'for';
-  name: VrName;
-  iter: NarrowedExpression<ArrType>;
-  body: Expression;
+export interface ExpressionStatement {
+  kind: 'expression';
+  type: Type;
+  expression: Expression;
 }
 
-
-export type Receiver = NewVariable | DefinedVariable | Field | Discard;
+export type Receiver = Discard | NewVariable | DefinedVariable | Field;
 
 export interface Discard {
   kind: 'discard';
@@ -195,9 +196,49 @@ export interface Field {
   obj: NarrowedExpression<ObjType>;
 }
 
+export type Block = Do | If | For | While | DoWhile;
+
+export type Body = Statement[];
+
+export interface Do {
+  kind: 'do';
+  type: Type;
+  body: Body;
+}
+interface IfCase {
+  cond: NarrowedExpression<NumType>;
+  body: Body;
+}
+export interface If {
+  kind: 'if';
+  type: Type;
+  first: IfCase;
+  elifs: IfCase[];
+  last: Body | undefined;
+}
+export interface For {
+  kind: 'for';
+  type: Type;
+  name: VrName;
+  iter: NarrowedExpression<ArrType>;
+  body: Body;
+}
+export interface While {
+  kind: 'while';
+  type: Type;
+  cond: NarrowedExpression<NumType>;
+  body: Body;
+}
+export interface DoWhile {
+  kind: 'dowhile';
+  type: Type;
+  cond: NarrowedExpression<NumType>;
+  body: Body;
+}
+
 type ExpNarrow<T extends Type> = {type: T;};
 export type NarrowedExpression<T extends Type> = ExpNarrow<T> & Expression;
-export type Expression = Constant | DefinedVariable | Field | IfExpression | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind | DoExpression;
+export type Expression = DefinedVariable | Field | BlockExpression | Constant | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
 
 export interface Constant {
   kind: 'constant';
@@ -205,12 +246,10 @@ export interface Constant {
   value: string;
 }
 
-export interface IfExpression {
-  kind: 'if';
+export interface BlockExpression {
+  kind: 'block';
   type: Type;
-  cond: NarrowedExpression<NumType>;
-  ifYes: Expression;
-  ifNo: Expression;
+  block: Block;
 }
 
 export interface BinaryOperation {
@@ -255,12 +294,6 @@ export interface FunctionBind {
   args: FunctionBindArg[];
 }
 
-export interface DoExpression {
-  kind: 'do';
-  type: Type;
-  statements: Statement[];
-}
-
 export type FunctionBindArg = FunctionBindArgTup | FunctionBindArgNorm;
 interface FunctionBindArgTup {
   exp: NarrowedExpression<TupType>;
@@ -286,11 +319,14 @@ class Postprocessor {
     switch (s.type) {
       case 'ass': return this.assignment(s);
       case 'ret': return this.return(s);
-      case 'ife': return this.ifsta(s);
-      case 'dow': return this.dowhile(s);
-      case 'wdo': return this.whiledo(s);
-      case 'for': return this.for(s);
-      default: return unreachable(s);
+      case 'brk': return this.break(s);
+      case 'cnt': return this.continue(s);
+      case 'ife':
+      case 'dow':
+      case 'wdo':
+      case 'for':
+      case 'doo': return this.blockstatement(s);
+      default: return this.expstatement(s);
     }
   }
 
@@ -308,7 +344,7 @@ class Postprocessor {
     if (receiver.kind === 'definition') {
       this.context.setVar(receiver.name, receiver.type ?? expression.type);
     }
-    return {kind, receiver, expression};
+    return {kind, type: expression.type, receiver, expression};
   }
 
   private checkReceiverAssignment(left: Receiver, right: Type) {
@@ -329,11 +365,11 @@ class Postprocessor {
     }
   }
 
-  private receiver(r: Rec | Var | Cnst): Receiver {
+  private receiver(r: Rec | Var | Nu): Receiver {
     switch (r.type) {
       case 'var': return this.varReceiver(r);
       case 'rec': return this.field(r);
-      case 'cnst': assert(r.value === '_'); return {kind: 'discard'};
+      case 'nu': return {kind: 'discard'};
       default: return unreachable(r);
     }
   }
@@ -341,7 +377,108 @@ class Postprocessor {
   private return(r: Ret): Return {
     const kind = 'return';
     const expression = this.expression(...r.value);
-    return {kind, expression};
+    return {kind, type: Nul, returnType: expression.type, expression};
+  }
+
+  private break(_r: Brk): Break {
+    return {kind: 'break', type: Nul};
+  }
+
+  private continue(_c: Cnt): Continue {
+    return {kind: 'continue', type: Nul};
+  }
+
+  private blockstatement(sta: Bls): BlockStatement {
+    const kind = 'block';
+    const block = this.block(sta);
+    const type = block.type;
+    return {kind, type, block};
+  }
+
+  private expstatement(exp: AnyExp): ExpressionStatement {
+    const kind = 'expression';
+    const expression = this.expression(exp);
+    const type = expression.type;
+    return {kind, type, expression};
+  }
+
+  private block(b: Bls): Block {
+    switch (b.type) {
+      case 'ife': return this.if(b);
+      case 'dow': return this.dowhile(b);
+      case 'wdo': return this.while(b);
+      case 'for': return this.for(b);
+      case 'doo': return this.do(b);
+      default: return unreachable(b);
+    }
+  }
+
+  private if(e: Ife): If {
+    const kind = 'if';
+    const first = this.ifb(e.value[0]);
+    const elifs = this.ifn(e.value[1]);
+    const last = e.value.length === 3 ? this.body(e.value[2]) : undefined;
+
+    let type = this.bodytype(first.body);
+    for (const c of elifs) type = this.mergeTypes(type, this.bodytype(c.body));
+    if (last) type = this.mergeTypes(type, this.bodytype(last));
+
+    return {kind, type, first, elifs, last};
+  }
+
+  private ifb(b: Ifb): IfCase {
+    const [c, y] = b.value;
+    const cond = checkbb(this.expression(c));
+    const body = this.body(y);
+    return {cond, body};
+  }
+
+  private ifn(n: Ifn): IfCase[] {
+    return n.map(b => this.ifb(b));
+  }
+
+  private dowhile(e: Dow): DoWhile {
+    const kind = 'dowhile';
+    const cond = checkbb(this.expression(e.value[1]));
+    const body = this.body(e.value[0]);
+    const type = this.bodytype(body);
+    return {kind, cond, type, body};
+  }
+
+  private while(e: Wdo): While {
+    const kind = 'while';
+    const cond = checkbb(this.expression(e.value[0]));
+    const body = this.body(e.value[1]);
+    const type = this.mergeTypes(Nul, this.bodytype(body));
+    return {kind, cond, type, body};
+  }
+
+  private for(f: ForP): For {
+    const kind = 'for';
+    const name: VrName = f.value[0].value[0].value;
+    const iter = checkaa(this.expression(f.value[1]));
+    const body = this.body(f.value[2]);
+    const type = this.mergeTypes(Nul, this.bodytype(body));
+    return {kind, name, iter, type, body};
+  }
+
+  private do(d: Doo): Do {
+    const kind = 'do';
+    const body = this.body(d.value[0]);
+    const type = this.bodytype(body);
+    return {kind, type, body};
+  }
+
+  private body(e: Eob): Body {
+    if (Array.isArray(e)) {
+      return e.map(s => this.statement(s));
+    } else {
+      return [this.expstatement(e)];
+    }
+  }
+
+  private bodytype(b: Body): Type {
+    return b.length === 0 ? Nul : b[b.length - 1].type;
   }
 
   private varReceiver(v: Var): DefinedVariable | NewVariable {
@@ -400,11 +537,22 @@ class Postprocessor {
       default: unreachable(target, 'checkAssignment');
     }
   }
+  private mergeTypes(a: Type, b: Type): Type {
+    try {
+      this.checkAssignment(a, b);
+      return a;
+    } catch (e) {}
+    try {
+      this.checkAssignment(b, a);
+      return b;
+    } catch (e) {}
+    return Nul;
+  }
 
   private expression(exp: AnyExp): Expression {
     switch (exp.type) {
+      case 'nu':
       case 'cnst': return this.constant(exp);
-      case 'ife': return this.ifexp(exp);
       case 'vr': return this.variable(exp);
       case 'fnd': return this.callable(exp);
       case 'dot': return this.field(exp);
@@ -424,7 +572,11 @@ class Postprocessor {
       case 'ars0':
       case 'ars1':
       case 'ars2': return this.array(exp);
-      // case 'doo': return this.do(...exp.value);
+      case 'ife':
+      case 'dow':
+      case 'wdo':
+      case 'for':
+      case 'doo': return this.blockexpression(exp);
       default: return unreachable(exp);
     }
   }
@@ -441,84 +593,17 @@ class Postprocessor {
     } else if (value.includes('.')) {
       return {t: 'd'};
     } else if (value === '_') {
-      return {t: '_'};
+      return Nul;
     } else {
       return {t: 'i'};
     }
   }
 
-  private constant(c: Cnst): Constant {
+  private constant(c: Cnst | Nu): Constant {
     const kind = 'constant';
     const value = c.value;
     const type = this.constantType(value);
     return {kind, type, value};
-  }
-
-  private ifsta(e: Ife): IfStatement {
-    return {kind: 'if', expression: this.ifexp(e)};
-  }
-
-  private dowhile(e: Dow): DoWhile {
-    const kind = 'dowhile';
-    const cond = checkbb(this.expression(e.value[1]));
-    const body = this.eob(e.value[0]);
-    return {kind, cond, body};
-  }
-
-  private whiledo(e: Wdo): WhileDo {
-    const kind = 'whiledo';
-    const cond = checkbb(this.expression(e.value[0]));
-    const body = this.eob(e.value[1]);
-    return {kind, cond, body};
-  }
-
-  private for(f: For): ForStatement {
-    const kind = 'for';
-    const name: VrName = f.value[0].value[0].value;
-    const iter = checkaa(this.expression(f.value[1]));
-    const body = this.eob(f.value[2]);
-    return {kind, name, iter, body};
-  }
-
-  private eob(e: Eob): Expression {
-    if (Array.isArray(e)) {
-      return this.do(e);
-    } else {
-      return this.expression(e);
-    }
-  }
-
-  private eod(e: Eod): Expression {
-    if (e.type === 'doo') {
-      return this.do(...e.value);
-    }
-    return this.expression(e);
-  }
-
-  private ifexp(e: Ife): IfExpression {
-    const [s, next] = e.value;
-    const [c, y] = s.value;
-    return this.ifexpInner(c, y, next);
-  }
-
-  private ifexpInner(c: AnyExp, y: Eob, next: Ifn): IfExpression {
-    const kind = 'if';
-    const cond = checkbb(this.expression(c));
-    const ifYes = this.eob(y);
-    const type = ifYes.type;
-    let ifNo: Expression;
-    if (next.value.length === 0) {
-      ifNo = {kind: 'constant', type: {t: '_'}, value: ''};
-    } else if (next.value.length === 1) {
-      const n = next.value[0];
-      ifNo = this.eob(n);
-    } else if (next.value.length === 3) {
-      ifNo = this.ifexpInner(...next.value);
-    } else {
-      return unreachable(next.value);
-    }
-    this.checkAssignment(type, ifNo.type);
-    return {kind, type, cond, ifYes, ifNo};
   }
 
   private variable(v: Vr): DefinedVariable {
@@ -552,7 +637,7 @@ class Postprocessor {
       const typ = f.value.length === 3 ? f.value[1] : undefined;
       const ret = typ && parseTypeAnnotation(typ);
       const inn = f.value.length === 3 ? f.value[2] : f.value[1];
-      const body = new Postprocessor(innerContext).eod(inn);
+      const body = new Postprocessor(innerContext).expression(inn);
       ret && this.checkAssignment(ret, body.type);
       const type: FunType = {t: 'f', args: argValues, ret: body.type};
       return {kind, args: argNames, type, body};
@@ -625,7 +710,7 @@ class Postprocessor {
     const kind = 'array';
     const t = 'a';
     if (a.value.length === 0) {
-      return {kind, type: {t, subtype: {t: '_'}}, elements: []};
+      return {kind, type: {t, subtype: Nul}, elements: []};
     } else if (a.value.length === 1) {
       const el = this.expression(a.value[0]);
       return {kind, type: {t, subtype: el.type}, elements: [el]};
@@ -638,18 +723,11 @@ class Postprocessor {
     }
   }
 
-  private do(ss: Blo): Expression {
-    const kind = 'do';
-    const statements = ss.map(ar => this.statement(ar));
-    let type: Type | undefined = undefined;
-    for (const s of statements) {
-      if (s.kind === 'return') {
-        type = type ?? s.expression.type;
-        this.checkAssignment(type, s.expression.type);
-      }
-    }
-    type = type ?? {t: '_'};
-    return {kind, type, statements};
+  private blockexpression(b: Bls): BlockExpression {
+    const kind = 'block';
+    const block = this.block(b);
+    const type = block.type;
+    return {kind, type, block};
   }
 
   private binary(l: AnyExp, op: Op, r: AnyExp): BinaryOperation {

@@ -2,7 +2,7 @@
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Type, BinaryOperation, Constant, Constructor, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, IfExpression, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, DoExpression, DoWhile, WhileDo, ForStatement} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -32,11 +32,11 @@ class Compiler {
   statement(s: Statement): [string, string] {
     switch (s.kind) {
       case 'assignment': return this.assignment(s);
-      case 'return': return [this.return(s), ''];
-      case 'if': return [this.ifexp(s.expression), ''];
-      case 'dowhile': return [this.dowhile(s), ''];
-      case 'whiledo': return [this.whiledo(s), ''];
-      case 'for': return [this.for(s), ''];
+      case 'return': return [this.returnstatement(s), ''];
+      case 'break': return [this.break(s), ''];
+      case 'continue': return [this.continue(s), ''];
+      case 'expression': return [this.expression(s.expression), ''];
+      case 'block': return [this.blockstatement(s), ''];
       default: return unreachable(s);
     }
   }
@@ -53,28 +53,78 @@ class Compiler {
     }
   }
 
-  private return(r: Return): string {
+  private returnstatement(r: Return): string {
     const e = this.expression(r.expression);
     return `return ${e}`;
   }
 
+  private break(_b: Break): string {
+    return 'break';
+  }
+
+  private continue(_c: Continue): string {
+    return 'continue';
+  }
+
+  private blockstatement(b: BlockStatement): string {
+    return this.block(b.block);
+  }
+
+  private block(b: Block): string {
+    switch (b.kind) {
+      case 'if': return this.if(b);
+      case 'while': return this.while(b);
+      case 'dowhile': return this.dowhile(b);
+      case 'for': return this.for(b);
+      case 'do': return this.do(b);
+      default: unreachable(b);
+    }
+  }
+
+  private if(e: If): string {
+    const {first, elifs, last} = e;
+    const c = this.expression(first.cond);
+    const b = this.body(first.body);
+
+    const els = elifs.map(({cond, body}) => `else if (${this.expression(cond)}) ${this.body(body)}`).join(' ');
+    const l = last ? ` else ${this.body(last)}` : '';
+    return `if (${c}) ${b} ${els}${l}`;
+  }
+
+  /**
+  private ifexp(e: IfExpression): string {
+    const c = this.expressionp(e.cond);
+    const y = this.expressionp(e.ifYes);
+    const n = this.expressionp(e.ifNo);
+    return `${c}?${y}:${n}`;
+  }*/
+
   private dowhile(e: DoWhile): string {
     const c = this.expression(e.cond);
-    const b = this.expression(e.body);
-    return `do { ${b} } while(${c})`;
+    const b = this.body(e.body);
+    return `do ${b} while(${c})`;
   }
 
-  private whiledo(e: WhileDo): string {
+  private while(e: While): string {
     const c = this.expression(e.cond);
-    const b = this.expression(e.body);
-    return `while(${c}) { ${b} }`;
+    const b = this.body(e.body);
+    return `while(${c}) ${b}`;
   }
 
-  private for(f: ForStatement): string {
+  private for(f: For): string {
     const n = f.name;
     const a = this.expressionp(f.iter);
-    const b = this.expression(f.body);
-    return `for (const ${n} of ${a}) { ${b} }`;
+    const b = this.body(f.body);
+    return `for (const ${n} of ${a}) ${b}`;
+  }
+
+  private do(d: Do): string {
+    return this.body(d.body);
+  }
+
+  private body(b: Body): string {
+    const ss = b.map(s => this.statement(s)).join('\n');
+    return `{\n${ss}\n}`;
   }
 
   private receiver(r: Receiver): [string, string] | null {
@@ -114,14 +164,13 @@ class Compiler {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
       case 'constant': return this.constant(exp);
-      case 'if': return this.ifexp(exp);
       case 'function': return this.callable(exp);
       case 'constructor': return this.callable(exp);
       case 'binary': return this.binary(exp);
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
       case 'array': return this.array(exp);
-      case 'do': return this.do(exp);
+      case 'block': return this.block(exp.block);
       default: return unreachable(exp);
     }
   }
@@ -133,9 +182,8 @@ class Compiler {
       case 'constant':
       case 'tuple':
       case 'bind':
-      case 'array':
-      case 'do': return this.expression(exp);
-      case 'if':
+      case 'array': return this.expression(exp);
+      case 'block':
       case 'function':
       case 'constructor':
       case 'binary': return `(${this.expression(exp)})`;
@@ -154,13 +202,6 @@ class Compiler {
 
   private constant(c: Constant): string {
     return c.value === '_' ? 'undefined' : c.value;
-  }
-
-  private ifexp(e: IfExpression): string {
-    const c = this.expressionp(e.cond);
-    const y = this.expressionp(e.ifYes);
-    const n = this.expressionp(e.ifNo);
-    return `${c}?${y}:${n}`;
   }
 
   private callable(f: FunctionExpression | Constructor): string {
@@ -216,11 +257,6 @@ class Compiler {
     } else {
       return this.expression(arg.exp);
     }
-  }
-
-  private do(d: DoExpression): string {
-    const ss = d.statements.map(s => this.statement(s)).join('\n');
-    return `{\n${ss}\n}`;
   }
 }
 

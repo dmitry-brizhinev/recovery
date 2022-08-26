@@ -1,11 +1,11 @@
-import type {Cl, Cm, Cnst, DirtyLexerName, Dt, LexedToken, LexerName, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
+import type {Cl, Cm, Cnst, DirtyLexerName, Dt, LexedToken, LexerName, Nu, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
 import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert} from "../util/Utils";
 import compileGrammar from "./NearleyGrammar";
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['doc', 'mnl', 'wnl', 'blo', 'sta', 'sep', 'eob', 'eod', 'exp', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
+const FilteredParserNames = ['doc', 'mnl', 'wnl', 'bls', 'sta', 'sep', 'eob', 'blo', 'ifl', 'ifn', 'exp', 'eod', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -20,17 +20,21 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   wnl: discard,
   ass: filterAndLabel,
   ret: filterAndLabel,
+  brk: filterAndLabel,
+  cnt: filterAndLabel,
+  bls: filterAndUnwrapSingle,
   sta: filterAndUnwrapSingle,
   sep: discard,
   rec: filterAndLabelOrUnwrap,
   eob: filterAndUnwrapSingle,
+  blo: flattenAndFilter,
   ife: filterAndLabel,
-  ifn: filterAndLabel,
+  ifl: filterAndUnwrapSingle,
+  ifn: flattenAndFilter,
   ifb: filterAndLabel,
   dow: filterAndLabel,
   wdo: filterAndLabel,
   for: filterAndLabel,
-  blo: flattenAndFilter,
   doo: filterAndLabel,
   exp: filterAndUnwrapSingle,
   eod: filterAndUnwrapSingle,
@@ -71,20 +75,23 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
 } as const;
 
 export type Doc = Blo;
-export interface Ass {type: 'ass'; value: [Rec | Var | Cnst, Exp];}
+export interface Ass {type: 'ass'; value: [Rec | Var | Nu, Exp];}
 export interface Ret {type: 'ret'; value: [Exp];}
+export interface Brk {type: 'brk'; value: [];}
+export interface Cnt {type: 'cnt'; value: [];}
 export interface Rec {type: 'rec'; value: [Exp, Dt, Vr];}
-export interface Ife {type: 'ife'; value: [Ifb, Ifn];}
-export interface Ifn {type: 'ifn'; value: [] | [Eob] | [Exp, Eob, Ifn];}
+export interface Ife {type: 'ife'; value: [Ifb, Ifn, Eob] | [Ifb, Ifn];}
+export type Ifn = Ifb[];
 export interface Ifb {type: 'ifb'; value: [Exp, Eob];}
-export interface Dow {type: 'dow'; value: [Eob, Exp]}
-export interface Wdo {type: 'wdo'; value: [Exp, Eob]}
-export interface For {type: 'for'; value: [Var, Exp, Eob]}
+export interface Dow {type: 'dow'; value: [Eob, Exp];}
+export interface Wdo {type: 'wdo'; value: [Exp, Eob];}
+export interface For {type: 'for'; value: [Var, Exp, Eob];}
 export type Eob = Exp | Blo;
-export type Eod = Exp | Doo;
-export type Sta = Ass | Ret | Ife | Dow | Wdo | For;
+export type Bls = Ife | Dow | Wdo | For | Doo;
+export type Eod = AnyExp;
+export type Sta = Ass | Ret | Brk | Cnt | Exp;
 export type Blo = Sta[];
-export interface Doo {type: 'doo'; value: [Blo];}
+export interface Doo {type: 'doo'; value: [Eob];}
 // export interface Exp {type: 'exp'; value: [ExAny] | [Fnd];}
 export interface Fnd {type: 'fnd'; value: [Vrl, Eod] | [Vrl, Typ, Eod] | [Vrl, Tc];}
 
@@ -106,9 +113,9 @@ export type Vrl = Var[];
 
 type Vcf = AnyExp;
 type Exp = AnyExp;
-export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Ife | Fnd | Arr;
+export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Nu | Bls | Fnd | Arr;
 
-type ParserOpts = Ass | Ret | Rec | Doo | Ife | Ifn | Ifb | Dow | Wdo | For | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
+type ParserOpts = Ass | Ret | Brk | Cnt | Rec | Doo | Ife | Ifb | Dow | Wdo | For | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
 
 
 
@@ -173,7 +180,7 @@ function filterAndUnwrapSingle(name: FilteredParserName, rs: CleanerInput[]): Cl
   return unwrapSingle(name, r);
 }
 
-function flattenAndFilter(_name: 'vrl' | 'blo' | 'tps', rs: CleanerInput[]): CleanerOutput {
+function flattenAndFilter(_name: 'vrl' | 'blo' | 'ifn' | 'tps', rs: CleanerInput[]): CleanerOutput {
   return filterAndClean(rs.flat());
 }
 

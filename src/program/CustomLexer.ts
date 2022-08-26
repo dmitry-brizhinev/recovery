@@ -8,7 +8,7 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
-const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return', 'while', 'for', 'in'] as const;
+const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'] as const;
 
 /*
 
@@ -41,7 +41,8 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   br: ['{', '}', '(', ')', '[', ']'],
   vr: /[idbsctofa][A-Z]\w*/,
   tc: /[A-Z]\w*/,
-  cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"|_/,
+  cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
+  nu: ['_'],
   tp: /[idbsc]/,
   ta: 'a',
   //word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
@@ -99,6 +100,10 @@ export interface Cnst {
   type: 'cnst';
   value: string;
 }
+export interface Nu {
+  type: 'nu';
+  value: '_';
+}
 export interface Tc {
   type: 'tc';
   value: string;
@@ -127,7 +132,7 @@ interface Kw {
   type: 'kw';
   value: typeof kws[number];
 }
-export type LexerOpts = Vr | Tc | Tp | Cl | Cm | Dt | Op | Sc | Cnst;
+export type LexerOpts = Vr | Tc | Tp | Cl | Cm | Dt | Op | Sc | Cnst | Nu;
 
 
 

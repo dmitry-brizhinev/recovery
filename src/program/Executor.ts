@@ -1,12 +1,13 @@
 
 import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
 import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT} from './CustomLexer';
-import type {ArrayExpression, ArrType, Assignment, BinaryOperation, Constant, Constructor, DefinedVariable, DoExpression, DoWhile, Expression, Field, ForStatement, FunctionBind, FunctionBindArg, FunctionExpression, FunType, IfExpression, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, WhileDo} from './ParsePostprocessor';
+import type {ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Nul {
   readonly t: NulT;
 }
+const Nul: Nul = {t: '_'};
 interface Num {
   readonly t: NumT;
   readonly value: number;
@@ -124,19 +125,19 @@ class Executor {
     private readonly printer: Callback<string>) {}
   private currentVar?: VrName | undefined;
 
-  statement(s: Statement): void {
+  statement(s: Statement): Value {
     switch (s.kind) {
-      case 'assignment': this.assignment(s); return;
-      case 'return': this.return(s); return;
-      case 'if': this.ifexp(s.expression); return;
-      case 'dowhile': this.dowhile(s); return;
-      case 'whiledo': this.whiledo(s); return;
-      case 'for': this.for(s); return;
-      default: unreachable(s);
+      case 'assignment': return this.assignment(s);
+      case 'return': return this.returnstatement(s);
+      case 'break': return this.break(s);
+      case 'continue': return this.continue(s);
+      case 'expression': return this.expression(s.expression);
+      case 'block': return this.blockstatement(s);
+      default: return unreachable(s);
     }
   }
 
-  private assignment(sta: Assignment): void {
+  private assignment(sta: Assignment): Value {
     const left = this.receiver(sta.receiver);
     if (!Array.isArray(left) && left?.charAt(0) === 'f') {
       this.currentVar = left;
@@ -149,6 +150,7 @@ class Executor {
     }
     this.currentVar = undefined;
     this.assign(left, right);
+    return right;
   }
 
   private assign(left: RecVal, right: Value): void {
@@ -160,31 +162,87 @@ class Executor {
     this.printer(`${recRep(left)} = ${valRep(right)}`);
   }
 
-  private return(r: Return): Value {
-    return this.expression(r.expression);
+  private returnstatement(r: Return): Value {
+    return this.expression(r.expression); // TODO
   }
 
-  private dowhile(e: DoWhile): void {
-    const {cond, body} = e;
-    do {
-      this.expression(body);
-    } while (this.expressionB(cond).value);
+  private break(_b: Break): Value {
+    // TODO
+    return Nul;
   }
 
-  private whiledo(e: WhileDo): void {
+  private continue(_c: Continue): Value {
+    // TODO
+    return Nul;
+  }
+
+  private blockstatement(b: BlockStatement): Value {
+    return this.block(b.block);
+  }
+
+  private block(b: Block): Value {
+    switch (b.kind) {
+      case 'if': return this.if(b);
+      case 'while': return this.while(b);
+      case 'dowhile': return this.dowhile(b);
+      case 'for': return this.for(b);
+      case 'do': return this.do(b);
+      default: return unreachable(b);
+    }
+  }
+
+  private if(e: If): Value {
+    for (const {cond, body} of [e.first, ...e.elifs]) {
+      const c = this.expressionB(cond);
+      if (c.value) {
+        return this.body(body);
+      }
+    }
+    if (e.last) {
+      return this.body(e.last);
+    }
+    return Nul;
+  }
+
+  private while(e: While): Value {
     const {cond, body} = e;
+    let v: Value = Nul;
     while (this.expressionB(cond).value) {
-      this.expression(body);
+      v = this.body(body);
     };
+    return v;
   }
 
-  private for(f: ForStatement): void {
+  private dowhile(e: DoWhile): Value {
+    const {cond, body} = e;
+    let v: Value;
+    do {
+      v = this.body(body);
+    } while (this.expressionB(cond).value);
+    return v;
+  }
+
+  private for(f: For): Value {
     const {name, iter, body} = f;
     const a = this.expressionA(iter);
+    let vv: Value = Nul;
     for (const v of a.values) {
       this.context.setVar(name, v);
-      this.expression(body);
+      vv = this.body(body);
     }
+    return vv;
+  }
+
+  private do(d: Do): Value {
+    return this.body(d.body);
+  }
+
+  private body(b: Body): Value {
+    let v: Value = Nul;
+    for (const s of b) {
+      v = this.statement(s);
+    }
+    return v;
   }
 
   private receiver(r: Receiver): RecVal {
@@ -252,14 +310,13 @@ class Executor {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
       case 'constant': return this.constant(exp);
-      case 'if': return this.ifexp(exp);
       case 'function': return this.callable(exp);
       case 'constructor': return this.callable(exp);
       case 'binary': return this.binary(exp);
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
       case 'array': return this.array(exp);
-      case 'do': return this.do(exp);
+      case 'block': return this.block(exp.block);
       default: return unreachable(exp);
     }
   }
@@ -285,19 +342,9 @@ class Executor {
     } else if (t === 'i') {
       return {t, value: Number.parseInt(v)};
     } else if (t === '_') {
-      return {t};
+      return Nul;
     } else {
       return unreachable(t);
-    }
-  }
-
-  private ifexp(e: IfExpression): Value {
-    const {cond, ifYes, ifNo} = e;
-    const c = this.expressionB(cond);
-    if (c.value) {
-      return this.expression(ifYes);
-    } else {
-      return this.expression(ifNo);
     }
   }
 
@@ -373,13 +420,6 @@ class Executor {
   private makeStruct(fields: ContextSnapshot): Obj {
     return new Obj(fields.vars);
   }
-
-  private do(d: DoExpression): Value {
-    for (const s of d.statements) {
-      this.statement(s);
-    }
-    return {t: '_'};
-  }
 }
 
 function doOpValues(op: PrimOps, l: number, r: number): number {
@@ -401,47 +441,13 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
     default: return unreachable(op);
   }
 }
+
 /*
-
-
-iX = if true then return 1 else 2 endif
-
-iX = if true then
-  iY = 8
-elif false then 12 else
-  iY = 7
-  return 9
-endif
-
-if true then
-  iX = 2
-else
-  iX = 3
-endif
-
-fA = -> do
-  iX = 5
-  return iX + 1
-end
-
-iX = fA;
-
-fB = iX -> do
-  _ = if true then _ else return 5 endif
-  if iX == 2 then
-    return 9
-  elif iX == 6 then
-    return 10
-  else
-    return 20
-  endif
-end
-
-
+Maybe type
 generic types,
 Tighter parser types
 
-Maybe and Either/Union types,
+Either/Union types,
 methods + method calls,
 Abstract roots, join and split them, shared? saver and top-level data
 test assertions,

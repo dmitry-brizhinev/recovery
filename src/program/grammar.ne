@@ -9,27 +9,30 @@ wnl -> ws | mnl mws %nl mws
 # Statements
 ass -> rec %eq exp
 ret -> "return" ws exp
-sta -> ass | ret | ife | dow | wdo | for
+brk -> "break"
+cnt -> "continue"
+bls -> ife | dow | wdo | for | doo
+sta -> ass | ret | brk | cnt | exp
 sep -> mnl mws %nl mws
 # Receivers: the complement to expressions
-rec -> var | exp %dt %vr | "_"
+rec -> var | exp %dt %vr | %nu
 
 # If-statement and If-expression
-eob -> ws exp ws | wnl blo wnl
+eob -> wnl blo wnl
+blo -> blo sep sta | sta
 #ifs -> ife
-ife -> ifb ifn
-ifn -> "endif" | "else" eob "endif" | "elif" ws exp ws "then" eob ifn
-ifb -> "if" ws exp ws "then" eob
+ife -> "if" ifb ifn ifl "endif"
+ifl -> null | "else" eob
+ifn -> null | "elif" ifb ifn
+ifb -> ws exp ws "then" eob 
 dow -> "do" eob "while" ws exp ws "end"
 wdo -> "while" ws exp ws "do" eob "end"
-for -> "for" ws var ws "in" ws exp ws "do" eod "end"
-# Do-expression
-blo -> blo sep sta | sta
-doo -> "do" wnl blo wnl "end"
+for -> "for" ws var ws "in" ws exp ws "do" eob "end"
+doo -> "do" eob "end"
 # General expression
 exp -> exa2 | fnd
 # Function definition expression
-eod -> exp | doo
+eod -> exp
 fnd -> vrl %rt typ ws eod | vrl %rt eod | vrl %rt "struct" ws %tc
 # Compound expressions with binary operators
 exa2 -> exc2 #| arr2
@@ -61,7 +64,7 @@ exo0 -> exo0 op0 dot  | dot
 # Dot operator
 dot -> vcf | vcf %dt %vr
 # Variable / constant / if: primitive expressions
-vcf -> %vr | %cnst | ife | "(" mws exp mws ")" | arre
+vcf -> %vr | %cnst | %nu | bls | "(" mws exp mws ")" | arre
 arre -> "[" mws "]"
 
 # Maybe whitespace
