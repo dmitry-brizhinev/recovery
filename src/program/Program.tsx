@@ -10,7 +10,7 @@ import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
 import {assert, type Callback, type Func} from '../util/Utils';
-import {execute} from './Runner';
+import {execute, genTypes} from './Runner';
 import MaterialButton from '../util/MaterialButton';
 
 export default function Program(): React.ReactElement {
@@ -108,6 +108,7 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
   const compileCode = React.useCallback(() => compile(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
   const checkTypes = React.useCallback(() => check(props.code, addLine), [props.code, addLine]);
+  const gengenTypes = React.useCallback(() => genTypes().then(addLine), [addLine]);
 
   return <>
     <div className={styles.text}>
@@ -118,6 +119,7 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
       <button className={styles.run} onClick={checkTypes}>Check</button>
       <button className={styles.run} onClick={runCode}>Run</button>
       <button className={styles.run} onClick={compileCode}>Compile</button>
+      <button className={styles.run} onClick={gengenTypes}>Gen Types</button>
       Show TS
       <input type="checkbox" className={styles.run} checked={ts} onChange={toggleTs} />
       Show JS

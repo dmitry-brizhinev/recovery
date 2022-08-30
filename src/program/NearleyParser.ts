@@ -2,10 +2,11 @@ import type {Cl, Cm, Cnst, DirtyLexerName, Dt, LexedToken, LexerName, Nu, Op, Sc
 import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert} from "../util/Utils";
-import compileGrammar from "./NearleyGrammar";
+import {fetchGrammar, default as compileGrammar} from "./NearleyGrammar";
+import parseGrammar from './GrammarParser';
 
 export type ParserName = ParserOpts['type'];
-const FilteredParserNames = ['doc', 'mnl', 'wnl', 'bls', 'sta', 'sep', 'eob', 'blo', 'ifl', 'ifn', 'exp', 'eod', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'ctp', 'tps', 'vrl'] as const;
+const FilteredParserNames = ['doc', 'mnl', 'wnl', 'bls', 'sta', 'sep', 'eob', 'blo', 'ifl', 'ifn', 'exp', 'eod', 'exa0', 'exa1', 'exa2', 'emo0', 'emo1', 'emo2', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'tps', 'vrl'] as const;
 type FilteredParserName = typeof FilteredParserNames[number];
 export type DirtyParserName = ParserName | FilteredParserName;
 
@@ -65,7 +66,7 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
   cl1: filterAndUnwrapSingle,
   cl0: filterAndUnwrapSingle,
   typ: filterAndUnwrapSingle,
-  ctp: filterAndUnwrapSingle,
+  mtp: filterAndLabel,
   ttp: filterAndLabel,
   atp: filterAndLabel,
   ftp: filterAndLabel,
@@ -103,7 +104,8 @@ export interface Exo {type: 'exo0' | 'exo1' | 'exo2'; value: [AnyExp, Op, AnyExp
 export interface Dot {type: 'dot'; value: [Vcf, Dt, Vr];}
 export interface Arr {type: 'ars0' | 'ars1' | 'ars2' | 'arre'; value: [Arr, Cm, AnyExp] | [AnyExp] | [];}
 
-export type Typ = Ftp | Ttp | Atp | Tc | Tp;
+export type Typ = Ftp | Ttp | Atp | Tc | Tp | Mtp;
+export interface Mtp {type: 'mtp'; value: [Typ];}
 export interface Ttp {type: 'ttp'; value: [Cm, Typ] | [Ttp, Cm, Typ];}
 export interface Atp {type: 'atp'; value: [Typ];}
 export interface Ftp {type: 'ftp'; value: [Typ] | [Tps, Typ];}
@@ -115,7 +117,7 @@ type Vcf = AnyExp;
 type Exp = AnyExp;
 export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Nu | Bls | Fnd | Arr;
 
-type ParserOpts = Ass | Ret | Brk | Cnt | Rec | Doo | Ife | Ifb | Dow | Wdo | For | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Var;
+type ParserOpts = Ass | Ret | Brk | Cnt | Rec | Doo | Ife | Ifb | Dow | Wdo | For | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Mtp | Var;
 
 
 
@@ -195,6 +197,11 @@ const compiled: {v?: nearley.CompiledRules;} = {};
 export interface Parser {
   parseLine: (line: string) => Promise<Ass[]>;
   finish: () => Promise<void>;
+}
+
+export async function generateTypes() {
+  const grammar = await fetchGrammar();
+  return parseGrammar(grammar);
 }
 
 export class NearleyParser implements Parser {

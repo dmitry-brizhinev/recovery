@@ -1,13 +1,13 @@
 
 import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
-import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT} from './CustomLexer';
+import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT, MayT} from './CustomLexer';
 import type {ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Nul {
   readonly t: NulT;
 }
-const Nul: Nul = {t: '_'};
+const Null: Nul = {t: '_'};
 interface Num {
   readonly t: NumT;
   readonly value: number;
@@ -44,6 +44,10 @@ interface Arr {
   readonly t: ArrT;
   readonly values: Value[];
 }
+interface May {
+  readonly t: MayT;
+  readonly value: Value;
+}
 type Values = {
   _: Nul,
   d: Num,
@@ -55,8 +59,9 @@ type Values = {
   t: Tup,
   o: Obj,
   a: Arr,
+  m: May,
 };
-type Value = Values[ValueT | '_'];//Nul | Num | Str | Fun | Tup | Obj | Arr;
+type Value = Values[ValueT | '_'];//Nul | Num | Str | Fun | Tup | Obj | Arr | May;
 
 class ContextSnapshot {
   constructor(
@@ -168,12 +173,12 @@ class Executor {
 
   private break(_b: Break): Value {
     // TODO
-    return Nul;
+    return Null;
   }
 
   private continue(_c: Continue): Value {
     // TODO
-    return Nul;
+    return Null;
   }
 
   private blockstatement(b: BlockStatement): Value {
@@ -201,12 +206,12 @@ class Executor {
     if (e.last) {
       return this.body(e.last);
     }
-    return Nul;
+    return Null;
   }
 
   private while(e: While): Value {
     const {cond, body} = e;
-    let v: Value = Nul;
+    let v: Value = Null;
     while (this.expressionB(cond).value) {
       v = this.body(body);
     };
@@ -225,7 +230,7 @@ class Executor {
   private for(f: For): Value {
     const {name, iter, body} = f;
     const a = this.expressionA(iter);
-    let vv: Value = Nul;
+    let vv: Value = Null;
     for (const v of a.values) {
       this.context.setVar(name, v);
       vv = this.body(body);
@@ -238,7 +243,7 @@ class Executor {
   }
 
   private body(b: Body): Value {
-    let v: Value = Nul;
+    let v: Value = Null;
     for (const s of b) {
       v = this.statement(s);
     }
@@ -342,7 +347,7 @@ class Executor {
     } else if (t === 'i') {
       return {t, value: Number.parseInt(v)};
     } else if (t === '_') {
-      return Nul;
+      return Null;
     } else {
       return unreachable(t);
     }
@@ -444,8 +449,14 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
 
 /*
 Maybe type
+break/continue/return
 generic types,
-Tighter parser types
+Tighter parser types with auto generator
+
+owner/borrow/move (rust style semantics so you can find new/delete points)
+mutable/readonly/const
+pure (for functions)
+Lazy mode functions inside which things behave like haskell
 
 Either/Union types,
 methods + method calls,

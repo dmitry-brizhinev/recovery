@@ -8,7 +8,10 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
-const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'] as const;
+const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'];
+const brs = ['{', '}', '(', ')', '[', ']'];
+const cls = ['::', ':'];
+export const literalLookup = {kw: kws, br: brs, cl: cls};
 
 /*
 
@@ -33,13 +36,14 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   sc: [';'],
   dt: ['.'],
   cm: [','],
-  cl: ['::', ':'],
+  cl: cls,
+  qm: ['?'],
   eq: {match: / *= *(?!=)/, value: trim},
-  kw: kws as any,
+  kw: kws,
   ms: /  +/,
   os: ' ',
-  br: ['{', '}', '(', ')', '[', ']'],
-  vr: /[idbsctofa][A-Z]\w*/,
+  br: brs,
+  vr: /[idbsctofam][A-Z]\w*/,
   tc: /[A-Z]\w*/,
   cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
   nu: ['_'],
@@ -66,17 +70,17 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-export type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT;
+export type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT;
 export type NumT = 'i' | 'd' | 'b';
 export type StrT = 's' | 'c';
 export type FunT = 'f';
 export type TupT = 't';
 export type ObjT = 'o';
 export type ArrT = 'a';
+export type MayT = 'm';
 export type NulT = '_';
 export type LexerName = LexerOpts['type'];
-export type LexerLiterals = (Eq | Op | Sc | Rt | Kw)['value'];
-export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta'] as const;
+export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta', 'qm'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames[number];
 export type DirtyLexerName = LexerName | FilteredLexerName;
 export type VrName = Vr['value'];
@@ -123,14 +127,6 @@ export interface Cl {
 export interface Dt {
   type: 'dt';
   value: '.';
-}
-interface Rt {
-  type: 'rt';
-  value: '->';
-}
-interface Kw {
-  type: 'kw';
-  value: typeof kws[number];
 }
 export type LexerOpts = Vr | Tc | Tp | Cl | Cm | Dt | Op | Sc | Cnst | Nu;
 

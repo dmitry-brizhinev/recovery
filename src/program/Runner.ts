@@ -1,6 +1,6 @@
 import {myLexer, mooLexer} from './CustomLexer';
 import {myParser} from './MyParser';
-import {NearleyParser, type Parser} from './NearleyParser';
+import {generateTypes, NearleyParser, type Parser} from './NearleyParser';
 import {delay, errorString} from '../util/Utils';
 import RootExecutor from './Executor';
 import RootCompiler from './Compiler';
@@ -23,6 +23,10 @@ const word = {
 
 function myErrorString(mmm: 'check' | 'run' | 'parse' | 'compile', line: string, e: unknown): string {
   return `${word[mmm].type} error <- encountered while ${word[mmm].verb} ${line}\n${errorString(e)}`;
+}
+
+export async function genTypes() {
+  return await generateTypes();
 }
 
 export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string, void, void> {

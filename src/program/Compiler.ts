@@ -299,7 +299,7 @@ function parseFun(f: FunType): string {
 }
 
 function annotationp(t: Type): string {
-  return t.t === 'f' ? `(${annotation(t)})` : annotation(t);
+  return t.t === 'f' || t.t === 'm' ? `(${annotation(t)})` : annotation(t);
 }
 
 function annotation(t: Type): string {
@@ -314,6 +314,7 @@ function annotation(t: Type): string {
     case 'a': return `${annotationp(t.subtype)}[]`;
     case 'o': return t.con;
     case 'f': return parseFun(t);
+    case 'm': return `${annotationp(t.subtype)} | undefined`;
     default: return unreachable(t);
   }
 }

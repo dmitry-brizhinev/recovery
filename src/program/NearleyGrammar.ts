@@ -16,7 +16,7 @@ function parseSymbol(t: string): Symbol {
   return checkParserName(t);
 }
 
-async function fetchGrammar(): Promise<string> {
+export async function fetchGrammar(): Promise<string> {
   const response = await fetch(grammarPath);
   return await response.text();
 }

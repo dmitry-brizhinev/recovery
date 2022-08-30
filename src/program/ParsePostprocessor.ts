@@ -1,6 +1,6 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu} from './CustomLexer';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, ValueT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Ret, Sta, Eob, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
@@ -36,7 +36,12 @@ export interface ArrType {
   readonly subtype: Type;
 }
 
-export type Type = NumType | StrType | NulType | FunType | TupType | ObjType | ArrType;
+export interface MayType {
+  readonly t: MayT;
+  readonly subtype: Type;
+}
+
+export type Type = NumType | StrType | NulType | FunType | TupType | ObjType | ArrType | MayType;
 type AnyT = Type['t'];
 
 class ContextSnapshot {
@@ -128,7 +133,9 @@ function isn(t: AnyT): NumT | undefined {
 }
 
 function checkFirstAssignment(target: VrName, source: Type) {
-  assert(target.charAt(0) === source.t);
+  const tt = target.charAt(0) as ValueT;
+  if (tt === 'm') return;
+  assert(tt === source.t);
 }
 
 export type Statement = Assignment | Return | Break | Continue | BlockStatement | ExpressionStatement;
@@ -318,7 +325,7 @@ class Postprocessor {
   statement(s: Sta): Statement {
     switch (s.type) {
       case 'ass': return this.assignment(s);
-      case 'ret': return this.return(s);
+      case 'ret': return this.returnn(s);
       case 'brk': return this.break(s);
       case 'cnt': return this.continue(s);
       case 'ife':
@@ -374,7 +381,7 @@ class Postprocessor {
     }
   }
 
-  private return(r: Ret): Return {
+  private returnn(r: Ret): Return {
     const kind = 'return';
     const expression = this.expression(...r.value);
     return {kind, type: Nul, returnType: expression.type, expression};
@@ -533,6 +540,10 @@ class Postprocessor {
       case 'a':
         assert(t === source.t, `Assigning ${source.t} to ${t}`);
         this.checkAssignment(target.subtype, source.subtype);
+        return;
+      case 'm':
+        if (source.t === '_') return;
+        this.checkAssignment(target.subtype, source.t === 'm' ? source.subtype : source);
         return;
       default: unreachable(target, 'checkAssignment');
     }
@@ -806,6 +817,7 @@ function parseTypeAnnotation(typ: Typ): Type {
     case 'atp': return {t: 'a', subtype: parseTypeAnnotation(typ.value[0])};
     case 'ttp': return {t: 't', values: ttpValues(typ)};
     case 'ftp': return parseFtp(typ);
+    case 'mtp': return {t: 'm', subtype: parseTypeAnnotation(typ.value[0])};
     default: unreachable(typ, (typ as any).type);
   }
 }
@@ -813,7 +825,7 @@ function parseTypeAnnotation(typ: Typ): Type {
 function unwrapVar(vvr: Var): Type | undefined {
   const vr = vvr.value[0];
   if (vvr.value.length === 1) {
-    const t = vr.value.charAt(0);
+    const t = vr.value.charAt(0) as ValueT;
     switch (t) {
       case 'i':
       case 'd':
@@ -823,8 +835,9 @@ function unwrapVar(vvr: Var): Type | undefined {
       case 't':
       case 'o':
       case 'f':
-      case 'a': return undefined;
-      default: assert(false, 'Invalid type ', t);
+      case 'a':
+      case 'm': return undefined;
+      default: return unreachable(t, `Invalid type ${t}`);
     }
   } else {
     const t = parseTypeAnnotation(vvr.value[1]);
