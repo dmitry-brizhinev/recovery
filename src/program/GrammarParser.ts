@@ -39,7 +39,7 @@ function parseGrammarInner(grammar: string): Parsed {
     const gs = g.split(/ +-> +/);
     assert(gs.length === 2, g);
     const [name, ruless] = gs;
-    const post = /#(...):(d|ff|fm|fl|fu)/.exec(gg);
+    const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(gg);
     assert(post, `Missing instructions comment for ${name}`);
     assert(post[1] === name, `Wrong instructions name ${post[1]} for ${name}`);
     posts.set(name, post[2] as Post);
@@ -65,49 +65,59 @@ function capitalise(s: string) {
 }
 
 function prettySymbol(e: Symbol): string {
-  if ('token' in e) return e.token.toUpperCase();
+  if ('token' in e) return capitalise(e.token);
   return capitalise(e.rule);
 }
 
-function parseRule(rule: Rule): string {
-  if (!rule.length) return '[]';
-  if (rule.length === 1) {
-    return prettySymbol(rule[0]);
-  }
-  return `[${rule.map(prettySymbol).join(', ')}]`;
-}
-
 function fu(rule: Rule): string {
-  if (!rule.length) return '';
+  assert(rule.length, 'fu on an empty rule');
   assert(rule.length === 1, 'fu on a long rule');
   return prettySymbol(rule[0]);
 }
 
 function fl(rule: Rule): string {
-
+  if (!rule.length) return '[]';
+  if (rule.length === 1) {
+    return `[${prettySymbol(rule[0])}]`;
+  }
+  return `[${rule.map(prettySymbol).join(', ')}]`;
 }
 
 export default function parseGrammar(grammar: string): string {
   const {allRules, posts} = parseGrammarInner(grammar);
 
   const result = [];
-  for (const [name, rules] of allRules) {
+  for (const [name, dirtyRules] of allRules) {
     const post = posts.get(name);
     assert(post, 'Missing post for', name);
     if (post === 'd') continue;
-    else if (post === 'fu') {
-      rules.map(fu).filter(s => s);
+
+    const rules = dirtyRules.map(rs => rs.filter(s => ('token' in s) || posts.get(s.rule) !== 'd'));
+    const start = `export type ${capitalise(name)} = `;
+
+    let middle;
+    if (post === 'fu') {
+      middle = rules.map(fu).join(' | ');
     } else if (post === 'fl') {
-
+      middle = `{type: '${name}', value: ${rules.map(fl).join(' | ')}}`;
     } else if (post === 'fm') {
-
+      const options = rules.filter(r => r.length === 1).map(fu).concat(
+        `{type: '${name}', value: ${rules.filter(r => r.length !== 1).map(fl).join(' | ')}}`);
+      middle = options.join(' | ');
     } else if (post === 'ff') {
-
+      const options = [];
+      for (const rule of rules) {
+        for (const symbol of rule) {
+          if (('rule' in symbol) && symbol.rule === name) continue;
+          options.push(symbol);
+        }
+      }
+      middle = `(${options.map(prettySymbol).join(' | ')})[]`;
     } else {
       unreachable(post);
     }
 
-    result.push(`export type ${capitalise(name)} = ${rules.map(parseRule).join(' | ')};`);
+    result.push(start + middle + ';');
   }
   return result.join('\n');
 }

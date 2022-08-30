@@ -21,8 +21,8 @@ rec -> var | exp %dt %vr | %nu                                #rec:fm
 eob -> wnl blo wnl                                            #eob:fu
 blo -> blo sep sta | sta                                      #blo:ff
 #ifs -> ife
-ife -> "if" ifb ifn ifl "endif"                               #ife:fl
-ifl -> null | "else" eob                                      #ifl:fu
+ife -> "if" ifb ifn ifl "endif" | "if" ifb ifn "endif"        #ife:fl
+ifl -> "else" eob                                             #ifl:fu
 ifn -> null | "elif" ifb ifn                                  #ifn:ff
 ifb -> ws exp ws "then" eob                                   #ifb:fl
 dow -> "do" eob "while" ws exp ws "end"                       #dow:fl

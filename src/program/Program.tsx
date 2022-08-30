@@ -108,7 +108,7 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
   const compileCode = React.useCallback(() => compile(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
   const checkTypes = React.useCallback(() => check(props.code, addLine), [props.code, addLine]);
-  const gengenTypes = React.useCallback(() => genTypes().then(addLine), [addLine]);
+  const gengenTypes = React.useCallback(() => {addLine(null); genTypes().then(addLine);}, [addLine]);
 
   return <>
     <div className={styles.text}>

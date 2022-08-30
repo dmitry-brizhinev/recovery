@@ -174,11 +174,8 @@ function unwrapSingle(name: DirtyParserName, rs: CleanerInput[]): CleanerOutput 
   return clean(rs[0]);
 }
 
-function filterAndUnwrapSingle(name: FilteredParserName, rs: CleanerInput[]): CleanerOutput | undefined {
+function filterAndUnwrapSingle(name: FilteredParserName, rs: CleanerInput[]): CleanerOutput {
   const r = rs.filter(cleaningFilter);
-  if (r.length === 0) {
-    return undefined;
-  }
   return unwrapSingle(name, r);
 }
 

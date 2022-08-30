@@ -26,7 +26,11 @@ function myErrorString(mmm: 'check' | 'run' | 'parse' | 'compile', line: string,
 }
 
 export async function genTypes() {
-  return await generateTypes();
+  try {
+    return await generateTypes();
+  } catch (e) {
+    return errorString(e);
+  }
 }
 
 export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string, void, void> {
