@@ -76,7 +76,7 @@ const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => Cl
 } as const;
 
 export type Doc = Blo;
-export interface Ass {type: 'ass'; value: [Rec | Var | Nu, Exp];}
+/*export interface Ass {type: 'ass'; value: [Rec | Var | Nu, Exp];}
 export interface Ret {type: 'ret'; value: [Exp];}
 export interface Brk {type: 'brk'; value: [];}
 export interface Cnt {type: 'cnt'; value: [];}
@@ -114,7 +114,50 @@ export interface Var {type: 'var'; value: [Vr] | [Vr, Typ];}
 export type Vrl = Var[];
 
 type Vcf = AnyExp;
-type Exp = AnyExp;
+type Exp = AnyExp;*/
+
+export type Ass = {type: 'ass', value: [Rec_, Exp];};
+export type Ret = {type: 'ret', value: [Exp];};
+export type Brk = {type: 'brk', value: [];};
+export type Cnt = {type: 'cnt', value: [];};
+export type Bls = Ife | Dow | Wdo | For | Doo;
+export type Sta = Ass | Ret | Brk | Cnt | Exp;
+export type Rec_ = Var | Nu | Rec;
+export type Rec = {type: 'rec', value: [Exp, Dt, Vr];};
+export type Blo = Sta[];
+export type Ife = {type: 'ife', value: [Ifb, Ifn, Blo] | [Ifb, Ifn];};
+export type Ifn = Ifb[];
+export type Ifb = {type: 'ifb', value: [Exp, Blo];};
+export type Dow = {type: 'dow', value: [Blo, Exp];};
+export type Wdo = {type: 'wdo', value: [Exp, Blo];};
+export type For = {type: 'for', value: [Var, Exp, Blo];};
+export type Doo = {type: 'doo', value: [Blo];};
+export type Exp = Exc_ | Fnd;
+export type Fnd = {type: 'fnd', value: [Vrl, Typ, Exp] | [Vrl, Exp] | [Vrl, Tc];};
+export type Exc_ = Exl_ | Exc;
+export type Exc = {type: 'exc2' | 'exc1' | 'exc0', value: [Exl_, Sc];};
+export type Exl_ = Emo | Exl;
+export type Exl = {type: 'exl2' | 'exl1' | 'exl0', value: [Exl_, Cl, Emo];};
+export type Emo = Exo_ | Exm_ | Arr;
+export type Arr = {type: 'ars2' | 'ars1' | 'ars0' | 'arre', value: [Arr, Cm, Exo_] | [Exo_] | [];};
+export type Exm_ = Exm;
+export type Exm = {type: 'exm2' | 'exm1' | 'exm0', value: [Exm_, Cm, Exo_] | [Cm, Exo_];};
+export type Exo_ = Exc_ | Dot_ | Exo;
+export type Exo = {type: 'exo2' | 'exo1' | 'exo0', value: [Exo_, Op, Exc_] | [Exo_, Op, Dot_];};
+export type Dot_ = Vcf | Dot;
+export type Dot = {type: 'dot', value: [Vcf, Dt, Vr];};
+export type Vcf = Vr | Cnst | Nu | Bls | Exp | Arr;
+export type Typ = Ftp | Ttp | Atp | Tc | Tp | Mtp;
+export type Mtp = {type: 'mtp', value: [Typ];};
+export type Ttp = {type: 'ttp', value: [Cm, Typ] | [Ttp, Cm, Typ];};
+export type Atp = {type: 'atp', value: [Typ];};
+export type Ftp = {type: 'ftp', value: [Typ] | [Tps, Typ];};
+export type Tps = (Typ | Cl)[];
+export type Var = {type: 'var', value: [Vr] | [Vr, Typ];};
+export type Vrl = Var[];
+
+
+
 export type AnyExp = Exm | Exo | Dot | Exc | Exl | Vr | Cnst | Nu | Bls | Fnd | Arr;
 
 type ParserOpts = Ass | Ret | Brk | Cnt | Rec | Doo | Ife | Ifb | Dow | Wdo | For | Fnd | Arr | Exc | Exl | Exm | Exo | Dot | Ttp | Atp | Ftp | Mtp | Var;

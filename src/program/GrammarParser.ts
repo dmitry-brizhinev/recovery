@@ -1,6 +1,6 @@
 import {checkLexerName, literalLookup, FilteredLexerNames, type DirtyLexerName} from "./CustomLexer";
 import {assert, throwIfNull, unreachable} from "../util/Utils";
-import {OrderedMap, OrderedSet, List, type ValueObject, hash} from 'immutable';
+import {OrderedMap, OrderedSet, Set as ISet, List, type ValueObject, hash} from 'immutable';
 //import grammarPath from './grammar.ne';
 
 class Symbol implements ValueObject {
@@ -28,7 +28,7 @@ class TokenSymbol extends Symbol {
 }
 
 class RuleSymbol extends Symbol {
-  constructor(value: string) {
+  constructor(value: string, readonly names: List<string>, public instruction: Instruction | Symbol) {
     super('rule', value);
   }
 }
@@ -36,12 +36,13 @@ class RuleSymbol extends Symbol {
 type Rule = List<Symbol>;
 type Rules = OrderedSet<Rule>;
 
-type Post = {inst: 'd' | 'ff' | 'fl' | 'fu' | 'fm';} | {repl: Symbol;};
-type Posts = Map<string, Post>;
-type AllRules = OrderedMap<string, Rules>;
-type Parsed = {allRules: AllRules, posts: Posts;};
+type Instruction = 'd' | 'ff' | 'fl' | 'fu' | 'fm';
+//type Post = {inst: Instruction;} | {repl: Symbol;};
+//type Posts = Map<string, Post>;
+type AllRules = OrderedMap<RuleSymbol, Rules>;
+//type Parsed = {allRules: AllRules, posts: Posts;};
 
-function parseSymbol(t: string): Symbol | undefined {
+function parseSymbol(ruleNames: Map<string, RuleSymbol>, t: string): Symbol | undefined {
   let token = '';
   if (t.startsWith('%')) {
     token = t.substring(1);
@@ -57,38 +58,79 @@ function parseSymbol(t: string): Symbol | undefined {
     return new TokenSymbol(checkLexerName(token));
 
   }
-  return new RuleSymbol(t);
+  return throwIfNull(ruleNames.get(t));
 }
 
-function parseGrammarInner(grammar: string): Parsed {
-  const result: [string, Rules][] = [];
-  const posts = new Map<string, Post>();
-  let start = '';
-  for (const gg of grammar.trim().split('\n')) {
-    const g = gg.split(/[#@]/)[0].trim();
-    if (g.length === 0) continue;
-    const gs = g.split(/ +-> +/);
-    assert(gs.length === 2, g);
-    const [name, ruless] = gs;
-    const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(gg);
-    assert(post, `Missing instructions comment for ${name}`);
-    assert(post[1] === name, `Wrong instructions name ${post[1]} for ${name}`);
-    posts.set(name, {inst: post[2]} as Post);
-    if (!start) start = name;
-    const rules = ruless.split(/ +\| +/);
-    assert(rules.length >= 1, g);
+interface Line {
+  name: string;
+  rules: string[][];
+  rename: string;
+  instruction: Instruction;
+}
+
+function parseLine(line: string): [Line] | [] {
+  const g = line.split(/[#@]/)[0].trim();
+  if (g.length === 0) return [];
+  const gs = g.split(/ +-> +/);
+  assert(gs.length === 2, g);
+  const [name, ruless] = gs;
+  const rules = ruless.split(/ +\| +/).map(rule => rule.split(/ +/));
+  assert(rules.length >= 1, g);
+  for (const rule of rules) {
+    assert(rule.length >= 1, g);
+  }
+
+  const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(line);
+  assert(post, `Missing instructions comment for ${name}`);
+  const rename = post[1];
+  const instruction = post[2] as Instruction;
+  assert(name.slice(0, 2) === rename.slice(0, 2), `Wrong instructions name ${rename} for ${name}`);
+  if (instruction === 'fm') assert(rename.endsWith('_'), `${rename}:fm needs to end with underscore`);
+
+  return [{name, rules, rename, instruction}];
+}
+
+function parseGrammarInner(grammar: string): AllRules {
+  let result = OrderedMap<RuleSymbol, Rules>();
+  const lines = grammar.trim().split('\n').flatMap(parseLine);
+  const instMap = new Map<string, ISet<Instruction>>();
+  const nameMap = new Map<string, ISet<string>>();
+  for (const line of lines) {
+    const {name, rename, instruction} = line;
+    const s = (instMap.get(rename) || ISet()).add(instruction);
+    assert(s.size === 1, `Conflicting instructions for ${rename}`);
+    instMap.set(rename, s);
+
+    const n = nameMap.get(rename) || ISet();
+    assert(!n.has(name), `Duplicate rule for ${name}`);
+    nameMap.set(rename, n.add(name));
+  }
+  const ruleNames = new Map<string, RuleSymbol>();
+  for (const [rename, inst] of instMap) {
+    const instruction = inst.first();
+    assert(instruction);
+    const names = nameMap.get(rename)?.toList();
+    assert(names);
+    const symbol = new RuleSymbol(rename, names, instruction);
+    ruleNames.set(rename, symbol);
+    for (const name of names) {
+      ruleNames.set(name, symbol);
+    }
+  }
+  const parseSymboll = parseSymbol.bind(null, ruleNames);
+
+  for (const line of lines) {
     const parsedRules = [];
-    for (const rule of rules) {
-      const tokens = rule.split(/ +/);
-      assert(tokens.length >= 1, g);
-      const symbols = List(tokens.filter(t => t !== 'null').map(parseSymbol).flatMap(s => s ? [s] : []));
+    for (const rule of line.rules) {
+      const symbols = List(rule.filter(t => t !== 'null').map(parseSymboll).flatMap(s => s ? [s] : []));
       parsedRules.push(symbols);
       //const postprocess = getPostprocessor(name, rule);
       //result.ParserRules.push({name, symbols, postprocess});
     }
-    result.push([name, OrderedSet(parsedRules)]);
+    const symbol = throwIfNull(ruleNames.get(line.name));
+    result = result.set(symbol, result.get(symbol, OrderedSet<Rule>()).concat(parsedRules));
   }
-  return {allRules: OrderedMap(result), posts};
+  return OrderedMap(result);
 }
 
 function capitalise(s: string) {
@@ -109,37 +151,37 @@ function fl(rule: Rule): string {
   return `[${rule.map(r => r.pretty()).join(', ')}]`;
 }
 
-function filterAll(posts: Posts, allRules: AllRules): AllRules {
+function filterAll(allRules: AllRules): AllRules {
   let changed2 = false;
+  let count = 0;
   do {
+    count += 1;
+    assert(count < 100);
     let changed = false;
     allRules = allRules.filter((_rules, name) => {
-      const p = posts.get(name);
-      assert(p);
-      const keep = ('inst' in p) && p.inst !== 'd';
+      const keep = !(name.instruction instanceof Symbol) && name.instruction !== 'd';
       if (!keep) changed = true;
       return keep;
     }).map((rules, name) => {
       const newRules: Rules = rules.map(rule => rule.flatMap((s: Symbol): Symbol[] => {
         if (s.type === 'token') return [s];
-        const p = posts.get(s.value);
-        assert(p);
-        if ('repl' in p) {
+        const p = (s as RuleSymbol).instruction;
+        if (p instanceof Symbol) {
+          assert(!p.equals(s), `p=s: ${name.value}, ${p.value}, ${s.value}`);
           changed = true;
-          return [p.repl];
+          return [p];
         }
-        if (p.inst === 'd') {
+        if (p === 'd') {
           changed = true;
           return [];
         }
         return [s];
       }));
       if (newRules.size === 1 && newRules.first()?.size === 1) {
-        const p = posts.get(name);
-        assert(p);
-        if ('inst' in p && p.inst === 'fu') {
+        if (name.instruction === 'fu') {
           changed = true;
-          posts.set(name, {repl: throwIfNull(newRules.first()?.first())});
+          const repl = throwIfNull(newRules.first()?.first());
+          name.instruction = repl;
         }
       }
       return newRules;
@@ -150,38 +192,40 @@ function filterAll(posts: Posts, allRules: AllRules): AllRules {
 }
 
 export default function parseGrammar(grammar: string): string {
-  const {allRules, posts} = parseGrammarInner(grammar);
-  const filteredRules = filterAll(posts, allRules);
+  const allRules = parseGrammarInner(grammar);
+  const filteredRules = filterAll(allRules);
   const result = [];
   for (const [name, rules] of filteredRules) {
-    const post = posts.get(name);
-    assert(post);
-    assert('inst' in post);
-    assert(post.inst !== 'd');
+    const post = name.instruction;
+    assert(post !== 'd', 'post = d', name.value);
+    assert(!(post instanceof Symbol), 'post is Symbol', name.value);
 
-    const start = `export type ${capitalise(name)} = `;
+    const start = `export type ${capitalise(name.value)} = `;
 
     let middle;
-    if (post.inst === 'fu') {
+    if (post === 'fu') {
+      for (const r of rules) assert(r.size === 1, `fu on a long rule ${name.value} ${r.map(s => s.value).join(';')}`);
       middle = rules.map(fu).join(' | ');
-    } else if (post.inst === 'fl') {
-      middle = `{type: '${name}', value: ${rules.map(fl).join(' | ')}}`;
-    } else if (post.inst === 'fm') {
-      const options = rules.filter(r => r.size === 1).map(fu).add(
-        `{type: '${name}', value: ${rules.filter(r => r.size !== 1).map(fl).join(' | ')}}`);
-      middle = options.join(' | ');
-    } else if (post.inst === 'ff') {
+    } else if (post === 'fl') {
+      middle = `{type: '${name.names.join(`' | '`)}', value: ${rules.map(fl).join(' | ')}}`;
+    } else if (post === 'fm') {
+      const short = capitalise(name.value.slice(0, name.value.length - 1));
+      assert(name.value.endsWith('_'), 'Non underscore fm', name.value);
+      const options = rules.filter(r => r.size === 1).map(fu).add(short).join(' | ');
+      const other = `{type: '${name.names.join(`' | '`)}', value: ${rules.filter(r => r.size !== 1).map(fl).join(' | ')}}`;
+      middle = `${options};\nexport type ${short} = ${other}`;
+    } else if (post === 'ff') {
       let options = OrderedSet<Symbol>();
       for (const rule of rules) {
         for (const symbol of rule) {
-          if ((symbol.type === 'rule') && symbol.value === name) continue;
+          if (symbol.equals(name)) continue;
           options = options.add(symbol);
         }
       }
       const opts = options.map(r => r.pretty());
       middle = opts.size === 1 ? `${opts.join('')}[]` : `(${opts.join(' | ')})[]`;
     } else {
-      unreachable(post.inst);
+      unreachable(post);
     }
 
     result.push(start + middle + ';');
