@@ -1,7 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, ValueT} from './CustomLexer';
-import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Ret, Sta, Eob, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb} from './NearleyParser';
+import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Blo} from './NearleyParser';
 import {Map as IMap} from 'immutable';
 
 export interface NumType {
@@ -476,12 +476,8 @@ class Postprocessor {
     return {kind, type, body};
   }
 
-  private body(e: Eob): Body {
-    if (Array.isArray(e)) {
-      return e.map(s => this.statement(s));
-    } else {
-      return [this.expstatement(e)];
-    }
+  private body(e: Blo): Body {
+    return e.map(s => this.statement(s));
   }
 
   private bodytype(b: Body): Type {
