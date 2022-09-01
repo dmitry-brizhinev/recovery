@@ -1,5 +1,6 @@
 import type {Cl, Cm, Cnst, Dt, Nu, Op, Sc, Tc, Tp, Vr} from "./CustomLexer";
 import {Set as ISet} from 'immutable';
+import type {Instruction} from "./GrammarParser";
 export type Start = Blo;
 export type Ass = {type: 'ass', value: [Rec_, Exp];};
 export type Ret = {type: 'ret', value: [Exp];};
@@ -39,4 +40,6 @@ export const ParserNames = ISet<string>(ParserNames_);
 const FilteredParserNames_ = ['doc', 'mnl', 'wnl', 'bls', 'sta', 'sep', 'eob', 'blo', 'ifl', 'ifn', 'exp', 'eod', 'exa2', 'emo2', 'emo1', 'emo0', 'exa1', 'exa0', 'vcf', 'mws', 'ws', 'sc2', 'sc1', 'sc0', 'op2', 'op1', 'op0', 'cm2', 'cm1', 'cm0', 'cl2', 'cl1', 'cl0', 'typ', 'tps', 'vrl'] as const;
 export type FilteredParserName = typeof FilteredParserNames_[number];
 export const FilteredParserNames = ISet<string>(FilteredParserNames_);
+export type DirtyParserName = ParserName | FilteredParserName;
+export const instructions: {[key in DirtyParserName]: Instruction} = {doc: 'fu', mnl: 'd', wnl: 'd', ass: 'fl', ret: 'fl', brk: 'fl', cnt: 'fl', bls: 'fu', sta: 'fu', sep: 'd', rec: 'fm', eob: 'fu', blo: 'ff', ife: 'fl', ifl: 'fu', ifn: 'ff', ifb: 'fl', dow: 'fl', wdo: 'fl', for: 'fl', doo: 'fl', exp: 'fu', eod: 'fu', fnd: 'fl', exa2: 'fu', exc2: 'fm', exc1: 'fm', exc0: 'fm', exl2: 'fm', exl1: 'fm', exl0: 'fm', emo2: 'fu', emo1: 'fu', emo0: 'fu', ars2: 'fl', ars1: 'fl', ars0: 'fl', arre: 'fl', exm2: 'fm', exm1: 'fm', exm0: 'fm', exo2: 'fm', exo1: 'fm', exo0: 'fm', exa1: 'fu', exa0: 'fu', dot: 'fm', vcf: 'fu', mws: 'd', ws: 'd', sc2: 'fu', sc1: 'fu', sc0: 'fu', op2: 'fu', op1: 'fu', op0: 'fu', cm2: 'fu', cm1: 'fu', cm0: 'fu', cl2: 'fu', cl1: 'fu', cl0: 'fu', typ: 'fu', mtp: 'fl', ttp: 'fl', atp: 'fl', ftp: 'fl', tps: 'ff', var: 'fl', vrl: 'ff'};
 

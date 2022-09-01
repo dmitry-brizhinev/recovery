@@ -36,10 +36,9 @@ class RuleSymbol extends SymbolBase {
   }
 }
 
+export type Instruction = 'd' | 'ff' | 'fl' | 'fu' | 'fm';
 type Rule = List<Symbol>;
 type Rules = OrderedSet<Rule>;
-
-type Instruction = 'd' | 'ff' | 'fl' | 'fu' | 'fm';
 type AllRules = OrderedMap<RuleSymbol, Rules>;
 
 function parseSymbol(ruleNames: Map<string, RuleSymbol>, t: string): Symbol | undefined {
@@ -115,6 +114,7 @@ function parseGrammarInner(grammar: string): AllRules {
   for (const [rename, inst] of instMap) {
     const instruction = inst.first();
     assert(instruction);
+    assert(rename.endsWith('_') === (instruction === 'fm'), `${rename}:${instruction} violates 'underscore iff fm'`);
     const names = nameMap.get(rename)?.toList();
     assert(names);
     const symbol = new RuleSymbol(rename, instruction === 'fm' ? List() : names, instruction);
@@ -279,6 +279,11 @@ export default function parseGrammar(grammar: string): string {
   const rul = allRules.keySeq().filterNot(r => r.value === 'start');
   const filteredNames = rul.filterNot(r => r.instruction === 'fl').flatMap(r => r.names);
   const cleanNames = rul.filter(r => r.instruction === 'fl').flatMap(r => r.names);
+  const fms = rul.filter(r => r.value.endsWith('_')).map(r => capitalise(r.value.slice(0, r.value.length - 1))).toSet();
+  const fixInstruction = (i: Instruction | Symbol) => i instanceof SymbolBase ? 'fu' : i;
+  const instructions = rul.filterNot(r => r.value.endsWith('_'))
+    .map(r => ({i: (fms.has(r.value) ? 'fm' : fixInstruction(r.instruction)), n: r.names}))
+    .flatMap(({i, n}) => n.map<string>(n => `${n}: '${i}'`));
 
   const filteredRules = filterAll(allRules);
   const collapsedRules = collapseLoops(filteredRules);
@@ -288,8 +293,9 @@ export default function parseGrammar(grammar: string): string {
   const lexx = [...lex].sort().join(', ');
   const imports = `import type {${lexx}} from "./CustomLexer";`;
   const imports2 = `import {Set as ISet} from 'immutable';`;
+  const imports3 = `import type {Instruction} from "./GrammarParser";`;
 
-  const result = [imports, imports2];
+  const result = [imports, imports2, imports3];
   for (const [name, rules] of collapsedRules) {
     const post = name.instruction;
     assert(post !== 'd', 'post = d', name.value);
@@ -326,5 +332,8 @@ export default function parseGrammar(grammar: string): string {
   result.push(`const FilteredParserNames_ = ['${filteredNames.join(`', '`)}'] as const;`);
   result.push(`export type FilteredParserName = typeof FilteredParserNames_[number];`);
   result.push(`export const FilteredParserNames = ISet<string>(FilteredParserNames_);`);
+  result.push(`export type DirtyParserName = ParserName | FilteredParserName;`);
+  result.push(`export const instructions: {[key in DirtyParserName]: Instruction} = {${instructions.join(', ')}};`);
+  //result.push(`export const renames: {[key in ParserName]: string} = {${ }};`);
   return result.join('\n');
 }

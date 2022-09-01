@@ -1,144 +1,54 @@
-import type {DirtyLexerName, LexedToken, LexerName} from "./CustomLexer";
+import {checkLexerName, type DirtyLexerName, type LexedToken, type LexerName} from "./CustomLexer";
 import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
-import {assert} from "../util/Utils";
+import {assert, unreachable} from "../util/Utils";
 import {fetchGrammar, default as compileGrammar} from "./NearleyGrammar";
 import parseGrammar from './GrammarParser';
-import {FilteredParserNames, ParserNames, type FilteredParserName, type ParserName, type Start} from './ParserOutput.generated';
-
-export type DirtyParserName = ParserName | FilteredParserName;
+import {FilteredParserNames, ParserNames, instructions, type ParserName, type DirtyParserName, type Start} from './ParserOutput.generated';
 
 export function checkParserName(name: string): DirtyParserName {
   assert(FilteredParserNames.has(name) || ParserNames.has(name), `Unknown parser name ${name}`);
   return name as DirtyParserName;
 }
 
-const cleaners: {[key in DirtyParserName]: (name: key, rs: CleanerInput[]) => CleanerOutput | undefined} = {
-  doc: filterAndUnwrapSingle,
-  mnl: discard,
-  wnl: discard,
-  ass: filterAndLabel,
-  ret: filterAndLabel,
-  brk: filterAndLabel,
-  cnt: filterAndLabel,
-  bls: filterAndUnwrapSingle,
-  sta: filterAndUnwrapSingle,
-  sep: discard,
-  rec: filterAndLabelOrUnwrap,
-  eob: filterAndUnwrapSingle,
-  blo: flattenAndFilter,
-  ife: filterAndLabel,
-  ifl: filterAndUnwrapSingle,
-  ifn: flattenAndFilter,
-  ifb: filterAndLabel,
-  dow: filterAndLabel,
-  wdo: filterAndLabel,
-  for: filterAndLabel,
-  doo: filterAndLabel,
-  exp: filterAndUnwrapSingle,
-  eod: filterAndUnwrapSingle,
-  fnd: filterAndLabel,
-  exa0: filterAndUnwrapSingle, exa1: filterAndUnwrapSingle, exa2: filterAndUnwrapSingle,
-  //  arr0: filterAndUnwrapSingle, arr1: filterAndUnwrapSingle, arr2: filterAndUnwrapSingle,
-  ars0: filterAndLabel, ars1: filterAndLabel, ars2: filterAndLabel,
-  exc0: filterAndLabelOrUnwrap, exc1: filterAndLabelOrUnwrap, exc2: filterAndLabelOrUnwrap,
-  exl0: filterAndLabelOrUnwrap, exl1: filterAndLabelOrUnwrap, exl2: filterAndLabelOrUnwrap,
-  emo0: filterAndUnwrapSingle, emo1: filterAndUnwrapSingle, emo2: filterAndUnwrapSingle,
-  exm0: filterAndLabelOrUnwrap, exm1: filterAndLabelOrUnwrap, exm2: filterAndLabelOrUnwrap,
-  exo0: filterAndLabelOrUnwrap, exo1: filterAndLabelOrUnwrap, exo2: filterAndLabelOrUnwrap,
-  dot: filterAndLabelOrUnwrap,
-  vcf: filterAndUnwrapSingle,
-  arre: filterAndLabel,
-  mws: discard,
-  ws: discard,
-  sc2: filterAndUnwrapSingle,
-  sc1: filterAndUnwrapSingle,
-  sc0: filterAndUnwrapSingle,
-  op2: filterAndUnwrapSingle,
-  op1: filterAndUnwrapSingle,
-  op0: filterAndUnwrapSingle,
-  cm2: filterAndUnwrapSingle,
-  cm1: filterAndUnwrapSingle,
-  cm0: filterAndUnwrapSingle,
-  cl2: filterAndUnwrapSingle,
-  cl1: filterAndUnwrapSingle,
-  cl0: filterAndUnwrapSingle,
-  typ: filterAndUnwrapSingle,
-  mtp: filterAndLabel,
-  ttp: filterAndLabel,
-  atp: filterAndLabel,
-  ftp: filterAndLabel,
-  tps: flattenAndFilter,
-  var: filterAndLabel,
-  vrl: flattenAndFilter,
-} as const;
-
-type ParsedRule = {
-  type: DirtyParserName,
-  value: Processed[],
-};
-
-type CleanedRule = {type: ParserName, value: Processed[];};
-type DirtyRule = ParsedRule;
-type CleanedToken = {type: LexerName, value: string;};
-type DirtyToken = {type: DirtyLexerName, value: string;};
-
-type CleanerInput = Raw;
-type CleanerOutput = Processed | Processed[];
-
-type Raw = LexedToken | ParsedRule;
-type Processed = DirtyToken | DirtyRule;
-type Clean = CleanedRule | CleanedToken;
-
-function discard(_name: FilteredParserName, _rs: CleanerInput[]): undefined {
-  return undefined;
+function checkCleanParserName(name: DirtyParserName): ParserName {
+  assert(ParserNames.has(name), `Dirty parser name ${name}`);
+  return name as ParserName;
 }
 
-function cleaningFilter(e: Raw): boolean {
-  return e != null && (Array.isArray(e) ||
-    !(FilteredParserNames.has(e.type) || FilteredLexerNames.has(e.type)));
+function checkCleanLexerName(name: DirtyLexerName): LexerName {
+  assert(!FilteredLexerNames.has(name), `Dirty lexer name ${name}`);
+  return name as LexerName;
 }
 
-function clean(e: Raw): DirtyToken | DirtyRule {
-  if (Array.isArray(e)) return e;
-  const {type, value} = e;
-  return {type, value} as any;
+type RuleOutput = {type: ParserName, value: (RuleOutput | FlatOutput | CleanToken)[];};
+type FlatOutput = (RuleOutput | CleanToken)[];
+type CleanToken = {type: LexerName, value: string;};
+
+function postprocessFilter(v: RuleOutput | FlatOutput | LexedToken | undefined): (RuleOutput | FlatOutput | CleanToken)[] {
+  if (v == null) return [];
+  if (Array.isArray(v)) return [v];
+  if (FilteredLexerNames.has(v.type)) return [];
+  assert(!FilteredParserNames.has(v.type));
+  if (Array.isArray(v.value)) return [{type: checkCleanParserName(checkParserName(v.type)), value: v.value}];
+  return [{type: checkCleanLexerName(checkLexerName(v.type)), value: v.value}];
 }
 
-function filterAndClean(rs: Raw[]): Clean[] {
-  const x = rs.filter(cleaningFilter).map(clean);
-  return x as any;
+function postprocess(name: DirtyParserName, data: (RuleOutput | FlatOutput | LexedToken | undefined)[]): undefined | RuleOutput | FlatOutput | CleanToken {
+  const i = instructions[name];
+  const d = data.flatMap(postprocessFilter);
+  switch (i) {
+    case 'd': assert(FilteredParserNames.has(name)); return undefined;
+    case 'fu': assert(FilteredParserNames.has(name)); assert(d.length === 1, `${name} had ${d.length} children`); return d[0];
+    case 'ff': assert(FilteredParserNames.has(name)); return d.flat();
+    case 'fm': assert(ParserNames.has(name)); if (d.length === 1) return d[0]; else return {type: checkCleanParserName(name), value: d};
+    case 'fl': return {type: checkCleanParserName(name), value: d};
+    default: return unreachable(i);
+  }
 }
 
-function filterAndLabel(name: ParserName, rs: CleanerInput[]): CleanerOutput {
-  const r = filterAndClean(rs);
-  return {type: name, value: r};
-}
-
-function filterAndLabelOrUnwrap(name: ParserName, rs: CleanerInput[]): CleanerOutput {
-  const r = filterAndClean(rs);
-  if (r.length === 1) return unwrapSingle(name, r);
-  return {type: name, value: r};
-}
-
-function unwrapSingle(name: DirtyParserName, rs: CleanerInput[]): CleanerOutput {
-  assert(rs.length === 1, `${name} had multiple children: ${JSON.stringify(rs)}`);
-  return clean(rs[0]);
-}
-
-function filterAndUnwrapSingle(name: FilteredParserName, rs: CleanerInput[]): CleanerOutput {
-  const r = rs.filter(cleaningFilter);
-  return unwrapSingle(name, r);
-}
-
-function flattenAndFilter(_name: 'vrl' | 'blo' | 'ifn' | 'tps', rs: CleanerInput[]): CleanerOutput {
-  return filterAndClean(rs.flat());
-}
-
-type Postprocessor = (data: CleanerInput[], loc?: number, reject?: {}) => CleanerOutput | undefined;
-
-function getPostprocessor<T extends DirtyParserName>(name: T, _rule: string): Postprocessor | undefined {
-  return cleaners[name].bind(undefined, name);
+function getPostprocessor<T extends DirtyParserName>(name: T, _rule: string) {
+  return postprocess.bind(undefined, name);
 }
 
 const compiled: {v?: nearley.CompiledRules;} = {};
