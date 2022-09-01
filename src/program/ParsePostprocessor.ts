@@ -1,8 +1,10 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, ValueT} from './CustomLexer';
-import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, AnyExp, Exm, Ifn, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Blo} from './NearleyParser';
+import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Ifn, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Blo, Exp} from './ParserOutput.generated';
 import {Map as IMap} from 'immutable';
+
+type AnyExp = Exp;
 
 export interface NumType {
   readonly t: NumT;

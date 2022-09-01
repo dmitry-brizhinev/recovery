@@ -125,7 +125,7 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
       Show JS
       <input type="checkbox" className={styles.run} checked={js} onChange={toggleJs} />
     </div>
-    <div className={styles.output}>{dummyText(result)}</div>
+    <div className={styles.output} onClick={e => window.getSelection()?.selectAllChildren(e.currentTarget)}>{dummyText(result)}</div>
   </>;
 }
 

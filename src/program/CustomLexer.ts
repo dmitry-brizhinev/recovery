@@ -1,5 +1,6 @@
 import * as moo from 'moo';
 import {assert} from '../util/Utils';
+import {Set as ISet} from 'immutable';
 
 const OpRegex = /^[-+*/%=]$/;
 const VarRegex = /^[a-z]\w+$/;
@@ -80,8 +81,9 @@ export type ArrT = 'a';
 export type MayT = 'm';
 export type NulT = '_';
 export type LexerName = LexerOpts['type'];
-export const FilteredLexerNames = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta', 'qm'] as const;
-export type FilteredLexerName = typeof FilteredLexerNames[number];
+const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta', 'qm'] as const;
+export type FilteredLexerName = typeof FilteredLexerNames_[number];
+export const FilteredLexerNames = ISet<string>(FilteredLexerNames_);
 export type DirtyLexerName = LexerName | FilteredLexerName;
 export type VrName = Vr['value'];
 export interface Vr {
