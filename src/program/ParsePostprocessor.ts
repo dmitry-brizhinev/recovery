@@ -1,6 +1,7 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, ValueT} from './CustomLexer';
+import {tt} from './CustomLexer';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, AnyT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Ifn, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Blo, Exp} from './ParserOutput.generated';
 import {Map as IMap} from 'immutable';
 
@@ -44,63 +45,10 @@ export interface MayType {
 }
 
 export type Type = NumType | StrType | NulType | FunType | TupType | ObjType | ArrType | MayType;
-type AnyT = Type['t'];
 
-class ContextSnapshot {
-  constructor(
-    private readonly parent: ContextSnapshot | undefined,
-    private readonly vars: IMap<VrName, Type>,
-    private readonly cons: IMap<string, ConType>,
-    private readonly currentVar?: NewVariableFun | undefined) {}
-
-  getVarOrRecursive(vr: VrName): Type | undefined {
-    const v = this.vars.get(vr);
-    if (v) return v;
-    if (this.currentVar?.type && this.currentVar.name === vr) {
-      return this.currentVar.type;
-    }
-    return this.parent?.getVarOrRecursive(vr);
-  }
-
-  getVar(vr: VrName): Type | undefined {
-    return this.vars.get(vr) || this.parent?.getVar(vr);
-  }
-
-  getCon(s: string): ConType | undefined {
-    return this.cons.get(s) || this.parent?.getCon(s);
-  }
-}
-
-class ExecContext {
-  constructor(private readonly parent: ContextSnapshot | undefined) {}
-  private readonly vars = new Map<VrName, Type>();
-  private readonly cons = new Map<string, ConType>();
-  currentVar?: NewVariableFun | undefined;
-
-  getVarOrRecursive(vr: VrName): Type | undefined {
-    const v = this.vars.get(vr);
-    if (v) return v;
-    if (this.currentVar?.type && this.currentVar.name === vr) {
-      return this.currentVar.type;
-    }
-    return this.parent?.getVarOrRecursive(vr);
-  }
-
-  getVar(vr: VrName): Type | undefined {
-    return this.vars.get(vr) || this.parent?.getVar(vr);
-  }
-  setVar(vr: VrName, val: Type) {
-    this.vars.set(vr, val);
-  }
-  snapshot(): ContextSnapshot {
-    return new ContextSnapshot(this.parent, IMap(this.vars), IMap(this.cons), this.currentVar);
-  }
-  getCon(s: string): ConType | undefined {
-    return this.cons.get(s) || this.parent?.getCon(s);
-  }
-  setCon(s: string, c: ConType) {
-    this.cons.set(s, c);
-  }
+export interface UnionType {
+  readonly t: 'U';
+  readonly types: Type[];
 }
 
 function checktt(val: Expression): NarrowedExpression<TupType> {
@@ -135,9 +83,8 @@ function isn(t: AnyT): NumT | undefined {
 }
 
 function checkFirstAssignment(target: VrName, source: Type) {
-  const tt = target.charAt(0) as ValueT;
-  if (tt === 'm') return;
-  assert(tt === source.t);
+  const t = tt(target);
+  assert(t === 'm' || t === source.t, `Can't assign type ${source.t} to ${target}`);
 }
 
 export type Statement = Assignment | Return | Break | Continue | BlockStatement | ExpressionStatement;
@@ -311,6 +258,63 @@ interface FunctionBindArgTup {
 interface FunctionBindArgNorm {
   exp: Expression;
   tupleSize?: undefined;
+}
+
+class ContextSnapshot {
+  constructor(
+    private readonly parent: ContextSnapshot | undefined,
+    private readonly vars: IMap<VrName, Type>,
+    private readonly cons: IMap<string, ConType>,
+    private readonly currentVar?: NewVariableFun | undefined) {}
+
+  getVarOrRecursive(vr: VrName): Type | undefined {
+    const v = this.vars.get(vr);
+    if (v) return v;
+    if (this.currentVar?.type && this.currentVar.name === vr) {
+      return this.currentVar.type;
+    }
+    return this.parent?.getVarOrRecursive(vr);
+  }
+
+  getVar(vr: VrName): Type | undefined {
+    return this.vars.get(vr) || this.parent?.getVar(vr);
+  }
+
+  getCon(s: string): ConType | undefined {
+    return this.cons.get(s) || this.parent?.getCon(s);
+  }
+}
+
+class ExecContext {
+  constructor(private readonly parent: ContextSnapshot | undefined) {}
+  private readonly vars = new Map<VrName, Type>();
+  private readonly cons = new Map<string, ConType>();
+  currentVar?: NewVariableFun | undefined;
+
+  getVarOrRecursive(vr: VrName): Type | undefined {
+    const v = this.vars.get(vr);
+    if (v) return v;
+    if (this.currentVar?.type && this.currentVar.name === vr) {
+      return this.currentVar.type;
+    }
+    return this.parent?.getVarOrRecursive(vr);
+  }
+
+  getVar(vr: VrName): Type | undefined {
+    return this.vars.get(vr) || this.parent?.getVar(vr);
+  }
+  setVar(vr: VrName, val: Type) {
+    this.vars.set(vr, val);
+  }
+  snapshot(): ContextSnapshot {
+    return new ContextSnapshot(this.parent, IMap(this.vars), IMap(this.cons), this.currentVar);
+  }
+  getCon(s: string): ConType | undefined {
+    return this.cons.get(s) || this.parent?.getCon(s);
+  }
+  setCon(s: string, c: ConType) {
+    this.cons.set(s, c);
+  }
 }
 
 export class RootPostprocessor {
@@ -541,6 +545,7 @@ class Postprocessor {
         return;
       case 'm':
         if (source.t === '_') return;
+        console.log('maybe assign', target.t, target.subtype.t, source.t);
         this.checkAssignment(target.subtype, source.t === 'm' ? source.subtype : source);
         return;
       default: unreachable(target, 'checkAssignment');
@@ -812,7 +817,7 @@ function parseTypeAnnotation(typ: Typ): Type {
 function unwrapVar(vvr: Var): Type | undefined {
   const vr = vvr.value[0];
   if (vvr.value.length === 1) {
-    const t = vr.value.charAt(0) as ValueT;
+    const t = tt(vr.value);
     switch (t) {
       case 'i':
       case 'd':

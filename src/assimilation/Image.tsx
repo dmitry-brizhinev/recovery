@@ -2,7 +2,6 @@ import Assimilation from "./Assimilation";
 import * as React from 'react';
 import * as Immutable from "immutable";
 import {SIZE, VSIZE} from "./Constants";
-import type {Callback} from "../util/Utils";
 
 const CANVASWIDTH = SIZE;
 const CANVASHEIGHT = VSIZE;
@@ -22,7 +21,7 @@ function reduce({last}: TimedImage, url: string | undefined): TimedImage {
 
 export default function ImageMaker(): React.ReactElement {
   const [image, setImage] = React.useReducer(reduce, {last: new Date().getTime()});
-  const regenerateImage = React.useCallback<Callback<HTMLCanvasElement>>(canvas => genImage(canvas).then(setImage), [setImage]);
+  const regenerateImage = React.useCallback<React.RefCallback<HTMLCanvasElement>>(canvas => canvas && genImage(canvas).then(setImage), [setImage]);
   return <div>
     {image.time ? `took ${image.time}ms` : 'loading...'}<br />
     <canvas ref={regenerateImage} id="ripple" width={CANVASWIDTH} height={CANVASHEIGHT} style={{border: '1px solid black'}}></canvas>

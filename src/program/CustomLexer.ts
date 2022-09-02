@@ -72,6 +72,7 @@ export function checkLexerName(name: string): DirtyLexerName {
 }
 
 export type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT;
+export type AnyT = ValueT | NulT;
 export type NumT = 'i' | 'd' | 'b';
 export type StrT = 's' | 'c';
 export type FunT = 'f';
@@ -85,10 +86,11 @@ const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta', 'qm
 export type FilteredLexerName = typeof FilteredLexerNames_[number];
 export const FilteredLexerNames = ISet<string>(FilteredLexerNames_);
 export type DirtyLexerName = LexerName | FilteredLexerName;
-export type VrName = Vr['value'];
+export type VrName = `${ValueT}${string}`;
+export function tt(name: VrName): ValueT {return name.charAt(0) as ValueT;}
 export interface Vr {
   type: 'vr';
-  value: `${ValueT}${string}`;
+  value: VrName;
 }
 interface Eq {
   type: 'eq';

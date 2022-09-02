@@ -1,7 +1,7 @@
 @preprocessor typescript
 @{% const lexer: any = {has: () => true}; %}
 @lexer lexer
- 
+
 # Whole document
 doc -> mnl blo mnl                                            #doc:fu
 mnl -> mnl mws %nl | null                                     #mnl:d
@@ -97,3 +97,5 @@ tps -> typ | tps ":" typ                                      #tps:ff
 var -> %vr | %vr mws typ                                      #var:fl
 # Variable list
 vrl -> vrl ws var | var | null                                #vrl:ff
+
+#v => `${/*` | doc #*/3}`

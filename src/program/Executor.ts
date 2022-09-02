@@ -306,7 +306,7 @@ class Executor {
 
   private expression(exp: Expression): Value {
     const v = this.expressionInner(exp);
-    assert(v.t === exp.type.t, `Expected ${exp.kind} expression to produce ${exp.type.t} but got ${v.t}`);
+    assert(exp.type.t === 'm' || exp.type.t === '_' || v.t === exp.type.t, `Expected ${exp.kind} expression to produce ${exp.type.t} but got ${v.t}`);
     return v;
   }
 
@@ -451,7 +451,6 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
 Maybe type
 break/continue/return
 generic types,
-Tighter parser types with auto generator
 
 owner/borrow/move (rust style semantics so you can find new/delete points)
 mutable/readonly/const

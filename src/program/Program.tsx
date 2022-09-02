@@ -108,12 +108,17 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
   const compileCode = React.useCallback(() => compile(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
   const checkTypes = React.useCallback(() => check(props.code, addLine), [props.code, addLine]);
-  const gengenTypes = React.useCallback(() => {addLine(null); genTypes().then(addLine);}, [addLine]);
+  const gengenTypes = React.useCallback(() => generate(addLine), [addLine]);
+
+  const highlighterRef = React.useRef<HTMLTextAreaElement>(null);
+  const onScroll = React.useCallback((e: HTMLTextAreaElement) => {
+    highlighterRef.current && (highlighterRef.current.scrollTop = e.scrollTop);
+  }, [highlighterRef]);
 
   return <>
     <div className={styles.text}>
-      <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} />
-      <EdgeDisplay color={'red'} markers={[]} />
+      <Highlighter value={props.code} color={'red'} lines={[2, 15]} forwardedRef={highlighterRef} />
+      <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} onScrollChangeOrResize={onScroll} />
     </div>
     <div className={styles.run}>
       <button className={styles.run} onClick={checkTypes}>Check</button>
@@ -125,22 +130,13 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
       Show JS
       <input type="checkbox" className={styles.run} checked={js} onChange={toggleJs} />
     </div>
-    <div className={styles.output} onClick={e => window.getSelection()?.selectAllChildren(e.currentTarget)}>{dummyText(result)}</div>
+    <div className={styles.output}>{dummyText(result)}</div>
   </>;
 }
 
-interface EdgeMarker {
-  l: number;
-  c: '<' | '>' | '.';
-}
-function EdgeDisplay(props: {color?: 'red' | 'green', markers: EdgeMarker[];}): React.ReactElement {
-  let chars = '';
-  let ll = 0;
-  for (const m of props.markers) {
-    chars = chars + '\n'.repeat(m.l - ll) + m.c;
-    ll = m.l;
-  }
-  return <div className={`${styles.edge} ${props.color ? styles[props.color] : ''}`}>{chars}</div>;
+function Highlighter(props: {value: string, color?: 'red' | 'green', lines: number[], forwardedRef?: React.Ref<HTMLTextAreaElement>;}): React.ReactElement {
+  const chars = props.value.split('\n').map((_l, m) => props.lines.includes(m) ? '++++++++++' : '').join('\n');
+  return <textarea readOnly ref={props.forwardedRef} value={chars} className={`${styles.highlighter} ${props.color ? styles[props.color] : ''}`} />;
 }
 
 async function run(code: string, addLine: Callback<string | null>): Promise<void> {
@@ -162,4 +158,9 @@ async function check(code: string, addLine: Callback<string | null>): Promise<vo
   for await (const r of execute(code, 'check')) {
     addLine(r);
   }
+}
+
+async function generate(addLine: Callback<string | null>): Promise<void> {
+  addLine(null);
+  addLine(await genTypes());
 }
