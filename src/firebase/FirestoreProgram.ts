@@ -12,7 +12,7 @@ export async function getCode(): Promise<CodeData> {
 
   if (data != null) {
     for (const [key, valuex] of Object.entries(data)) {
-      const id = key === 'tests' ? key : checkCodeId(key);
+      const id = checkCodeId(key);
       if (!id) {
         continue;
       }

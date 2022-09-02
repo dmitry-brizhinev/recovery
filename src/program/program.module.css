@@ -70,9 +70,13 @@ textarea.highlighter {
   resize: none;
   padding: 3px;
   border:none;
+  tab-size:1;
+  overflow:hidden;
+  text-decoration: wavy underline red;
+  color: orange;
 }
-textarea.highlighter.red {color:red;}
-textarea.highlighter.green {color:green;}
+/*textarea.highlighter.red {color:red;}
+textarea.highlighter.green {color:green;}*/
 
 div.run {
   grid-area: b;

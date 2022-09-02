@@ -6,6 +6,7 @@ import RootExecutor from './Executor';
 import RootCompiler from './Compiler';
 import {errorToString} from './TsComp';
 import {RootPostprocessor, type Statement} from './ParsePostprocessor';
+// import Saver, {SaverStatusString} from '../helpers/Saver';
 
 async function getParser(mine?: boolean): Promise<Parser> {
   if (mine) {
@@ -25,6 +26,30 @@ function myErrorString(mmm: 'check' | 'run' | 'parse' | 'compile', line: string,
   return `${word[mmm].type} error <- encountered while ${word[mmm].verb} ${line}\n${errorString(e)}`;
 }
 
+/*class Runner {
+  private readonly checker: Saver<string>;
+
+  private readonly onUpdate = (status: SaverStatusString) => {
+    if (status === SaverStatusString.Saved) {
+      return 'ss';
+    }
+    return '';
+  };
+
+  private readonly check = async (_code: string) => {
+
+  };
+
+  onChange(code: string) {
+    this.checker.logUpdate(() => code);
+  }
+
+  constructor() {
+    this.checker = new Saver(this.onUpdate, () => '', this.check);
+  }
+}
+new Runner();*/
+
 export async function genTypes() {
   try {
     return await generateTypes();
@@ -33,7 +58,7 @@ export async function genTypes() {
   }
 }
 
-export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string, void, void> {
+export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string | [string, number], void, void> {
   const mmm = (typeof mode === 'string' ? mode : 'compile');
   yield word[mmm].star;
   let parser;
@@ -47,12 +72,12 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
   const comp = new RootCompiler();
   const post = new RootPostprocessor();
   await delay(100);
-  for (const line of code.split('\n')) {
+  for (const [lineNum, line] of code.split('\n').entries()) {
     let statements;
     try {
       statements = await parser.parseLine(line + '\n');
     } catch (e: unknown) {
-      yield myErrorString('parse', line, e);
+      yield [myErrorString('parse', line, e), lineNum];
       return;
     }
     for (const sta of statements) {
@@ -60,7 +85,7 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
       try {
         statement = post.convert(sta);
       } catch (e) {
-        yield myErrorString('check', line, e);
+        yield [myErrorString('check', line, e), lineNum];
         return;
       }
       try {
@@ -74,7 +99,7 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
           }
         }
       } catch (e) {
-        yield myErrorString(mmm, line, e);
+        yield [myErrorString(mmm, line, e), lineNum];
         return;
       }
     }

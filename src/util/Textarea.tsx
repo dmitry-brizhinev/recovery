@@ -6,7 +6,7 @@ type TAE = HTMLTextAreaElement;
 interface TextareaProps {
   className?: string;
   value: string;
-  onChange: Callback<string>;
+  onChange?: Callback<string> | undefined;
   spellCheck?: boolean;
   onScrollChangeOrResize?: Callback<TAE>;
 }
@@ -14,7 +14,7 @@ interface TextareaProps {
 export default function Textarea({className, value, onChange: onChangeText, spellCheck, onScrollChangeOrResize}: TextareaProps): React.ReactElement {
   const a = React.useMemo(() => new A(), []);
 
-  const onChange = React.useCallback((e: React.ChangeEvent<TAE>) => {onChangeText(e.target.value); onScrollChangeOrResize?.(e.target);}, [onChangeText, onScrollChangeOrResize]);
+  const onChange = React.useCallback((e: React.ChangeEvent<TAE>) => {onChangeText?.(e.target.value); onScrollChangeOrResize?.(e.target);}, [onChangeText, onScrollChangeOrResize]);
   const onScroll = React.useCallback((e: React.UIEvent<TAE>) => onScrollChangeOrResize?.(e.currentTarget), [onScrollChangeOrResize]);
   React.useEffect(() => {a.c = onScrollChangeOrResize;}, [a, onScrollChangeOrResize]);
 

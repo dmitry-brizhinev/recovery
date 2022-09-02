@@ -1,6 +1,6 @@
 import ProgramSaver from './ProgramSaver';
 import type {Callback} from '../util/Utils';
-import type {CodeData, Code, CodeId, CodeOrTest} from '../data/Code';
+import type {CodeData, Code, CodeId} from '../data/Code';
 import {newCodeId} from '../data/Code';
 
 
@@ -13,13 +13,13 @@ export default class ProgramRoot {
     this.saver = new ProgramSaver(onSaverUpdate);
   }
 
-  private onUpdate(key: CodeOrTest, value: Code | null) {
+  private onUpdate(key: CodeId, value: Code | null) {
     this.data = value ? this.data.set(key, value) : this.data.delete(key);
     this.saver.logUpdate(this.data, key);
     this.subscriber(this.data);
   }
 
-  onCodeUpdate(id: CodeOrTest, data: Code | null) {
+  onCodeUpdate(id: CodeId, data: Code | null) {
     this.onUpdate(id, data);
   }
 

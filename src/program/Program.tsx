@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 import styles from './program.module.css';
-import {checkCodeId, type CodeData, type CodeId, type CodeOrTest, newCodeId} from '../data/Code';
+import {checkCodeId, type CodeData, type CodeId, newCodeId} from '../data/Code';
 import {getCode} from '../firebase/FirestoreProgram';
 import ProgramRoot from '../helpers/ProgramRoot';
 import {useCancellable, useEventHandler, useToggle} from '../util/Hooks';
@@ -30,7 +30,7 @@ function ProgramDataWrapper() {
 
   const switchData = React.useMemo<SwitcherData | null>(() => (data && root) ? [
     ['Code', () => <ProgramFileSelect data={data} root={root} />],
-    ['Tests', () => <ProgramFileSelect data={data} root={root} test />],
+    ['Grammar', () => <ProgramFileSelect data={data} root={root} grammar />],
   ] : null, [data, root]);
 
   return switchData ?
@@ -38,17 +38,16 @@ function ProgramDataWrapper() {
     : <Loading />;
 }
 
-function ProgramFileSelect(props: {test?: boolean, data: CodeData, root: ProgramRoot;}) {
-  const filenames = React.useMemo(() => [...props.data.keys()].sort().flatMap(k => k !== 'tests' ? [k] : []), [props.data]);
-  const [id, setId] = React.useState<CodeId>(filenames.length ? filenames[0] : 'code.phi');
-  const selectedId: CodeOrTest = props.test ? 'tests' : id;
+function ProgramFileSelect(props: {grammar?: boolean, data: CodeData, root: ProgramRoot;}) {
+  const filenames = React.useMemo(() => [...props.data.keys()].sort(), [props.data]);
+  const [selectedId, setId] = React.useState<CodeId>(filenames.length ? filenames[0] : 'code.phi');
   const code = props.data.get(selectedId, '');
   const onChange = React.useCallback((code: string) => props.root.onCodeUpdate(selectedId, code), [props.root, selectedId]);
-  const onChangeTitle = React.useCallback((id: CodeId) => {assert(selectedId !== 'tests'); props.root.onCodeIdUpdate(selectedId, id); setId(id);}, [props.root, selectedId, setId]);
+  const onChangeTitle = React.useCallback((id: CodeId) => {props.root.onCodeIdUpdate(selectedId, id); setId(id);}, [props.root, selectedId, setId]);
   return <>
-    <div className={styles.filename}>{selectedId === 'tests' ? 'tests' : <CurrentFile name={selectedId} onChange={onChangeTitle} />}</div>
-    <FileList selected={id} filenames={filenames} onSelect={setId} />
-    <ProgramCode code={code} onChange={onChange} />
+    <div className={styles.filename}><CurrentFile name={selectedId} onChange={onChangeTitle} /></div>
+    <FileList selected={selectedId} filenames={filenames} onSelect={setId} />
+    <ProgramCode code={props.grammar ? 'GRAMMAR' : code} onChange={props.grammar ? undefined : onChange} />
   </>;
 }
 
@@ -87,23 +86,30 @@ type Result = {
   maxLines: number,
   lines: number,
   text: string,
+  errors: Highlight[];
 };
 
-function reduceResult({maxLines, lines, text}: Result, line: string | null): Result {
-  if (line == null) return {maxLines: lines, lines: 0, text: ''};
+function reduceResult({maxLines, lines, text, errors}: Result, maybeLine: string | null | [string, number]): Result {
+  if (maybeLine == null) return {maxLines: lines, lines: 0, text: '', errors: []};
   const m = Math.max(maxLines, lines + 1);
-  return {maxLines: m, lines: lines + 1, text: `${text}${line}\n`};
+  if (Array.isArray(maybeLine)) {
+    const [line, errorLine] = maybeLine;
+    return {maxLines: m, lines: lines + 1, text: `${text}${line}\n`, errors: errors.concat({line: errorLine})};
+  }
+  return {maxLines: m, lines: lines + 1, text: `${text}${maybeLine}\n`, errors};
 }
 
 function dummyText({maxLines, lines, text}: Result): string {
   return text + '\n'.repeat(Math.max(maxLines, 3) - lines);
 }
 
-function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
-  const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: ''});
+function ProgramCode(props: {code: string, onChange?: Callback<string> | undefined;}) {
+  const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: '', errors: []});
 
   const [ts, toggleTs] = useToggle(true);
   const [js, toggleJs] = useToggle(false);
+
+  React.useEffect(() => addLine(null), [props.onChange]);
 
   const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
   const compileCode = React.useCallback(() => compile(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
@@ -117,43 +123,65 @@ function ProgramCode(props: {code: string, onChange: Callback<string>;}) {
 
   return <>
     <div className={styles.text}>
-      <Highlighter value={props.code} color={'red'} lines={[2, 15]} forwardedRef={highlighterRef} />
+      <Highlighter value={props.code} highlights={result.errors} forwardedRef={highlighterRef} />
       <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} onScrollChangeOrResize={onScroll} />
     </div>
-    <div className={styles.run}>
+    {props.onChange ? <div className={styles.run}>
       <button className={styles.run} onClick={checkTypes}>Check</button>
       <button className={styles.run} onClick={runCode}>Run</button>
       <button className={styles.run} onClick={compileCode}>Compile</button>
-      <button className={styles.run} onClick={gengenTypes}>Gen Types</button>
       Show TS
       <input type="checkbox" className={styles.run} checked={ts} onChange={toggleTs} />
       Show JS
       <input type="checkbox" className={styles.run} checked={js} onChange={toggleJs} />
-    </div>
+    </div> : <div className={styles.run}>
+      <button className={styles.run} onClick={gengenTypes}>Gen Types</button>
+    </div>}
     <div className={styles.output}>{dummyText(result)}</div>
   </>;
 }
 
-function Highlighter(props: {value: string, color?: 'red' | 'green', lines: number[], forwardedRef?: React.Ref<HTMLTextAreaElement>;}): React.ReactElement {
-  const chars = props.value.split('\n').map((_l, m) => props.lines.includes(m) ? '++++++++++' : '').join('\n');
-  return <textarea readOnly ref={props.forwardedRef} value={chars} className={`${styles.highlighter} ${props.color ? styles[props.color] : ''}`} />;
+interface Highlight {
+  line: number;
+  start?: number;
+  end?: number;
+  solid?: boolean;
 }
 
-async function run(code: string, addLine: Callback<string | null>): Promise<void> {
+function highlight(line: number, text: string, highlights: Highlight[]): string {
+  let current = '';
+  for (const h of highlights) {
+    if (h.line !== line) continue;
+
+    const start = h.start ?? 0;
+    const end = h.end ?? text.length - 1;
+    assert(start >= current.length);
+    assert(end > start);
+    current += '\t'.repeat(start - current.length) + (h.solid ? '█' : ' ').repeat(end - start);
+  }
+  return current;
+}
+
+function Highlighter(props: {value: string, highlights: Highlight[], forwardedRef?: React.Ref<HTMLTextAreaElement>;}): React.ReactElement {
+  const chars = props.value.split('\n').map((t, l) => highlight(l, t, props.highlights)).join('\n');
+  return <textarea readOnly tabIndex={-1} ref={props.forwardedRef} value={chars} className={styles.highlighter} />;
+}
+
+async function run(code: string, addLine: Callback<string | null | [string, number]>): Promise<void> {
   addLine(null);
   for await (const r of execute(code, 'run')) {
     addLine(r);
   }
 }
 
-async function compile(code: string, addLine: Callback<string | null>, compileOpts: {ts: boolean, js: boolean;}): Promise<void> {
+async function compile(code: string, addLine: Callback<string | null | [string, number]>, compileOpts: {ts: boolean, js: boolean;}): Promise<void> {
   addLine(null);
   for await (const r of execute(code, compileOpts)) {
     addLine(r);
   }
 }
 
-async function check(code: string, addLine: Callback<string | null>): Promise<void> {
+async function check(code: string, addLine: Callback<string | null | [string, number]>): Promise<void> {
   addLine(null);
   for await (const r of execute(code, 'check')) {
     addLine(r);

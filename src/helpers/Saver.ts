@@ -1,6 +1,6 @@
 import {type Callback, cancellableDelay, type Func} from '../util/Utils';
 
-const enum SaverStatusString {
+export const enum SaverStatusString {
   Unsaved = ' [Unsaved..] ',
   Saving = ' [Saving...] ',
   Saved = ' [  Saved  ] ',
