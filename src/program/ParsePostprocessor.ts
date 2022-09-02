@@ -1,5 +1,5 @@
 
-import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
+import {assert, assertNonNull, unreachable, throwIfNull, asserteq} from '../util/Utils';
 import {tt} from './CustomLexer';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, AnyT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Ifn, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Blo, Exp} from './ParserOutput.generated';
@@ -509,7 +509,7 @@ class Postprocessor {
       assertNonNull(s);
       this.checkAssignment(f, s);
     }
-    assert(target.name === source.name);
+    asserteq(target.name, source.name);
   }
   private checkAssignment(target: Type, source: Type) {
     const t = target.t;
@@ -522,7 +522,7 @@ class Postprocessor {
       case 'c': assert(t === source.t, `Assigning ${source.t} to ${t}`); return;
       case 't':
         assert(t === source.t, `Assigning ${source.t} to ${t}`);
-        assert(target.values.length === source.values.length);
+        asserteq(target.values.length, source.values.length);
         target.values.forEach((v, i) => this.checkAssignment(v, source.values[i]));
         return;
       case 'o':
@@ -536,7 +536,7 @@ class Postprocessor {
       case 'f':
         assert(t === source.t, `Assigning ${source.t} to ${t}`);
         this.checkAssignment(target.ret, source.ret);
-        assert(target.args.length === source.args.length);
+        asserteq(target.args.length, source.args.length);
         target.args.forEach((v, i) => this.checkAssignment(source.args[i], v));
         return;
       case 'a':

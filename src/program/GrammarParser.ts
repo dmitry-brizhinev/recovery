@@ -2,6 +2,51 @@ import {checkLexerName, literalLookup, FilteredLexerNames, type DirtyLexerName} 
 import {assert, throwIfNull, unreachable} from "../util/Utils";
 import {OrderedMap, OrderedSet, Set as ISet, List, type ValueObject, hash} from 'immutable';
 
+export type ParsedSymbol = {rule: string;} | {token: DirtyLexerName;} | {literal: string;};
+
+function parseSymbol(t: string): ParsedSymbol {
+  if (t.startsWith('%')) {
+    return {token: checkLexerName(t.substring(1))};
+  } else if (t.startsWith('"') && t.endsWith('"')) {
+    const literal = t.substring(1, t.length - 1);
+    return {literal};
+  }
+  return {rule: t};
+}
+
+
+export type Instruction = 'd' | 'ff' | 'fl' | 'fu' | 'fm';
+
+interface Line {
+  name: string;
+  rules: ParsedSymbol[][];
+  rename: string;
+  instruction: Instruction;
+}
+
+function parseLine(line: string): [Line] | [] {
+  const g = line.split(/[#@]/)[0].trim();
+  if (g.length === 0) return [];
+  const gs = g.split(/ +-> +/);
+  assert(gs.length === 2, g);
+  const [name, ruless] = gs;
+  const rules = ruless.split(/ +\| +/).map(rule => rule.split(/ +/).filter(t => t !== 'null').map(parseSymbol));
+  assert(rules.length >= 1, g);
+
+  const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(line);
+  assert(post, `Missing instructions comment for ${name}`);
+  const rename = post[1];
+  const instruction = post[2] as Instruction;
+  assert(name.slice(0, 2) === rename.slice(0, 2), `Wrong instructions name ${rename} for ${name}`);
+  if (instruction === 'fm') assert(rename.endsWith('_'), `${rename}:fm needs to end with underscore`);
+
+  return [{name, rules, rename, instruction}];
+}
+
+export function splitGrammar(grammar: string): Line[] {
+  return grammar.trim().split('\n').flatMap(parseLine);
+}
+
 class SymbolBase implements ValueObject {
   protected constructor(
     readonly value: string) {} // DirtyLexerName | string
@@ -35,21 +80,9 @@ class RuleSymbol extends SymbolBase {
   }
 }
 
-export type Instruction = 'd' | 'ff' | 'fl' | 'fu' | 'fm';
 type Rule = List<Symbol>;
 type Rules = OrderedSet<Rule>;
 type AllRules = OrderedMap<RuleSymbol, Rules>;
-
-export type ParsedSymbol = {rule: string;} | {token: DirtyLexerName;} | {literal: string;};
-function parseSymbol(t: string): ParsedSymbol {
-  if (t.startsWith('%')) {
-    return {token: checkLexerName(t.substring(1))};
-  } else if (t.startsWith('"') && t.endsWith('"')) {
-    const literal = t.substring(1, t.length - 1);
-    return {literal};
-  }
-  return {rule: t};
-}
 
 function filterSymbol(ruleNames: Map<string, RuleSymbol>, t: ParsedSymbol): [Symbol] | [] {
   if ('rule' in t) {
@@ -69,36 +102,6 @@ function filterSymbol(ruleNames: Map<string, RuleSymbol>, t: ParsedSymbol): [Sym
   }
   if (FilteredLexerNames.has(token)) return [];
   return [new TokenSymbol(token)];
-}
-
-interface Line {
-  name: string;
-  rules: ParsedSymbol[][];
-  rename: string;
-  instruction: Instruction;
-}
-
-function parseLine(line: string): [Line] | [] {
-  const g = line.split(/[#@]/)[0].trim();
-  if (g.length === 0) return [];
-  const gs = g.split(/ +-> +/);
-  assert(gs.length === 2, g);
-  const [name, ruless] = gs;
-  const rules = ruless.split(/ +\| +/).map(rule => rule.split(/ +/).filter(t => t !== 'null').map(parseSymbol));
-  assert(rules.length >= 1, g);
-
-  const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(line);
-  assert(post, `Missing instructions comment for ${name}`);
-  const rename = post[1];
-  const instruction = post[2] as Instruction;
-  assert(name.slice(0, 2) === rename.slice(0, 2), `Wrong instructions name ${rename} for ${name}`);
-  if (instruction === 'fm') assert(rename.endsWith('_'), `${rename}:fm needs to end with underscore`);
-
-  return [{name, rules, rename, instruction}];
-}
-
-export function splitGrammar(grammar: string): Line[] {
-  return grammar.trim().split('\n').flatMap(parseLine);
 }
 
 function parseGrammarInner(grammar: string): AllRules {

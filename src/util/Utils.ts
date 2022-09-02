@@ -52,6 +52,10 @@ export function throwIfNull<T>(x: T | null | undefined, message?: string): T {
   return x;
 }
 
+export function asserteq(a: unknown, b: unknown, message?: string) {
+  assert(a === b, message ?? `${a} !== ${b}`);
+}
+
 
 interface L<T> {
   v?: T;

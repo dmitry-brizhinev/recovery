@@ -1,5 +1,5 @@
 import * as React from 'react';
-import {assert, type Callback} from './Utils';
+import {assert, asserteq, type Callback} from './Utils';
 
 type TAE = HTMLTextAreaElement;
 
@@ -38,10 +38,10 @@ class A {
   };
 
   private readonly resize: ResizeObserverCallback = (entries: ResizeObserverEntry[], observer: ResizeObserver) => {
-    assert(observer === this.o);
-    assert(entries.length === 1);
+    asserteq(observer, this.o);
+    asserteq(entries.length, 1);
     const target = entries[0].target;
-    assert(target.tagName === 'TEXTAREA');
+    asserteq(target.tagName, 'TEXTAREA');
     assert(target === this.e);
     this.c?.(this.e);
   };
