@@ -1,48 +1,34 @@
-import {checkLexerName, type DirtyLexerName, type LexedToken} from "./CustomLexer";
+import type {DirtyLexerName, LexedToken} from "./CustomLexer";
 import type * as nearley from 'nearley';
 import {assert} from "../util/Utils";
-import grammarPath from './grammar.ne';
 import {FilteredParserNames, RenamedParserNames, type DirtyParserName} from './ParserOutput.generated';
+import {splitGrammar, type ParsedSymbol} from './GrammarParser';
 
 function checkParserName(name: string): DirtyParserName {
   assert(FilteredParserNames.has(name) || RenamedParserNames.has(name), `Unknown parser name ${name}`);
   return name as DirtyParserName;
 }
 
-type Symbol = {type: DirtyLexerName;} | {literal: string;} | {test: (t: LexedToken) => boolean;} | DirtyParserName;
+type NearleySymbol = {type: DirtyLexerName;} | {test: (t: LexedToken) => boolean;} | DirtyParserName; // | {literal: string;};
 
-function parseSymbol(t: string): Symbol {
-  if (t.startsWith('%')) {
-    return {type: checkLexerName(t.substring(1))};
-  } else if (t.startsWith('"') && t.endsWith('"')) {
-    const value = t.substring(1, t.length - 1);
-    return {test: v => v.value === value};
+function parseSymbol(t: ParsedSymbol): NearleySymbol {
+  if ('token' in t) {
+    return {type: t.token};
+  } else if ('literal' in t) {
+    return {test: v => v.value === t.literal};
   }
-  return checkParserName(t);
+  return checkParserName(t.rule);
 }
 
-export async function fetchGrammar(): Promise<string> {
-  const response = await fetch(grammarPath);
-  return await response.text();
-}
-
-export default async function compileGrammar(getPostprocessor: (name: DirtyParserName, rule: string) => nearley.Postprocessor | undefined): Promise<nearley.CompiledRules> {
+export function compileGrammar(grammar: string, getPostprocessor: (name: DirtyParserName) => nearley.Postprocessor | undefined): nearley.CompiledRules {
   const result: nearley.CompiledRules = {ParserRules: [], ParserStart: ''};
-  for (const gg of (await fetchGrammar()).trim().split('\n')) {
-    const g = gg.split(/[#@]/)[0].trim();
-    if (g.length === 0) continue;
-    const gs = g.split(/ +-> +/);
-    assert(gs.length === 2, g);
-    const [nn, ruless] = gs;
+  for (const {name: nn, rules} of splitGrammar(grammar)) {
     const name = checkParserName(nn);
     if (!result.ParserStart) result.ParserStart = name;
-    const rules = ruless.split(/ +\| +/);
-    assert(rules.length >= 1, g);
+    assert(rules.length >= 1);
     for (const rule of rules) {
-      const tokens = rule.split(/ +/);
-      assert(tokens.length >= 1, g);
-      const symbols = tokens.filter(t => t !== 'null').map(parseSymbol);
-      const postprocess = getPostprocessor(name, rule);
+      const symbols = rule.map(parseSymbol);
+      const postprocess = getPostprocessor(name);
       result.ParserRules.push({name, symbols, postprocess});
     }
   }

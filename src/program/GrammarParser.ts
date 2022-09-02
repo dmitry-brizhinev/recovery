@@ -1,7 +1,6 @@
 import {checkLexerName, literalLookup, FilteredLexerNames, type DirtyLexerName} from "./CustomLexer";
 import {assert, throwIfNull, unreachable} from "../util/Utils";
 import {OrderedMap, OrderedSet, Set as ISet, List, type ValueObject, hash} from 'immutable';
-//import grammarPath from './grammar.ne';
 
 class SymbolBase implements ValueObject {
   protected constructor(
@@ -41,30 +40,40 @@ type Rule = List<Symbol>;
 type Rules = OrderedSet<Rule>;
 type AllRules = OrderedMap<RuleSymbol, Rules>;
 
-function parseSymbol(ruleNames: Map<string, RuleSymbol>, t: string): Symbol | undefined {
-  let token = '';
+export type ParsedSymbol = {rule: string;} | {token: DirtyLexerName;} | {literal: string;};
+function parseSymbol(t: string): ParsedSymbol {
   if (t.startsWith('%')) {
-    token = t.substring(1);
+    return {token: checkLexerName(t.substring(1))};
   } else if (t.startsWith('"') && t.endsWith('"')) {
-    const value = t.substring(1, t.length - 1);
+    const literal = t.substring(1, t.length - 1);
+    return {literal};
+  }
+  return {rule: t};
+}
+
+function filterSymbol(ruleNames: Map<string, RuleSymbol>, t: ParsedSymbol): [Symbol] | [] {
+  if ('rule' in t) {
+    const symbol = ruleNames.get(t.rule);
+    assert(symbol);
+    if (symbol.instruction === 'd') return [];
+    return [symbol];
+  }
+  let token: DirtyLexerName | undefined;
+  if ('token' in t) {
+    token = t.token;
+  } else {
     for (const [k, v] of Object.entries(literalLookup)) {
-      if (v.includes(value)) token = k;
+      if (v.includes(t.literal)) token = checkLexerName(k);
     }
-    assert(token, `Unknown lexer literal ${value}`);
+    assert(token, `Unknown lexer literal ${t.literal}`);
   }
-  if (token) {
-    if (FilteredLexerNames.has(token)) return undefined;
-    return new TokenSymbol(checkLexerName(token));
-  }
-  const symbol = ruleNames.get(t);
-  assert(symbol);
-  if (symbol.instruction === 'd') return undefined;
-  return symbol;
+  if (FilteredLexerNames.has(token)) return [];
+  return [new TokenSymbol(token)];
 }
 
 interface Line {
   name: string;
-  rules: string[][];
+  rules: ParsedSymbol[][];
   rename: string;
   instruction: Instruction;
 }
@@ -75,11 +84,8 @@ function parseLine(line: string): [Line] | [] {
   const gs = g.split(/ +-> +/);
   assert(gs.length === 2, g);
   const [name, ruless] = gs;
-  const rules = ruless.split(/ +\| +/).map(rule => rule.split(/ +/));
+  const rules = ruless.split(/ +\| +/).map(rule => rule.split(/ +/).filter(t => t !== 'null').map(parseSymbol));
   assert(rules.length >= 1, g);
-  for (const rule of rules) {
-    assert(rule.length >= 1, g);
-  }
 
   const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(line);
   assert(post, `Missing instructions comment for ${name}`);
@@ -91,8 +97,12 @@ function parseLine(line: string): [Line] | [] {
   return [{name, rules, rename, instruction}];
 }
 
+export function splitGrammar(grammar: string): Line[] {
+  return grammar.trim().split('\n').flatMap(parseLine);
+}
+
 function parseGrammarInner(grammar: string): AllRules {
-  const lines = grammar.trim().split('\n').flatMap(parseLine);
+  const lines = splitGrammar(grammar);
   const instMap = new Map<string, ISet<Instruction>>();
   const nameMap = new Map<string, ISet<string>>();
   let first: string | undefined;
@@ -130,7 +140,7 @@ function parseGrammarInner(grammar: string): AllRules {
       ruleNames.set(fmName, new RuleSymbol(fmName, names, 'fl'));
     }
   }
-  const parseSymboll = parseSymbol.bind(null, ruleNames);
+  const filterSymboll = filterSymbol.bind(null, ruleNames);
 
   const firstSymbol = ruleNames.get(first);
   assert(firstSymbol);
@@ -148,7 +158,7 @@ function parseGrammarInner(grammar: string): AllRules {
     const parsedRules = [];
     const fmMainRules = [];
     for (const rule of line.rules) {
-      const symbols = List(rule.filter(t => t !== 'null').map(parseSymboll).flatMap(s => s ? [s] : []));
+      const symbols = List(rule.flatMap(filterSymboll));
       if (name.instruction === 'fm' && symbols.size !== 1) {
         fmMainRules.push(symbols);
       } else {
@@ -275,7 +285,7 @@ function filterAll(allRules: AllRules): AllRules {
   return allRules;
 }
 
-export default function parseGrammar(grammar: string): string {
+export function generateTypesFrom(grammar: string): string {
   const allRules = parseGrammarInner(grammar);
 
   const rul = allRules.keySeq().filterNot(r => r.value === 'start');

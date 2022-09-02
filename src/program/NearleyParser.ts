@@ -2,9 +2,15 @@ import {checkLexerName, type LexedToken, type LexerName} from "./CustomLexer";
 import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert, unreachable} from "../util/Utils";
-import {fetchGrammar, default as compileGrammar} from "./NearleyGrammar";
-import parseGrammar from './GrammarParser';
+import {compileGrammar} from "./NearleyGrammar";
+import {generateTypesFrom} from './GrammarParser';
 import {FilteredParserNames, RenamedParserNames, FinalParserNames, instructions, renames, type FinalParserName, type RenamedParserName, type DirtyParserName, type Start} from './ParserOutput.generated';
+import grammarPath from './grammar.ne';
+
+async function fetchGrammar(): Promise<string> {
+  const response = await fetch(grammarPath);
+  return await response.text();
+}
 
 function assertCleanParserName(name: string): asserts name is FinalParserName {
   assert(FinalParserNames.has(name), `Unknown final parser name ${name}`);
@@ -51,11 +57,11 @@ function postprocess(name: DirtyParserName, data: (RuleOutput | FlatOutput | Lex
   }
 }
 
-function getPostprocessor<T extends DirtyParserName>(name: T, _rule: string) {
+function getPostprocessor(name: DirtyParserName) {
   return postprocess.bind(undefined, name);
 }
 
-const compiled: {v?: nearley.CompiledRules;} = {};
+// const compiled: {v?: nearley.CompiledRules;} = {};
 
 export interface Parser {
   parseLine: (line: string) => Promise<Start>;
@@ -63,8 +69,7 @@ export interface Parser {
 }
 
 export async function generateTypes() {
-  const grammar = await fetchGrammar();
-  return parseGrammar(grammar);
+  return generateTypesFrom(await fetchGrammar());
 }
 
 export class NearleyParser implements Parser {
@@ -72,7 +77,7 @@ export class NearleyParser implements Parser {
   private statements: number = 0;
 
   static async start(lexer: nearley.Lexer): Promise<NearleyParser> {
-    const grammar = nearley.Grammar.fromCompiled(compiled.v || (compiled.v = await compileGrammar(getPostprocessor)));
+    const grammar = nearley.Grammar.fromCompiled(compileGrammar(await fetchGrammar(), getPostprocessor));
     return new NearleyParser(new nearley.Parser(grammar, {lexer}));
   }
 
