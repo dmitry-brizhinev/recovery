@@ -1,9 +1,13 @@
 import {checkLexerName, type DirtyLexerName, type LexedToken} from "./CustomLexer";
 import type * as nearley from 'nearley';
 import {assert} from "../util/Utils";
-import {checkParserName} from "./NearleyParser";
 import grammarPath from './grammar.ne';
-import type {DirtyParserName} from './ParserOutput.generated';
+import {FilteredParserNames, RenamedParserNames, type DirtyParserName} from './ParserOutput.generated';
+
+function checkParserName(name: string): DirtyParserName {
+  assert(FilteredParserNames.has(name) || RenamedParserNames.has(name), `Unknown parser name ${name}`);
+  return name as DirtyParserName;
+}
 
 type Symbol = {type: DirtyLexerName;} | {literal: string;} | {test: (t: LexedToken) => boolean;} | DirtyParserName;
 

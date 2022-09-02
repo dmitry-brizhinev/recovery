@@ -1,27 +1,26 @@
-import {checkLexerName, type DirtyLexerName, type LexedToken, type LexerName} from "./CustomLexer";
+import {checkLexerName, type LexedToken, type LexerName} from "./CustomLexer";
 import {FilteredLexerNames} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert, unreachable} from "../util/Utils";
 import {fetchGrammar, default as compileGrammar} from "./NearleyGrammar";
 import parseGrammar from './GrammarParser';
-import {FilteredParserNames, ParserNames, instructions, type ParserName, type DirtyParserName, type Start} from './ParserOutput.generated';
+import {FilteredParserNames, RenamedParserNames, FinalParserNames, instructions, renames, type FinalParserName, type RenamedParserName, type DirtyParserName, type Start} from './ParserOutput.generated';
 
-export function checkParserName(name: string): DirtyParserName {
-  assert(FilteredParserNames.has(name) || ParserNames.has(name), `Unknown parser name ${name}`);
-  return name as DirtyParserName;
+function assertCleanParserName(name: string): asserts name is FinalParserName {
+  assert(FinalParserNames.has(name), `Unknown final parser name ${name}`);
 }
 
-function checkCleanParserName(name: DirtyParserName): ParserName {
-  assert(ParserNames.has(name), `Dirty parser name ${name}`);
-  return name as ParserName;
+function cleanParserName(name: DirtyParserName): FinalParserName {
+  assert(RenamedParserNames.has(name), `Dirty parser name ${name}`);
+  assert(name in renames);
+  return renames[name as RenamedParserName];
 }
 
-function checkCleanLexerName(name: DirtyLexerName): LexerName {
-  assert(!FilteredLexerNames.has(name), `Dirty lexer name ${name}`);
-  return name as LexerName;
+function assertCleanLexerName(name: string): asserts name is LexerName {
+  assert(!FilteredLexerNames.has(checkLexerName(name)), `Dirty lexer name ${name}`);
 }
 
-type RuleOutput = {type: ParserName, value: (RuleOutput | FlatOutput | CleanToken)[];};
+type RuleOutput = {type: FinalParserName, value: (RuleOutput | FlatOutput | CleanToken)[];};
 type FlatOutput = (RuleOutput | CleanToken)[];
 type CleanToken = {type: LexerName, value: string;};
 
@@ -30,8 +29,13 @@ function postprocessFilter(v: RuleOutput | FlatOutput | LexedToken | undefined):
   if (Array.isArray(v)) return [v];
   if (FilteredLexerNames.has(v.type)) return [];
   assert(!FilteredParserNames.has(v.type));
-  if (Array.isArray(v.value)) return [{type: checkCleanParserName(checkParserName(v.type)), value: v.value}];
-  return [{type: checkCleanLexerName(checkLexerName(v.type)), value: v.value}];
+  if (Array.isArray(v.value)) {
+    assertCleanParserName(v.type);
+    return [v];
+  } else {
+    assertCleanLexerName(v.type);
+    return [{type: v.type, value: v.value}];
+  }
 }
 
 function postprocess(name: DirtyParserName, data: (RuleOutput | FlatOutput | LexedToken | undefined)[]): undefined | RuleOutput | FlatOutput | CleanToken {
@@ -41,8 +45,8 @@ function postprocess(name: DirtyParserName, data: (RuleOutput | FlatOutput | Lex
     case 'd': assert(FilteredParserNames.has(name)); return undefined;
     case 'fu': assert(FilteredParserNames.has(name)); assert(d.length === 1, `${name} had ${d.length} children`); return d[0];
     case 'ff': assert(FilteredParserNames.has(name)); return d.flat();
-    case 'fm': assert(ParserNames.has(name)); if (d.length === 1) return d[0]; else return {type: checkCleanParserName(name), value: d};
-    case 'fl': return {type: checkCleanParserName(name), value: d};
+    case 'fm': assert(RenamedParserNames.has(name)); if (d.length === 1) return d[0]; else return {type: cleanParserName(name), value: d};
+    case 'fl': return {type: cleanParserName(name), value: d};
     default: return unreachable(i);
   }
 }

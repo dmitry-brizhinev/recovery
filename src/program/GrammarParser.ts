@@ -100,6 +100,8 @@ function parseGrammarInner(grammar: string): AllRules {
     const {name, rename, instruction} = line;
     assert(name.toLowerCase() !== 'start', `Banned rule name ${name}`);
     assert(rename.toLowerCase() !== 'start', `Banned rule name ${rename}`);
+    assert(rename === rename.toLowerCase(), `${rename} is not lowercase`);
+    assert(name === name.toLowerCase(), `${name} is not lowercase`);
     first = first || rename;
     const s = (instMap.get(rename) || ISet()).add(instruction);
     assert(s.size === 1, `Conflicting instructions for ${rename}`);
@@ -278,7 +280,8 @@ export default function parseGrammar(grammar: string): string {
 
   const rul = allRules.keySeq().filterNot(r => r.value === 'start');
   const filteredNames = rul.filterNot(r => r.instruction === 'fl').flatMap(r => r.names);
-  const cleanNames = rul.filter(r => r.instruction === 'fl').flatMap(r => r.names);
+  // const cleanNames = rul.filter(r => r.instruction === 'fl').flatMap(r => r.names);
+  const renames = rul.filter(r => r.instruction === 'fl').flatMap(r => r.names.map(n => `${n}: '${r.value.toLowerCase()}'`));
   const fms = rul.filter(r => r.value.endsWith('_')).map(r => capitalise(r.value.slice(0, r.value.length - 1))).toSet();
   const fixInstruction = (i: Instruction | Symbol) => i instanceof SymbolBase ? 'fu' : i;
   const instructions = rul.filterNot(r => r.value.endsWith('_'))
@@ -308,7 +311,7 @@ export default function parseGrammar(grammar: string): string {
       for (const r of rules) assert(r.size === 1, `fu on a long rule ${name.value} ${r.map(s => s.value).join(';')}`);
       middle = rules.map(fu).join(' | ');
     } else if (post === 'fl') {
-      middle = `{type: '${name.names.join(`' | '`)}', value: ${rules.map(fl).join(' | ')};}`;
+      middle = `{type: '${name.value.toLowerCase()}', value: ${rules.map(fl).join(' | ')};}`;
     } else if (post === 'ff') {
       let options = OrderedSet<Symbol>();
       for (const rule of rules) {
@@ -326,14 +329,18 @@ export default function parseGrammar(grammar: string): string {
     result.push(start + middle + ';');
   }
 
-  result.push(`const ParserNames_ = ['${cleanNames.join(`', '`)}'] as const;`);
-  result.push(`export type ParserName = typeof ParserNames_[number];`);
-  result.push(`export const ParserNames = ISet<string>(ParserNames_);`);
+  result.push(`export const renames = {${renames.join(', ')}} as const;`);
+  result.push(`export type RenamedParserName = keyof typeof renames;`);
+  result.push(`export type FinalParserName = typeof renames[RenamedParserName];`);
+  result.push(`export const RenamedParserNames = ISet<string>(Object.keys(renames));`);
+  result.push(`export const FinalParserNames = ISet<string>(Object.values(renames));`);
+  //result.push(`const ParserNames_ = ['${cleanNames.join(`', '`)}'] as const;`);
+  //result.push(`export const ParserNames = ISet<string>(ParserNames_);`);
   result.push(`const FilteredParserNames_ = ['${filteredNames.join(`', '`)}'] as const;`);
   result.push(`export type FilteredParserName = typeof FilteredParserNames_[number];`);
   result.push(`export const FilteredParserNames = ISet<string>(FilteredParserNames_);`);
-  result.push(`export type DirtyParserName = ParserName | FilteredParserName;`);
+  result.push(`export type DirtyParserName = RenamedParserName | FilteredParserName;`);
   result.push(`export const instructions: {[key in DirtyParserName]: Instruction} = {${instructions.join(', ')}};`);
-  //result.push(`export const renames: {[key in ParserName]: string} = {${ }};`);
+
   return result.join('\n');
 }

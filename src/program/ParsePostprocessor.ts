@@ -565,22 +565,11 @@ class Postprocessor {
       case 'vr': return this.variable(exp);
       case 'fnd': return this.callable(exp);
       case 'dot': return this.field(exp);
-      case 'exc0':
-      case 'exc1':
-      case 'exc2': return this.callfun(...exp.value);
-      case 'exm0':
-      case 'exm1':
-      case 'exm2': return this.tuple(exp);
-      case 'exl0':
-      case 'exl1':
-      case 'exl2': return this.bindfun(...exp.value);
-      case 'exo0':
-      case 'exo1':
-      case 'exo2': return this.binary(...exp.value);
-      case 'arre':
-      case 'ars0':
-      case 'ars1':
-      case 'ars2': return this.array(exp);
+      case 'exc': return this.callfun(...exp.value);
+      case 'exm': return this.tuple(exp);
+      case 'exl': return this.bindfun(...exp.value);
+      case 'exo': return this.binary(...exp.value);
+      case 'arr': return this.array(exp);
       case 'ife':
       case 'dow':
       case 'wdo':
