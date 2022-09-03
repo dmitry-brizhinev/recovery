@@ -1,36 +1,45 @@
 
 import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
-import type {NumT, StrT, FunT, TupT, ObjT, ArrT, PrimOps, VrName, ValueT, NulT, MayT} from './CustomLexer';
-import type {ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body} from './ParsePostprocessor';
+import type {PrimOps, VrName} from './CustomLexer';
+import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type} from './ParsePostprocessor';
+import {pt, ContextType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
 interface Nul {
-  readonly t: NulT;
+  readonly type: NulType;
 }
-const Null: Nul = {t: '_'};
+const NulV: Nul = {type: {t: '_'}};
+interface Top {
+  readonly type: TopType;
+}
+// const TopV: Top = {type: {t: '*'}};
+interface Bot {
+  readonly type: BotType;
+}
+const BotV: Bot = {type: {t: '-'}};
 interface Num {
-  readonly t: NumT;
+  readonly type: NumType;
   readonly value: number;
 }
 interface Str {
-  readonly t: StrT;
+  readonly type: StrType;
   readonly value: string;
 }
 interface Fun {
-  readonly t: FunT;
+  readonly type: FunType;
   readonly args: VrName[];
   readonly applied: Value[];
-  readonly context?: ExecContext | undefined;
   readonly selfref?: {name: VrName; value: Fun;} | undefined;
-  readonly ret: Expression | 'struct';
+  readonly ret: Expression | string;
 }
 interface Tup {
-  readonly t: TupT;
+  readonly type: TupType;
   readonly values: Value[];
 }
 class Obj {
-  readonly t: ObjT = 'o';
-  constructor(private fields: IMap<VrName, Value>) {}
+  constructor(
+    readonly type: ObjType,
+    private fields: IMap<VrName, Value>) {}
 
   getMember(name: VrName): Value | undefined {
     return this.fields.get(name);
@@ -40,30 +49,28 @@ class Obj {
   }
 }
 interface Arr {
-  readonly t: ArrT;
+  readonly type: ArrType;
   readonly values: Value[];
 }
 interface May {
-  readonly t: MayT;
+  readonly type: MayType;
   readonly value: Value;
 }
-type Values = {
-  _: Nul,
-  d: Num,
-  i: Num,
-  b: Num,
-  s: Str,
-  c: Str,
-  f: Fun,
-  t: Tup,
-  o: Obj,
-  a: Arr,
-  m: May,
-};
-type Value = Values[ValueT | '_'];//Nul | Num | Str | Fun | Tup | Obj | Arr | May;
+type Value = Nul | Top | Bot | Num | Str | Fun | Tup | Obj | Arr | May;
+
+type NarrowedValue<T extends Type> =
+  T extends ObjType ? Obj
+  : T extends NumType ? Num
+  : T extends FunType ? Fun
+  : T extends TupType ? Tup
+  : T extends ArrType ? Arr
+  : Value;
 
 class ExecContext {
-  constructor(private readonly parent: ExecContext | undefined) {}
+  constructor(
+    private readonly parent: ExecContext | undefined,
+    readonly module: Module,
+    readonly type: ContextType) {}
   private readonly vars = new Map<VrName, Value>();
 
   getVar(vr: VrName): Value | undefined {
@@ -75,19 +82,43 @@ class ExecContext {
   localVars() {
     return IMap(this.vars);
   }
+
+  static newModule(module: Module): ExecContext {
+    return new ExecContext(undefined, module, ContextType.Block);
+  }
+
+  newChild(t: ContextType): ExecContext {
+    switch (t) {
+      case ContextType.Block:
+      case ContextType.Loop:
+        return new ExecContext(this, this.module, t);
+      case ContextType.Function:
+        return new ExecContext(undefined, this.module, t);
+    }
+  }
+
+  haveAbove(t: ContextType): boolean {
+    return this.type === t || !!this.parent?.haveAbove(t);
+  }
 }
 
 function iss(val: Value): Str | undefined {
-  return val.t === 's' || val.t === 'c' ? val : undefined;
+  return val.type.t === 's' || val.type.t === 'c' ? val as Str : undefined;
+}
+function isf(val: Value): val is Fun {
+  return val.type.t === 'f';
 }
 
 function checkn(val: Value): Num {
-  assert(val.t === 'b' || val.t === 'i' || val.t === 'd', `${val.t} is not numeric`);
-  return val;
+  assert(val.type.t === 'b' || val.type.t === 'i' || val.type.t === 'd', `${pt(val.type)} is not numeric`);
+  return val as Num;
 }
 
 export default class RootExecutor {
-  private readonly rootContext: ExecContext = new ExecContext(undefined);
+  private readonly rootContext: ExecContext;
+  constructor(module: Module) {
+    this.rootContext = ExecContext.newModule(module);
+  }
 
   run(sta: Statement): string[] {
     const rs: string[] = [];
@@ -99,12 +130,8 @@ export default class RootExecutor {
 type RecVal = VrName | [Obj, VrName] | null;
 
 function valRep(v: Value): string {
-  return v.t === 'f' ? `function` :
-    v.t === 't' ? `tuple` :
-      v.t === 'o' ? `object` :
-        v.t === 'a' ? `array` :
-          v.t === '_' ? 'null' :
-            `${v.value}`;
+  return 'value' in v && typeof (v.value) !== 'object' ? `${v.value}` : pt(v.type);
+
 }
 
 function recRep(r: RecVal): string {
@@ -115,7 +142,8 @@ function recRep(r: RecVal): string {
 }
 
 class Executor {
-  constructor(private readonly context: ExecContext,
+  constructor(
+    private readonly context: ExecContext,
     private readonly printer: Callback<string>) {}
   private currentVar?: VrName | undefined;
 
@@ -133,11 +161,11 @@ class Executor {
 
   private assignment(sta: Assignment): Value {
     const left = this.receiver(sta.receiver);
-    if (!Array.isArray(left) && left?.charAt(0) === 'f') {
+    if (!Array.isArray(left) && left?.charAt(0) === 'f') {  // TODO this is dodgy
       this.currentVar = left;
     }
     let right = this.expression(sta.expression);
-    if (this.currentVar && right.t === 'f') {
+    if (this.currentVar && isf(right)) {
       right = {...right, selfref: {name: this.currentVar, value: right}};
       assert(right.selfref);
       right.selfref.value = right;
@@ -156,18 +184,19 @@ class Executor {
     this.printer(`${recRep(left)} = ${valRep(right)}`);
   }
 
-  private returnstatement(r: Return): Value {
-    return this.expression(r.expression); // TODO
+  private returnstatement(_r: Return): Bot {
+    //return this.expression(r.expression); // TODO
+    return BotV;
   }
 
-  private break(_b: Break): Value {
+  private break(_b: Break): Bot {
     // TODO
-    return Null;
+    return BotV;
   }
 
-  private continue(_c: Continue): Value {
+  private continue(_c: Continue): Bot {
     // TODO
-    return Null;
+    return BotV;
   }
 
   private blockstatement(b: BlockStatement): Value {
@@ -187,22 +216,22 @@ class Executor {
 
   private if(e: If): Value {
     for (const {cond, body} of [e.first, ...e.elifs]) {
-      const c = this.expressionB(cond);
+      const c = this.expressionT(cond);
       if (c.value) {
-        return this.body(body);
+        return this.body(body, ContextType.Block);
       }
     }
     if (e.last) {
-      return this.body(e.last);
+      return this.body(e.last, ContextType.Block);
     }
-    return Null;
+    return NulV;
   }
 
   private while(e: While): Value {
     const {cond, body} = e;
-    let v: Value = Null;
-    while (this.expressionB(cond).value) {
-      v = this.body(body);
+    let v: Value = NulV;
+    while (this.expressionT(cond).value) {
+      v = this.body(body, ContextType.Loop);
     };
     return v;
   }
@@ -211,30 +240,31 @@ class Executor {
     const {cond, body} = e;
     let v: Value;
     do {
-      v = this.body(body);
-    } while (this.expressionB(cond).value);
+      v = this.body(body, ContextType.Loop);
+    } while (this.expressionT(cond).value);
     return v;
   }
 
   private for(f: For): Value {
     const {name, iter, body} = f;
-    const a = this.expressionA(iter);
-    let vv: Value = Null;
-    for (const v of a.values) {
+    const a = this.expressionT(iter);
+    let vv: Value = NulV;
+    for (const v of a.values) { // TODO Outer context where the setvar works!!
       this.context.setVar(name, v);
-      vv = this.body(body);
+      vv = this.body(body, ContextType.Loop);
     }
     return vv;
   }
 
   private do(d: Do): Value {
-    return this.body(d.body);
+    return this.body(d.body, ContextType.Block);
   }
 
-  private body(b: Body): Value {
-    let v: Value = Null;
+  private body(b: Body, c: ContextType): Value {
+    const inner = new Executor(this.context.newChild(c), this.printer);
+    let v: Value = NulV;
     for (const s of b) {
-      v = this.statement(s);
+      v = inner.statement(s);
     }
     return v;
   }
@@ -258,44 +288,18 @@ class Executor {
   }
 
   private fieldReceiver(f: Field): RecVal {
-    const obj = this.expressionO(f.obj);
+    const obj = this.expressionT(f.obj);
     const name = f.name;
     return [obj, name];
   }
 
-  private expressionT(exp: NarrowedExpression<TupType>): Tup {
-    const v = this.expression(exp);
-    assert(v.t === exp.type.t);
-    return v;
-  }
-
-  private expressionF(exp: NarrowedExpression<FunType>): Fun {
-    const v = this.expression(exp);
-    assert(v.t === exp.type.t);
-    return v;
-  }
-
-  private expressionB(exp: NarrowedExpression<NumType>): Num {
-    const v = this.expression(exp);
-    assert(v.t === exp.type.t);
-    return v;
-  }
-
-  private expressionO(exp: NarrowedExpression<ObjType>): Obj {
-    const v = this.expression(exp);
-    assert(v.t === exp.type.t);
-    return v;
-  }
-
-  private expressionA(exp: NarrowedExpression<ArrType>): Arr {
-    const v = this.expression(exp);
-    assert(v.t === exp.type.t);
-    return v;
+  private expressionT<T extends Type>(exp: NarrowedExpression<T>): NarrowedValue<T> {
+    return this.expression(exp) as any;
   }
 
   private expression(exp: Expression): Value {
     const v = this.expressionInner(exp);
-    assert(exp.type.t === 'm' || exp.type.t === '_' || v.t === exp.type.t, `Expected ${exp.kind} expression to produce ${exp.type.t} but got ${v.t}`);
+    this.context.module.assertAssign(exp.type, v.type, `Expected ${exp.kind} expression to produce ${pt(exp.type)} but got ${pt(v.type)}`);
     return v;
   }
 
@@ -320,34 +324,34 @@ class Executor {
   }
 
   private field(f: Field): Value {
-    const obj = this.expressionO(f.obj);
+    const obj = this.expressionT(f.obj);
     return throwIfNull(obj.getMember(f.name), `Unknown object member ${f.name}`);
   }
 
   private constant(c: Constant): Num | Str | Nul {
-    const t = c.type.t;
+    const type = c.type;
     const v = c.value;
-    if (t === 'b') {
-      return {t, value: v === 'true' ? 1 : 0};
-    } else if (t === 'c' || t === 's') {
-      return {t, value: v.slice(1, -1)};
-    } else if (t === 'd') {
-      return {t, value: Number.parseFloat(v)};
-    } else if (t === 'i') {
-      return {t, value: Number.parseInt(v)};
-    } else if (t === '_') {
-      return Null;
+    if (type.t === 'b') {
+      return {type, value: v === 'true' ? 1 : 0};
+    } else if (type.t === 'c' || type.t === 's') {
+      return {type, value: v.slice(1, -1)};
+    } else if (type.t === 'd') {
+      return {type, value: Number.parseFloat(v)};
+    } else if (type.t === 'i') {
+      return {type, value: Number.parseInt(v)};
+    } else if (type.t === '_') {
+      return NulV;
     } else {
-      return unreachable(t);
+      return unreachable(type.t);
     }
   }
 
   private callable(f: FunctionExpression | Constructor): Fun {
     const args = f.args;
     if (f.kind === 'function') {
-      return {t: 'f', args, applied: [], context: this.context, ret: f.body};
+      return {type: f.type, args, applied: [], ret: f.body};
     } else {
-      return {t: 'f', args, applied: [], ret: 'struct'};
+      return {type: f.type, args, applied: [], ret: f.name};
     }
   }
 
@@ -358,29 +362,30 @@ class Executor {
 
     let ll; let rr;
     if (op.value === '+' && (ll = iss(l)) && (rr = iss(r))) {
-      return {t: 's', value: ll.value + rr.value};
+      assert(type.t === 's');
+      return {type, value: ll.value + rr.value};
     } else {
       const ll = checkn(l);
       const rr = checkn(r);
       assert(type.t === 'b' || type.t === 'i' || type.t === 'd');
       const value = doOpValues(op.value, ll.value, rr.value);
-      return {t: type.t, value};
+      return {type, value};
     }
   }
 
   private tuple(tt: Tuple): Tup {
     const values = tt.elements.map(e => this.expression(e));
-    return {t: 't', values};
+    return {type: tt.type, values};
   }
 
   private array(a: ArrayExpression): Arr {
     const values = a.elements.map(e => this.expression(e));
-    return {t: 'a', values};
+    return {type: a.type, values};
   }
 
   private bindfun(f: FunctionBind): Value {
     const {func, args, call} = f;
-    let ff = this.expressionF(func);
+    let ff = this.expressionT(func);
     const as = args.flatMap(a => this.funcArg(a));
     ff = {...ff, applied: ff.applied.concat(as)};
     if (!call) return ff;
@@ -397,12 +402,12 @@ class Executor {
   }
 
   private callfun(fun: Fun): Value {
-    const innerContext = new ExecContext(fun.context);
+    const innerContext = this.context.newChild(ContextType.Function);
     for (const [i, a] of fun.applied.entries()) {
       innerContext.setVar(fun.args[i], a);
     }
-    if (fun.ret === 'struct') {
-      return this.makeStruct(innerContext);
+    if (typeof (fun.ret) === 'string') {
+      return this.makeStruct(fun.ret, innerContext);
     } else {
       if (fun.selfref) {
         innerContext.setVar(fun.selfref.name, fun.selfref.value);
@@ -411,8 +416,8 @@ class Executor {
     }
   }
 
-  private makeStruct(fields: ExecContext): Obj {
-    return new Obj(fields.localVars());
+  private makeStruct(con: string, fields: ExecContext): Obj {
+    return new Obj({t: 'o', con}, fields.localVars());
   }
 }
 
@@ -436,8 +441,7 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
   }
 }
 
-/* 
-assignment/closest shared superclass tests
+/*
 Maybe type <- better lexer properties for var?
 break/continue/return - proper context
 generic types,

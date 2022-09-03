@@ -110,7 +110,7 @@ export function checkLexerName(name: string): DirtyLexerName {
 }
 
 export type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT;
-export type AnyT = ValueT | NulT;
+export type AnyT = ValueT | NulT | TopT | BotT;
 export type NumT = 'i' | 'd' | 'b';
 export type StrT = 's' | 'c';
 export type FunT = 'f';
@@ -119,6 +119,8 @@ export type ObjT = 'o';
 export type ArrT = 'a';
 export type MayT = 'm';
 export type NulT = '_';
+export type TopT = '*';
+export type BotT = '-';
 export type LexerName = LexerOpts['type'];
 const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'cm', 'dt', 'br', 'ta', 'qm'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames_[number];

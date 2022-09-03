@@ -311,6 +311,8 @@ function annotationp(t: Type): string {
 function annotation(t: Type): string {
   switch (t.t) {
     case '_': return 'undefined';
+    case '*': return 'unknown';
+    case '-': return 'never';
     case 'i': return 'number';
     case 'd': return 'number';
     case 'b': return 'boolean';

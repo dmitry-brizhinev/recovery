@@ -68,9 +68,9 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
     yield myErrorString('parse', 'grammar', e);
     return;
   }
-  const exec = new RootExecutor();
-  const comp = new RootCompiler();
   const post = new RootPostprocessor();
+  const exec = new RootExecutor(post.module());
+  const comp = new RootCompiler();
   await delay(100);
   for (const [lineNum, line] of code.split('\n').entries()) {
     const lineLoc: TokenLocation = {sl: lineNum, sc: 0, ec: line.length};

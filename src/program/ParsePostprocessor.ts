@@ -1,21 +1,29 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, AnyT} from './CustomLexer';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, AnyT, TopT, BotT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp} from './ParserOutput.generated';
 import {Map as IMap, Seq} from 'immutable';
 
 type AnyExp = Exp;
 
+export interface NulType {
+  readonly t: NulT;
+}
+const Nul: NulType = {t: '_'};
+export interface TopType {
+  readonly t: TopT;
+}
+const Top: TopType = {t: '*'};
+export interface BotType {
+  readonly t: BotT;
+}
+const Bot: BotType = {t: '-'};
 export interface NumType {
   readonly t: NumT;
 }
 export interface StrType {
   readonly t: StrT;
 }
-export interface NulType {
-  readonly t: NulT;
-}
-const Nul: NulType = {t: '_'};
 export interface FunType {
   readonly t: FunT;
   readonly args: Type[];
@@ -43,11 +51,13 @@ export interface MayType {
   readonly subtype: Type;
 }
 
-export type Type = NumType | StrType | NulType | FunType | TupType | ObjType | ArrType | MayType;
+export type Type = NulType | TopType | BotType | NumType | StrType | FunType | TupType | ObjType | ArrType | MayType;
 
-function pt(t: Type): string {
+export function pt(t: Type): string {
   switch (t.t) {
     case '_':
+    case '*':
+    case '-':
     case 'i':
     case 'd':
     case 'b':
@@ -109,19 +119,19 @@ export interface Assignment {
 
 export interface Return {
   kind: 'return';
-  type: NulType;
+  type: BotType;
   returnType: Type; // TODO TODO TODO
   expression: Expression;
 }
 
 export interface Break {
   kind: 'break';
-  type: NulType;
+  type: BotType;
 }
 
 export interface Continue {
   kind: 'continue';
-  type: NulType;
+  type: BotType;
 }
 
 export interface BlockStatement {
@@ -275,16 +285,19 @@ interface FunctionBindArgNorm {
 export abstract class Module {
   protected abstract getRequiredCon(s: string): ConType;
 
-  assertAssign(target: Type, source: Type) {
-    assert(this.canAssign(target, source), `Assigning ${pt(source)} to ${pt(target)}`); return;
+  assertAssign(target: Type, source: Type, message?: string) {
+    assert(this.canAssign(target, source), message ?? `Assigning ${pt(source)} to ${pt(target)}`);
   }
   private invariant(target: Type, source: Type): boolean {
     return this.canAssign(target, source) && this.canAssign(source, target);
   }
   canAssign(target: Type, source: Type): boolean {
+    if (source.t === '-') return true;
     const t = target.t;
     switch (t) {
-      case '_': return true;
+      case '*': return true;
+      case '-': return false;
+      case '_':
       case 'i':
       case 'd':
       case 'b':
@@ -308,16 +321,18 @@ export abstract class Module {
       default: unreachable(target, 'checkAssignment');
     }
   }
-  commonSupertype(a: Type, b: Type | undefined): Type {
-    if (!b) return a;
-    if (a.t === '_' && b.t === '_') return Nul;
-    if (a.t === '_' && b.t === 'm') return b;
-    if (b.t === '_' && a.t === 'm') return a;
-    if (a.t === '_') return {t: 'm', subtype: b};
-    if (b.t === '_') return {t: 'm', subtype: a};
+  commonSupertype(a: Type, b: Type): Type {
+    if (b.t === Bot.t) return a;
+    if (a.t === Bot.t) return b;
+    if (a.t === Top.t || b.t === Top.t) return Top;
+    if (a.t === Nul.t && b.t === Nul.t) return Nul;
+    if (a.t === Nul.t && b.t === 'm') return b;
+    if (b.t === Nul.t && a.t === 'm') return a;
+    if (a.t === Nul.t) return {t: 'm', subtype: b};
+    if (b.t === Nul.t) return {t: 'm', subtype: a};
     if (this.canAssign(a, b)) return a;
     if (this.canAssign(b, a)) return b;
-    return Nul;
+    return Top;
   }
 }
 
@@ -335,7 +350,7 @@ class ModuleContext extends Module {
   }
 }
 
-const enum ContextType {
+export const enum ContextType {
   Block = 0,
   Loop = 1,
   Function = 2,
@@ -383,6 +398,10 @@ export class RootPostprocessor {
 
   convert(sta: Sta): Statement {
     return new Postprocessor(this.rootContext).statement(sta);
+  }
+
+  module(): Module {
+    return this.rootContext.module;
   }
 }
 
@@ -452,17 +471,17 @@ class Postprocessor {
     assert(this.context.haveAbove(ContextType.Function), 'No function to return from');
     const kind = 'return';
     const expression = this.expression(...r.value);
-    return {kind, type: Nul, returnType: expression.type, expression};
+    return {kind, type: Bot, returnType: expression.type, expression};
   }
 
   private break(_r: Brk): Break {
     assert(this.context.haveAbove(ContextType.Loop), 'No loop to break out of');
-    return {kind: 'break', type: Nul};
+    return {kind: 'break', type: Bot};
   }
 
   private continue(_c: Cnt): Continue {
     assert(this.context.haveAbove(ContextType.Loop), 'No loop to continue in');
-    return {kind: 'continue', type: Nul};
+    return {kind: 'continue', type: Bot};
   }
 
   private blockstatement(sta: Bls): BlockStatement {
@@ -498,7 +517,7 @@ class Postprocessor {
 
     let type = this.bodytype(first.body);
     for (const c of elifs) type = this.context.module.commonSupertype(type, this.bodytype(c.body));
-    if (last) type = this.context.module.commonSupertype(type, this.bodytype(last));
+    this.context.module.commonSupertype(type, last ? this.bodytype(last) : Nul);
 
     return {kind, type, first, elifs, last};
   }
@@ -721,7 +740,7 @@ class Postprocessor {
     const kind = 'array';
     const t = 'a';
     if (a.value.length === 0) {
-      return {kind, type: {t, subtype: Nul}, elements: []};
+      return {kind, type: {t, subtype: Bot}, elements: []};
     } else if (a.value.length === 1) {
       const el = this.expression(a.value[0]);
       return {kind, type: {t, subtype: el.type}, elements: [el]};
