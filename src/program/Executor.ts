@@ -454,8 +454,8 @@ Either/Union types,
 methods + method calls,
 Abstract roots, join and split them, shared? saver and top-level data
 test assertions,
-grammar Instructions that allow named properties instead of value array
 Variables have - current type, assignable type (annotation or inferred). One time check of var name compatibility.
+grammar Instructions that allow named properties instead of value array
 - ????? auto generate 0/1/2 space precedence copies? And then add more operator precedence?????
 - ?????????????? parsing based on tokens instead of operators, flat expression with precedence computed later????????
 Lazy mode functions inside which things behave like haskell

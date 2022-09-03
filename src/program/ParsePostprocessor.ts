@@ -103,9 +103,14 @@ function isn(t: AnyT): NumT | undefined {
   return t === 'b' || t === 'i' || t === 'd' ? t : undefined;
 }
 
-function checkFirstAssignment(target: VrType, source: Type) {
+function checkFirstAssignment(name: VrName, target: VrType, source: Type) {
   const t = target.core;
-  assert(t === 'm' || t === source.t, `Can't assign type ${pt(source)} to ${target}`);
+  assert(t === 'm' || t === source.t, `Can't assign type ${pt(source)} to ${name}`);
+}
+
+function checkValidTypeAnnotation(name: VrName, target: VrType, annotation: Type) {
+  const t = target.core;
+  assert(t === annotation.t, `Variable name ${name} incompatible with type annotation ${pt(annotation)}.`);
 }
 
 export type Statement = Assignment | Return | Break | Continue | BlockStatement | ExpressionStatement;
@@ -435,9 +440,19 @@ class Postprocessor {
 
     this.checkReceiverAssignment(receiver, expression.type);
     if (receiver.kind === 'definition') {
-      this.context.setVar(receiver.name, receiver.type ?? expression.type);
+      this.context.setVar(receiver.name, receiver.type ?? this.inferUnannotatedType(receiver.name, receiver.vrtype, expression.type));
     }
     return {kind, type: expression.type, receiver, expression};
+  }
+
+  private inferUnannotatedType(vrName: VrName, vrType: VrType, assigned: Type): Type {
+    if (vrType.core === 'm') {
+      assert(assigned.t !== '_', `Need type annotation on ${vrName}`);
+      if (assigned.t === 'm') return assigned;
+      return {t: 'm', subtype: assigned};
+    } else {
+      return assigned;
+    }
   }
 
   private checkReceiverAssignment(left: Receiver, right: Type) {
@@ -447,7 +462,7 @@ class Postprocessor {
       if (left.type) {
         this.context.module.assertAssign(left.type, right);
       } else {
-        checkFirstAssignment(left.vrtype, right);
+        checkFirstAssignment(left.name, left.vrtype, right);
       }
     } else if (left.kind === 'variable') {
       this.context.module.assertAssign(left.type, right);
@@ -517,7 +532,7 @@ class Postprocessor {
 
     let type = this.bodytype(first.body);
     for (const c of elifs) type = this.context.module.commonSupertype(type, this.bodytype(c.body));
-    this.context.module.commonSupertype(type, last ? this.bodytype(last) : Nul);
+    type = this.context.module.commonSupertype(type, last ? this.bodytype(last) : Nul);
 
     return {kind, type, first, elifs, last};
   }
@@ -860,7 +875,7 @@ function unwrapVar(vvr: Var): Type | undefined {
     }
   } else {
     const t = parseTypeAnnotation(vvr.value[1]);
-    checkFirstAssignment(vr.vrtype, t);
+    checkValidTypeAnnotation(vr.value, vr.vrtype, t);
     return t;
   }
 }
