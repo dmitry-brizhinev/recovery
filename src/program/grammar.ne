@@ -93,7 +93,8 @@ mtp -> typ %qm                                                #mtp:fl
 ttp -> %cm typ | ttp %cm typ                                  #ttp:fl
 atp -> typ                                                    #atp:fl
 ftp -> %rt typ | tps %rt typ                                  #ftp:fl
-tps -> typ | tps ":" typ                                      #tps:ff
+tps -> typ | tps tcl typ                                      #tps:ff
+tcl -> ":"                                                    #tcl:d 
 # Variable with type annotation
 var -> %vr | %vr mws typ                                      #var:fl
 # Variable list

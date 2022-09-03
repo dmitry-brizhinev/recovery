@@ -1,7 +1,7 @@
 
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
-import type {PrimOps, VrName} from './CustomLexer';
+import type {PrimOps, VrName, VrType} from './CustomLexer';
 import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
@@ -139,7 +139,7 @@ class Compiler {
 
   private definition(v: NewVariable): [string, string] {
     const l = v.name;
-    const left = `let ${this.maybeAnnotate(v.name, v.type)}`;
+    const left = `let ${this.maybeAnnotate(v.name, v.vrtype, v.type)}`;
     return [left, l];
   }
 
@@ -153,8 +153,14 @@ class Compiler {
     return [v, v];
   }
 
-  private maybeAnnotate(name: VrName, type?: Type | undefined): string {
-    const a = type ? annotationp(type) : implicitAnnotation(name);
+  private defsAnnotate(name: VrName, type: Type) {
+    const a = annotationp(type);
+    const aa = `:${a}`;
+    return `${name}${aa}`;
+  }
+
+  private maybeAnnotate(name: VrName, vrtype: VrType, type?: Type | undefined): string {
+    const a = type ? annotationp(type) : implicitAnnotation(vrtype);
     const aa = a ? `:${a}` : '';
     return `${name}${aa}`;
   }
@@ -207,7 +213,7 @@ class Compiler {
   private callable(f: FunctionExpression | Constructor): string {
     const argNames = f.args;
     const argTypes = f.type.args;
-    const args = Seq(argNames).zipWith(this.maybeAnnotate, Seq(argTypes)).join(', ');
+    const args = Seq(argNames).zipWith(this.defsAnnotate, Seq(argTypes)).join(', ');
     if (f.kind === 'function') {
       const r = this.expression(f.body);
       return `(${args}) => (${r})`;
@@ -281,8 +287,8 @@ function translateOp(op: PrimOps): string {
   }
 }
 
-function implicitAnnotation(n: VrName): string | undefined {
-  switch (n.charAt(0)) {
+function implicitAnnotation(n: VrType): string | undefined {
+  switch (n.core) {
     case 'i': return 'number';
     case 'd': return 'number';
     case 'b': return 'boolean';

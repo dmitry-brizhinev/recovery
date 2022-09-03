@@ -9,9 +9,10 @@ import Loading from '../util/Loading';
 import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
-import {assert, type Callback, type Func} from '../util/Utils';
+import type {Callback, Func} from '../util/Utils';
 import {execute, genTypes} from './Runner';
 import MaterialButton from '../util/MaterialButton';
+import type {TokenLocation} from './CustomLexer';
 
 export default function Program(): React.ReactElement {
   return <div className={styles.wrapper}>
@@ -89,12 +90,21 @@ type Result = {
   errors: Highlight[];
 };
 
-function reduceResult({maxLines, lines, text, errors}: Result, maybeLine: string | null | [string, number]): Result {
+function reduceResult({maxLines, lines, text, errors}: Result, maybeLine: string | null | [string, TokenLocation]): Result {
   if (maybeLine == null) return {maxLines: lines, lines: 0, text: '', errors: []};
   const m = Math.max(maxLines, lines + 1);
   if (Array.isArray(maybeLine)) {
-    const [line, errorLine] = maybeLine;
-    return {maxLines: m, lines: lines + 1, text: `${text}${line}\n`, errors: errors.concat({line: errorLine})};
+    const [line, e] = maybeLine;
+    if (e.el && e.el !== e.sl) {
+      errors = errors.concat({line: e.sl, start: e.sc});
+      for (let l = e.sl + 1; l < e.el; ++l) {
+        errors = errors.concat({line: l});
+      }
+      errors = errors.concat({line: e.el, end: e.ec});
+    } else {
+      errors = errors.concat({line: e.sl, start: e.sc, end: e.ec});
+    }
+    return {maxLines: m, lines: lines + 1, text: `${text}${line}\n`, errors};
   }
   return {maxLines: m, lines: lines + 1, text: `${text}${maybeLine}\n`, errors};
 }
@@ -111,9 +121,9 @@ function ProgramCode(props: {code: string, onChange?: Callback<string> | undefin
 
   React.useEffect(() => addLine(null), [props.onChange]);
 
-  const runCode = React.useCallback(() => run(props.code, addLine), [props.code, addLine]);
-  const compileCode = React.useCallback(() => compile(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
-  const checkTypes = React.useCallback(() => check(props.code, addLine), [props.code, addLine]);
+  const runCode = React.useCallback(() => run(props.code, addLine, 'run'), [props.code, addLine]);
+  const compileCode = React.useCallback(() => run(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
+  const checkTypes = React.useCallback(() => run(props.code, addLine, 'check'), [props.code, addLine]);
   const gengenTypes = React.useCallback(() => generate(addLine), [addLine]);
 
   const highlighterRef = React.useRef<HTMLTextAreaElement>(null);
@@ -153,10 +163,16 @@ function highlight(line: number, text: string, highlights: Highlight[]): string 
   for (const h of highlights) {
     if (h.line !== line) continue;
 
-    const start = h.start ?? 0;
-    const end = h.end ?? text.length - 1;
-    assert(start >= current.length);
-    assert(end > start);
+    let start = h.start ?? 0;
+    let end = h.end ?? text.length;
+    if (start < current.length) {
+      console.error('start:%d < current.length:%d', start, current.length);
+      start = current.length;
+    }
+    if (end <= start) {
+      console.error('end:%d <= start:%d', end, start);
+      end = start + 1;
+    }
     current += '\t'.repeat(start - current.length) + (h.solid ? '█' : ' ').repeat(end - start);
   }
   return current;
@@ -167,23 +183,9 @@ function Highlighter(props: {value: string, highlights: Highlight[], forwardedRe
   return <textarea readOnly tabIndex={-1} ref={props.forwardedRef} value={chars} className={styles.highlighter} />;
 }
 
-async function run(code: string, addLine: Callback<string | null | [string, number]>): Promise<void> {
+async function run(code: string, addLine: Callback<string | null | [string, TokenLocation]>, mode: {ts: boolean, js: boolean;} | 'run' | 'check'): Promise<void> {
   addLine(null);
-  for await (const r of execute(code, 'run')) {
-    addLine(r);
-  }
-}
-
-async function compile(code: string, addLine: Callback<string | null | [string, number]>, compileOpts: {ts: boolean, js: boolean;}): Promise<void> {
-  addLine(null);
-  for await (const r of execute(code, compileOpts)) {
-    addLine(r);
-  }
-}
-
-async function check(code: string, addLine: Callback<string | null | [string, number]>): Promise<void> {
-  addLine(null);
-  for await (const r of execute(code, 'check')) {
+  for await (const r of execute(code, mode)) {
     addLine(r);
   }
 }

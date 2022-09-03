@@ -20,7 +20,7 @@ interface Fun {
   readonly t: FunT;
   readonly args: VrName[];
   readonly applied: Value[];
-  readonly context?: ContextSnapshot | undefined;
+  readonly context?: ExecContext | undefined;
   readonly selfref?: {name: VrName; value: Fun;} | undefined;
   readonly ret: Expression | 'struct';
 }
@@ -30,11 +30,10 @@ interface Tup {
 }
 class Obj {
   readonly t: ObjT = 'o';
-  constructor(private fields: IMap<VrName, Value>,
-    private readonly methods: IMap<VrName, Fun> = IMap()) {}
+  constructor(private fields: IMap<VrName, Value>) {}
 
   getMember(name: VrName): Value | undefined {
-    return this.fields.get(name) ?? this.methods.get(name);
+    return this.fields.get(name);
   }
   setMember(name: VrName, v: Value) {
     this.fields = this.fields.set(name, v);
@@ -63,18 +62,8 @@ type Values = {
 };
 type Value = Values[ValueT | '_'];//Nul | Num | Str | Fun | Tup | Obj | Arr | May;
 
-class ContextSnapshot {
-  constructor(
-    private readonly parent: ContextSnapshot | undefined,
-    readonly vars: IMap<VrName, Value>) {}
-
-  getVar(vr: VrName): Value | undefined {
-    return this.vars.get(vr) || this.parent?.getVar(vr);
-  }
-}
-
 class ExecContext {
-  constructor(private readonly parent: ContextSnapshot | undefined) {}
+  constructor(private readonly parent: ExecContext | undefined) {}
   private readonly vars = new Map<VrName, Value>();
 
   getVar(vr: VrName): Value | undefined {
@@ -83,8 +72,8 @@ class ExecContext {
   setVar(vr: VrName, val: Value) {
     this.vars.set(vr, val);
   }
-  snapshot(): ContextSnapshot {
-    return new ContextSnapshot(this.parent, IMap(this.vars));
+  localVars() {
+    return IMap(this.vars);
   }
 }
 
@@ -356,7 +345,7 @@ class Executor {
   private callable(f: FunctionExpression | Constructor): Fun {
     const args = f.args;
     if (f.kind === 'function') {
-      return {t: 'f', args, applied: [], context: this.context.snapshot(), ret: f.body};
+      return {t: 'f', args, applied: [], context: this.context, ret: f.body};
     } else {
       return {t: 'f', args, applied: [], ret: 'struct'};
     }
@@ -413,7 +402,7 @@ class Executor {
       innerContext.setVar(fun.args[i], a);
     }
     if (fun.ret === 'struct') {
-      return this.makeStruct(innerContext.snapshot());
+      return this.makeStruct(innerContext);
     } else {
       if (fun.selfref) {
         innerContext.setVar(fun.selfref.name, fun.selfref.value);
@@ -422,8 +411,8 @@ class Executor {
     }
   }
 
-  private makeStruct(fields: ContextSnapshot): Obj {
-    return new Obj(fields.vars);
+  private makeStruct(fields: ExecContext): Obj {
+    return new Obj(fields.localVars());
   }
 }
 
@@ -447,12 +436,10 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
   }
 }
 
-/*
-- cleanup of GrammarParser?? + grammar Instructions that allow named properties instead of value array
-Module-scoped Con, assignment/closest shared superclass tests
-Variables have - current type, assignable type (annotation or inferred). One time check of var name compatibility.
+/* 
+assignment/closest shared superclass tests
 Maybe type <- better lexer properties for var?
-break/continue/return - proper context, (later: labels for blocks)
+break/continue/return - proper context
 generic types,
 
 owner/borrow/move (rust style semantics so you can find new/delete points)
@@ -463,8 +450,11 @@ Either/Union types,
 methods + method calls,
 Abstract roots, join and split them, shared? saver and top-level data
 test assertions,
+grammar Instructions that allow named properties instead of value array
+Variables have - current type, assignable type (annotation or inferred). One time check of var name compatibility.
 - ????? auto generate 0/1/2 space precedence copies? And then add more operator precedence?????
 - ?????????????? parsing based on tokens instead of operators, flat expression with precedence computed later????????
 Lazy mode functions inside which things behave like haskell
+labels for blocks and break
 
 */

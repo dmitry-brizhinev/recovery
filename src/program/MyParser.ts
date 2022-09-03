@@ -1,11 +1,11 @@
-import type { Atom, AtomType } from "./CustomLexer";
-import { Stack } from 'immutable';
+import type {Atom, AtomType} from "./CustomLexer";
+import {Stack} from 'immutable';
 
 type GrammarOption = readonly (AtomType | Grammar | 'self')[];
 type Grammar = readonly [string, readonly GrammarOption[]];
 const VC: Grammar = ['VC', [['vr'], ['cnst']]];
 const EXP: Grammar = ['EXPRESSION', [[VC, 'op', 'self'], [VC]]];
-const STA: Grammar = ['STATEMENT', [['vr', 'eq', EXP]]];
+const STA: Grammar = ['STATEMENT', [['vr', 'op', EXP]]];
 const LL: Grammar = ['LINE', [[STA, 'nl']]];
 const LLL: Grammar = ['DOCUMENT', [['nl', 'self'], [LL, 'self'], []]];
 

@@ -3,7 +3,6 @@ import {assert} from '../util/Utils';
 import {Set as ISet} from 'immutable';
 
 const OpRegex = /^[-+*/%=]$/;
-const VarRegex = /^[a-z]\w+$/;
 const ConstRegex = /^\d+(?:\.\d+)?$/;
 
 const trim = (s: string) => s.trim();
@@ -30,6 +29,7 @@ export const literalLookup = {kw: kws, br: brs, cl: cls};
       })},
 */
 
+const vrRegex = /[idbsctofam][A-Z]\w*/;
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   nl: {match: /(?:#.*)?\n/, lineBreaks: true},
   rt: {match: / *-> */, value: trim},
@@ -44,7 +44,7 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   ms: /  +/,
   os: ' ',
   br: brs,
-  vr: /[idbsctofam][A-Z]\w*/,
+  vr: vrRegex,
   tc: /[A-Z]\w*/,
   cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
   nu: ['_'],
@@ -56,15 +56,53 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
 };
 export function mooLexer() {return moo.compile(lexerSpec);}
 
-export type LexedToken = {
-  type: DirtyLexerName,
-  value: string,
-  text?: string,
-  offset?: number,
-  col?: number,
-  line?: number,
-  lineBreaks?: number,
+function assertCleanLexerName(name: string): asserts name is LexerName {
+  assert(!FilteredLexerNames.has(checkLexerName(name)), `Dirty lexer name ${name}`);
+}
+
+export interface LexedToken {
+  type: DirtyLexerName;
+  value: string;
+  text: string;
+  offset: number;
+  col: number;
+  line: number;
+  lineBreaks: number;
 };
+export interface TokenLocation {
+  sl: number;
+  sc: number;
+  ec: number;
+  el?: number | undefined;
+}
+export interface CleanToken {
+  type: LexerName;
+  value: string;
+  loc: TokenLocation;
+}
+export function getLoc(t: LexedToken): TokenLocation {
+  const sl = t.line - 1;
+  const sc = t.col - 1;
+  if (t.lineBreaks) {
+    const el = sl + t.lineBreaks;
+    const ec = t.text.length - t.text.lastIndexOf('\n') - 1;
+    return {sl, sc, ec, el};
+  } else {
+    return {sl, sc, ec: sc + t.text.length};
+  }
+}
+export function cleanLexedToken(v: LexedToken): [CleanToken | Vr] | [] {
+  if (FilteredLexerNames.has(v.type)) return [];
+  assertCleanLexerName(v.type);
+  const {type, value} = v;
+  const loc = getLoc(v);
+  const clean: CleanToken = {type, value, loc};
+  if (type === 'vr') {
+    return [tt(clean)];
+  } else {
+    return [clean];
+  }
+}
 
 export function checkLexerName(name: string): DirtyLexerName {
   assert(name in lexerSpec, `Add ${name} to lexer name list!`);
@@ -82,57 +120,56 @@ export type ArrT = 'a';
 export type MayT = 'm';
 export type NulT = '_';
 export type LexerName = LexerOpts['type'];
-const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'cm', 'br', 'ta', 'qm'] as const;
+const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'cm', 'dt', 'br', 'ta', 'qm'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames_[number];
 export const FilteredLexerNames = ISet<string>(FilteredLexerNames_);
 export type DirtyLexerName = LexerName | FilteredLexerName;
+
 export type VrName = `${ValueT}${string}`;
-export function tt(name: VrName): ValueT {return name.charAt(0) as ValueT;}
-export interface Vr {
+export interface VrType {core: ValueT;};
+function tt(v: CleanToken): Vr {
+  const {type, value, loc} = v;
+  assert(type === 'vr');
+  assert(vrRegex.test(value));
+  const t = value.charAt(0) as ValueT;
+  const vrtype = {core: t};
+  return {type, value: value as VrName, loc, vrtype};
+}
+
+export interface Vr extends CleanToken {
   type: 'vr';
   value: VrName;
+  vrtype: VrType;
 }
-interface Eq {
-  type: 'eq';
-  value: '=';
-}
-export interface Op {
+export interface Op extends CleanToken {
   type: 'op';
   value: PrimOps;
 }
-export interface Sc {
+export interface Sc extends CleanToken {
   type: 'sc';
   value: ';';
 }
-export interface Cnst {
+export interface Cnst extends CleanToken {
   type: 'cnst';
   value: string;
 }
-export interface Nu {
+export interface Nu extends CleanToken {
   type: 'nu';
   value: '_';
 }
-export interface Tc {
+export interface Tc extends CleanToken {
   type: 'tc';
   value: string;
 }
-export interface Tp {
+export interface Tp extends CleanToken {
   type: 'tp';
   value: NumT | StrT;
 }
-export interface Cm {
-  type: 'cm';
-  value: ',';
-}
-export interface Cl {
+export interface Cl extends CleanToken {
   type: 'cl';
   value: ':' | '::';
 }
-export interface Dt {
-  type: 'dt';
-  value: '.';
-}
-export type LexerOpts = Vr | Tc | Tp | Cl | Dt | Op | Sc | Cnst | Nu;
+export type LexerOpts = Vr | Tc | Tp | Cl | Op | Sc | Cnst | Nu;
 
 
 
@@ -146,10 +183,10 @@ interface Line {
   value: '';
 }
 
-export type Atom = Vr | Eq | Op | Cnst | Err | Line;
+export type Atom = Vr | Op | Cnst | Err | Line;
 export type AtomType = Atom['type'];
 
-function a<T extends Atom>(type: T['type'], value: T['value']): {type: T['type'], value: T['value'];} {
+function a<T extends Atom>(type: T['type'], value: T['value']): any {
   return {type, value};
 }
 
@@ -165,8 +202,8 @@ function parseLine(line: string): Atom[] {
 }
 function parseAtom(atom: string): Atom {
   if (OpRegex.test(atom)) {
-    return atom === '=' ? a<Eq>('eq', atom) : a<Op>('op', atom as any);
-  } else if (VarRegex.test(atom)) {
+    return atom === '=' ? a<Op>('op', atom as any) : a<Op>('op', atom as any);
+  } else if (vrRegex.test(atom)) {
     return a<Vr>('vr', atom as any);
   } else if (ConstRegex.test(atom)) {
     return a<Cnst>('cnst', atom);

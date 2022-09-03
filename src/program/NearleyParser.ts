@@ -1,10 +1,10 @@
-import {checkLexerName, type LexedToken, type LexerName} from "./CustomLexer";
-import {FilteredLexerNames} from "./CustomLexer";
+import type {LexedToken, TokenLocation} from "./CustomLexer";
+import {cleanLexedToken, getLoc as getLexLoc} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert, unreachable} from "../util/Utils";
 import {compileGrammar} from "./NearleyGrammar";
 import {generateTypesFrom} from './GrammarParser';
-import {FilteredParserNames, RenamedParserNames, FinalParserNames, instructions, renames, type FinalParserName, type RenamedParserName, type DirtyParserName, type Start} from './ParserOutput.generated';
+import {FilteredParserNames, RenamedParserNames, FinalParserNames, instructions, renames, type FinalParserName, type RenamedParserName, type DirtyParserName, type Start, type WLoc, type Outputs} from './ParserOutput.generated';
 import grammarPath from './grammar.ne';
 
 async function fetchGrammar(): Promise<string> {
@@ -12,8 +12,8 @@ async function fetchGrammar(): Promise<string> {
   return await response.text();
 }
 
-function assertCleanParserName(name: string): asserts name is FinalParserName {
-  assert(FinalParserNames.has(name), `Unknown final parser name ${name}`);
+function isCleanParserName(name: string) {
+  return FinalParserNames.has(name);
 }
 
 function cleanParserName(name: DirtyParserName): FinalParserName {
@@ -22,37 +22,71 @@ function cleanParserName(name: DirtyParserName): FinalParserName {
   return renames[name as RenamedParserName];
 }
 
-function assertCleanLexerName(name: string): asserts name is LexerName {
-  assert(!FilteredLexerNames.has(checkLexerName(name)), `Dirty lexer name ${name}`);
+interface RemovedVal extends WLoc {d: 'd';}
+type Inputs = Outputs | LexedToken | RemovedVal;
+
+function combineLoc(a: TokenLocation | null, b: TokenLocation | null): TokenLocation | null {
+  if (!a) return b;
+  if (!b) return a;
+  assert(a.sl <= b.sl);
+  assert(a.sl < b.sl || a.sc <= b.sc);
+  const sl = a.sl;
+  const sc = a.sc;
+  if (!a.el && !b.el && a.sl === b.sl) {
+    assert(b.ec >= a.ec);
+    return {sl, sc, ec: b.ec};
+  }
+  const ael = a.el ?? a.sl;
+  const bel = b.el ?? b.sl;
+  assert(bel >= ael);
+  assert(bel > ael || b.ec >= a.ec);
+
+  return {sl, sc, ec: b.ec, el: bel};
 }
 
-type RuleOutput = {type: FinalParserName, value: (RuleOutput | FlatOutput | CleanToken)[];};
-type FlatOutput = (RuleOutput | CleanToken)[];
-type CleanToken = {type: LexerName, value: string;};
+function getLoc(vs: Inputs[]): TokenLocation | null {
+  let result: TokenLocation | null = null;
+  for (const v of vs) {
+    let loc;
+    if (Array.isArray(v)) {
+      loc = getLoc(v);
+    } else if ('loc' in v) {
+      loc = v.loc;
+    } else {
+      loc = getLexLoc(v);
+    }
+    result = combineLoc(result, loc);
+  }
+  return result;
+}
 
-function postprocessFilter(v: RuleOutput | FlatOutput | LexedToken | undefined): (RuleOutput | FlatOutput | CleanToken)[] {
-  if (v == null) return [];
+function postprocessFilter(v: Inputs): Outputs[] {
+  if ('d' in v) return [];
   if (Array.isArray(v)) return [v];
-  if (FilteredLexerNames.has(v.type)) return [];
-  assert(!FilteredParserNames.has(v.type));
-  if (Array.isArray(v.value)) {
-    assertCleanParserName(v.type);
+  if ('text' in v) {
+    assert(!Array.isArray(v.value));
+    return cleanLexedToken(v);
+  }
+  if (isCleanParserName(v.type)) {
+    assert(Array.isArray(v.value));
+    assert(!FilteredParserNames.has(v.type));
     return [v];
   } else {
-    assertCleanLexerName(v.type);
-    return [{type: v.type, value: v.value}];
+    assert(!Array.isArray(v.value));
+    return [v];
   }
 }
 
-function postprocess(name: DirtyParserName, data: (RuleOutput | FlatOutput | LexedToken | undefined)[]): undefined | RuleOutput | FlatOutput | CleanToken {
+function postprocess(name: DirtyParserName, data: Inputs[]): RemovedVal | Outputs {
   const i = instructions[name];
+  const loc = getLoc(data); // TODO could attach loc to ff/fu/fm cases
   const d = data.flatMap(postprocessFilter);
   switch (i) {
-    case 'd': assert(FilteredParserNames.has(name)); return undefined;
+    case 'd': assert(FilteredParserNames.has(name)); return {d: 'd', loc};
     case 'fu': assert(FilteredParserNames.has(name)); assert(d.length === 1, `${name} had ${d.length} children`); return d[0];
     case 'ff': assert(FilteredParserNames.has(name)); return d.flat();
-    case 'fm': assert(RenamedParserNames.has(name)); if (d.length === 1) return d[0]; else return {type: cleanParserName(name), value: d};
-    case 'fl': return {type: cleanParserName(name), value: d};
+    case 'fm': assert(RenamedParserNames.has(name)); if (d.length === 1) return d[0]; else return {type: cleanParserName(name), value: d, loc};
+    case 'fl': return {type: cleanParserName(name), value: d, loc};
     default: return unreachable(i);
   }
 }

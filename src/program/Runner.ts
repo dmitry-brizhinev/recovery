@@ -1,4 +1,4 @@
-import {myLexer, mooLexer} from './CustomLexer';
+import {myLexer, mooLexer, type TokenLocation} from './CustomLexer';
 import {myParser} from './MyParser';
 import {generateTypes, NearleyParser, type Parser} from './NearleyParser';
 import {delay, errorString} from '../util/Utils';
@@ -58,7 +58,7 @@ export async function genTypes() {
   }
 }
 
-export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string | [string, number], void, void> {
+export async function* execute(code: string, mode: 'check' | {ts: boolean, js: boolean;} | 'run'): AsyncGenerator<string | [string, TokenLocation], void, void> {
   const mmm = (typeof mode === 'string' ? mode : 'compile');
   yield word[mmm].star;
   let parser;
@@ -73,11 +73,13 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
   const post = new RootPostprocessor();
   await delay(100);
   for (const [lineNum, line] of code.split('\n').entries()) {
+    const lineLoc: TokenLocation = {sl: lineNum, sc: 0, ec: line.length};
     let statements;
     try {
       statements = await parser.parseLine(line + '\n');
     } catch (e: unknown) {
-      yield [myErrorString('parse', line, e), lineNum];
+      // e.offset will have the index of the bad token, but that's not super helpful
+      yield [myErrorString('parse', line, e), lineLoc];
       return;
     }
     for (const sta of statements) {
@@ -85,7 +87,7 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
       try {
         statement = post.convert(sta);
       } catch (e) {
-        yield [myErrorString('check', line, e), lineNum];
+        yield [myErrorString('check', line, e), sta.loc ?? lineLoc];
         return;
       }
       try {
@@ -99,7 +101,7 @@ export async function* execute(code: string, mode: 'check' | {ts: boolean, js: b
           }
         }
       } catch (e) {
-        yield [myErrorString(mmm, line, e), lineNum];
+        yield [myErrorString(mmm, line, e), sta.loc ?? lineLoc];
         return;
       }
     }

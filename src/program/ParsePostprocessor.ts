@@ -1,9 +1,8 @@
 
-import {assert, assertNonNull, unreachable, throwIfNull, asserteq} from '../util/Utils';
-import {tt} from './CustomLexer';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, AnyT} from './CustomLexer';
+import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, AnyT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp} from './ParserOutput.generated';
-import {Map as IMap} from 'immutable';
+import {Map as IMap, Seq} from 'immutable';
 
 type AnyExp = Exp;
 
@@ -46,29 +45,41 @@ export interface MayType {
 
 export type Type = NumType | StrType | NulType | FunType | TupType | ObjType | ArrType | MayType;
 
-export interface UnionType {
-  readonly t: 'U';
-  readonly types: Type[];
+function pt(t: Type): string {
+  switch (t.t) {
+    case '_':
+    case 'i':
+    case 'd':
+    case 'b':
+    case 's':
+    case 'c': return t.t;
+    case 't': return `{,${t.values.map(pt).join(',')}}`;
+    case 'o': return t.con;
+    case 'f': return `{${t.args.map(pt).join(':')}->${pt(t.ret)}}`;
+    case 'a': return `[${pt(t.subtype)}]`;
+    case 'm': return `${pt(t.subtype)}?`;
+    default: return unreachable(t, `Invalid type ${t}`);
+  }
 }
 
 function checktt(val: Expression): NarrowedExpression<TupType> {
-  assert(val.type.t === 't', `${val.type.t} is not a tuple`);
+  assert(val.type.t === 't', `${pt(val.type)} is not a tuple`);
   return val as NarrowedExpression<TupType>;
 }
 function checkoo(val: Expression): NarrowedExpression<ObjType> {
-  assert(val.type.t === 'o', `${val.type.t} is not an object`);
+  assert(val.type.t === 'o', `${pt(val.type)} is not an object`);
   return val as NarrowedExpression<ObjType>;
 }
 function checkff(val: Expression): NarrowedExpression<FunType> {
-  assert(val.type.t === 'f', `${val.type.t} is not a function`);
+  assert(val.type.t === 'f', `${pt(val.type)} is not a function`);
   return val as NarrowedExpression<FunType>;
 }
 function checkbb(val: Expression): NarrowedExpression<NumType> {
-  assert(val.type.t === 'b', `${val.type.t} is not a boolean`);
+  assert(val.type.t === 'b', `${pt(val.type)} is not a boolean`);
   return val as NarrowedExpression<NumType>;
 }
 function checkaa(val: Expression): NarrowedExpression<ArrType> {
-  assert(val.type.t === 'a', `${val.type.t} is not an array`);
+  assert(val.type.t === 'a', `${pt(val.type)} is not an array`);
   return val as NarrowedExpression<ArrType>;
 }
 function isff(val: NewVariable): val is NewVariableFun {
@@ -82,9 +93,9 @@ function isn(t: AnyT): NumT | undefined {
   return t === 'b' || t === 'i' || t === 'd' ? t : undefined;
 }
 
-function checkFirstAssignment(target: VrName, source: Type) {
-  const t = tt(target);
-  assert(t === 'm' || t === source.t, `Can't assign type ${source.t} to ${target}`);
+function checkFirstAssignment(target: VrType, source: Type) {
+  const t = target.core;
+  assert(t === 'm' || t === source.t, `Can't assign type ${pt(source)} to ${target}`);
 }
 
 export type Statement = Assignment | Return | Break | Continue | BlockStatement | ExpressionStatement;
@@ -135,6 +146,7 @@ export interface NewVariable {
   kind: 'definition';
   type?: Type | undefined; // TODO
   name: VrName;
+  vrtype: VrType;
 }
 
 type NewVariableFun = NewVariable & ExpNarrow<FunType>;
@@ -260,45 +272,102 @@ interface FunctionBindArgNorm {
   tupleSize?: undefined;
 }
 
-class ContextSnapshot {
-  constructor(
-    private readonly parent: ContextSnapshot | undefined,
-    private readonly vars: IMap<VrName, Type>,
-    private readonly cons: IMap<string, ConType>,
-    private readonly currentVar?: NewVariableFun | undefined) {}
+export abstract class Module {
+  protected abstract getRequiredCon(s: string): ConType;
 
-  getVarOrRecursive(vr: VrName): Type | undefined {
-    const v = this.vars.get(vr);
-    if (v) return v;
-    if (this.currentVar?.type && this.currentVar.name === vr) {
-      return this.currentVar.type;
+  assertAssign(target: Type, source: Type) {
+    assert(this.canAssign(target, source), `Assigning ${pt(source)} to ${pt(target)}`); return;
+  }
+  private invariant(target: Type, source: Type): boolean {
+    return this.canAssign(target, source) && this.canAssign(source, target);
+  }
+  canAssign(target: Type, source: Type): boolean {
+    const t = target.t;
+    switch (t) {
+      case '_': return true;
+      case 'i':
+      case 'd':
+      case 'b':
+      case 's':
+      case 'c': return t === source.t;
+      case 't':
+        return t === source.t && target.values.length === source.values.length &&
+          Seq(target.values).zip(Seq(source.values)).every(([tv, sv]) => this.invariant(tv, sv));
+      case 'o':
+        return t === source.t && target.con === source.con;
+      case 'f':
+        return t === source.t && this.canAssign(target.ret, source.ret)
+          && target.args.length === source.args.length
+          && Seq(target.args).zip(Seq(source.args)).every(([ta, sa]) => this.canAssign(sa, ta));
+      case 'a':
+        return t === source.t && this.invariant(target.subtype, source.subtype);
+      case 'm':
+        if (source.t === '_') return true;
+        if (source.t === 'm') return this.canAssign(target.subtype, source.subtype);
+        return this.canAssign(target.subtype, source);
+      default: unreachable(target, 'checkAssignment');
     }
-    return this.parent?.getVarOrRecursive(vr);
   }
-
-  getVar(vr: VrName): Type | undefined {
-    return this.vars.get(vr) || this.parent?.getVar(vr);
-  }
-
-  getCon(s: string): ConType | undefined {
-    return this.cons.get(s) || this.parent?.getCon(s);
+  commonSupertype(a: Type, b: Type | undefined): Type {
+    if (!b) return a;
+    if (a.t === '_' && b.t === '_') return Nul;
+    if (a.t === '_' && b.t === 'm') return b;
+    if (b.t === '_' && a.t === 'm') return a;
+    if (a.t === '_') return {t: 'm', subtype: b};
+    if (b.t === '_') return {t: 'm', subtype: a};
+    if (this.canAssign(a, b)) return a;
+    if (this.canAssign(b, a)) return b;
+    return Nul;
   }
 }
 
-class ExecContext {
-  constructor(private readonly parent: ContextSnapshot | undefined) {}
-  private readonly vars = new Map<VrName, Type>();
+class ModuleContext extends Module {
   private readonly cons = new Map<string, ConType>();
-  currentVar?: NewVariableFun | undefined;
 
-  getVarOrRecursive(vr: VrName): Type | undefined {
-    const v = this.vars.get(vr);
-    if (v) return v;
-    if (this.currentVar?.type && this.currentVar.name === vr) {
-      return this.currentVar.type;
-    }
-    return this.parent?.getVarOrRecursive(vr);
+  getRequiredCon(s: string): ConType {
+    const c = this.cons.get(s);
+    assertNonNull(c, `Unknown type name ${s}`);
+    return c;
   }
+  setNewCon(s: string, c: ConType) {
+    assert(!this.cons.has(s), `Duplicate type definition ${s}`);
+    this.cons.set(s, c);
+  }
+}
+
+const enum ContextType {
+  Block = 0,
+  Loop = 1,
+  Function = 2,
+}
+
+class ExecContext {
+  private constructor(
+    private readonly parent: ExecContext | undefined,
+    readonly module: ModuleContext,
+    readonly type: ContextType) {
+  }
+  private readonly vars = new Map<VrName, Type>();
+
+  static newModule(): ExecContext {
+    return new ExecContext(undefined, new ModuleContext(), ContextType.Block);
+  }
+
+  newChild(t: ContextType): ExecContext {
+    switch (t) {
+      case ContextType.Block:
+      case ContextType.Loop:
+        return new ExecContext(this, this.module, t);
+      case ContextType.Function:
+        return new ExecContext(undefined, this.module, t);
+    }
+  }
+
+  haveAbove(t: ContextType): boolean {
+    return this.type === t || !!this.parent?.haveAbove(t);
+  }
+
+  currentVar?: NewVariableFun | undefined;
 
   getVar(vr: VrName): Type | undefined {
     return this.vars.get(vr) || this.parent?.getVar(vr);
@@ -306,19 +375,11 @@ class ExecContext {
   setVar(vr: VrName, val: Type) {
     this.vars.set(vr, val);
   }
-  snapshot(): ContextSnapshot {
-    return new ContextSnapshot(this.parent, IMap(this.vars), IMap(this.cons), this.currentVar);
-  }
-  getCon(s: string): ConType | undefined {
-    return this.cons.get(s) || this.parent?.getCon(s);
-  }
-  setCon(s: string, c: ConType) {
-    this.cons.set(s, c);
-  }
+
 }
 
 export class RootPostprocessor {
-  private readonly rootContext: ExecContext = new ExecContext(undefined);
+  private readonly rootContext = ExecContext.newModule();
 
   convert(sta: Sta): Statement {
     return new Postprocessor(this.rootContext).statement(sta);
@@ -362,15 +423,15 @@ class Postprocessor {
 
   private checkReceiverAssignment(left: Receiver, right: Type) {
     if (left.kind === 'field') {
-      this.checkAssignment(left.type, right);
+      this.context.module.assertAssign(left.type, right);
     } else if (left.kind === 'definition') {
       if (left.type) {
-        this.checkAssignment(left.type, right);
+        this.context.module.assertAssign(left.type, right);
       } else {
-        checkFirstAssignment(left.name, right);
+        checkFirstAssignment(left.vrtype, right);
       }
     } else if (left.kind === 'variable') {
-      this.checkAssignment(left.type, right);
+      this.context.module.assertAssign(left.type, right);
     } else if (left.kind === 'discard') {
       // Any assignment is fine
     } else {
@@ -388,16 +449,19 @@ class Postprocessor {
   }
 
   private returnn(r: Ret): Return {
+    assert(this.context.haveAbove(ContextType.Function), 'No function to return from');
     const kind = 'return';
     const expression = this.expression(...r.value);
     return {kind, type: Nul, returnType: expression.type, expression};
   }
 
   private break(_r: Brk): Break {
+    assert(this.context.haveAbove(ContextType.Loop), 'No loop to break out of');
     return {kind: 'break', type: Nul};
   }
 
   private continue(_c: Cnt): Continue {
+    assert(this.context.haveAbove(ContextType.Loop), 'No loop to continue in');
     return {kind: 'continue', type: Nul};
   }
 
@@ -430,11 +494,11 @@ class Postprocessor {
     const kind = 'if';
     const first = this.ifb(e.value[0]);
     const elifs = this.ifn(e.value[1]);
-    const last = e.value.length === 3 ? this.body(e.value[2]) : undefined;
+    const last = e.value.length === 3 ? this.body(e.value[2], ContextType.Block) : undefined;
 
     let type = this.bodytype(first.body);
-    for (const c of elifs) type = this.mergeTypes(type, this.bodytype(c.body));
-    if (last) type = this.mergeTypes(type, this.bodytype(last));
+    for (const c of elifs) type = this.context.module.commonSupertype(type, this.bodytype(c.body));
+    if (last) type = this.context.module.commonSupertype(type, this.bodytype(last));
 
     return {kind, type, first, elifs, last};
   }
@@ -442,7 +506,7 @@ class Postprocessor {
   private ifb(b: Ifb): IfCase {
     const [c, y] = b.value;
     const cond = checkbb(this.expression(c));
-    const body = this.body(y);
+    const body = this.body(y, ContextType.Block);
     return {cond, body};
   }
 
@@ -453,7 +517,7 @@ class Postprocessor {
   private dowhile(e: Dow): DoWhile {
     const kind = 'dowhile';
     const cond = checkbb(this.expression(e.value[1]));
-    const body = this.body(e.value[0]);
+    const body = this.body(e.value[0], ContextType.Loop);
     const type = this.bodytype(body);
     return {kind, cond, type, body};
   }
@@ -461,8 +525,8 @@ class Postprocessor {
   private while(e: Wdo): While {
     const kind = 'while';
     const cond = checkbb(this.expression(e.value[0]));
-    const body = this.body(e.value[1]);
-    const type = this.mergeTypes(Nul, this.bodytype(body));
+    const body = this.body(e.value[1], ContextType.Loop);
+    const type = this.context.module.commonSupertype(Nul, this.bodytype(body));
     return {kind, cond, type, body};
   }
 
@@ -470,20 +534,21 @@ class Postprocessor {
     const kind = 'for';
     const name: VrName = f.value[0].value[0].value;
     const iter = checkaa(this.expression(f.value[1]));
-    const body = this.body(f.value[2]);
-    const type = this.mergeTypes(Nul, this.bodytype(body));
+    const body = this.body(f.value[2], ContextType.Loop);
+    const type = this.context.module.commonSupertype(Nul, this.bodytype(body));
     return {kind, name, iter, type, body};
   }
 
   private do(d: Doo): Do {
     const kind = 'do';
-    const body = this.body(d.value[0]);
+    const body = this.body(d.value[0], ContextType.Block);
     const type = this.bodytype(body);
     return {kind, type, body};
   }
 
-  private body(e: Sta[]): Body {
-    return e.map(s => this.statement(s));
+  private body(e: Sta[], c: ContextType): Body {
+    const inner = new Postprocessor(this.context.newChild(c));
+    return e.map(s => inner.statement(s));
   }
 
   private bodytype(b: Body): Type {
@@ -499,68 +564,9 @@ class Postprocessor {
     } else {
       const kind = 'definition';
       const type = unwrapVar(v);
-      return {kind, type, name};
+      const vrtype = v.value[0].vrtype;
+      return {kind, type, vrtype, name};
     }
-  }
-
-  private checkConAssignment(target: ConType, source: ConType) {
-    for (const [n, f] of target.fields) {
-      const s = source.fields.get(n);
-      assertNonNull(s);
-      this.checkAssignment(f, s);
-    }
-    asserteq(target.name, source.name);
-  }
-  private checkAssignment(target: Type, source: Type) {
-    const t = target.t;
-    switch (t) {
-      case '_': return;
-      case 'i':
-      case 'd':
-      case 'b':
-      case 's':
-      case 'c': assert(t === source.t, `Assigning ${source.t} to ${t}`); return;
-      case 't':
-        assert(t === source.t, `Assigning ${source.t} to ${t}`);
-        asserteq(target.values.length, source.values.length);
-        target.values.forEach((v, i) => this.checkAssignment(v, source.values[i]));
-        return;
-      case 'o':
-        assert(t === source.t, `Assigning ${source.t} to ${t}`);
-        const tcon = this.context.getCon(target.con);
-        const scon = this.context.getCon(source.con);
-        assertNonNull(tcon);
-        assertNonNull(scon);
-        this.checkConAssignment(tcon, scon);
-        return;
-      case 'f':
-        assert(t === source.t, `Assigning ${source.t} to ${t}`);
-        this.checkAssignment(target.ret, source.ret);
-        asserteq(target.args.length, source.args.length);
-        target.args.forEach((v, i) => this.checkAssignment(source.args[i], v));
-        return;
-      case 'a':
-        assert(t === source.t, `Assigning ${source.t} to ${t}`);
-        this.checkAssignment(target.subtype, source.subtype);
-        return;
-      case 'm':
-        if (source.t === '_') return;
-        console.log('maybe assign', target.t, target.subtype.t, source.t);
-        this.checkAssignment(target.subtype, source.t === 'm' ? source.subtype : source);
-        return;
-      default: unreachable(target, 'checkAssignment');
-    }
-  }
-  private mergeTypes(a: Type, b: Type): Type {
-    try {
-      this.checkAssignment(a, b);
-      return a;
-    } catch (e) {}
-    try {
-      this.checkAssignment(b, a);
-      return b;
-    } catch (e) {}
-    return Nul;
   }
 
   private expression(exp: AnyExp): Expression {
@@ -612,7 +618,7 @@ class Postprocessor {
   private variable(v: Vr): DefinedVariable {
     const kind = 'variable';
     const name = v.value;
-    const type = this.context.getVarOrRecursive(name);
+    const type = this.context.getVar(name);
     assert(type, `undefined variable ${name}`);
     return {kind, type, name};
   }
@@ -620,9 +626,8 @@ class Postprocessor {
   private field(d: Dot): Field {
     const kind = 'field';
     const obj = checkoo(this.expression(d.value[0]));
-    const con = this.context.getCon(obj.type.con);
-    assertNonNull(con);
-    const name = d.value[2].value;
+    const con = this.context.module.getRequiredCon(obj.type.con);
+    const name = d.value[1].value;
     const type = con.fields.get(name);
     assert(type, `Unknown object member ${name}`);
     return {kind, type, name, obj};
@@ -635,13 +640,16 @@ class Postprocessor {
     const argNames = args.map(a => a.name);
     if (f.value[1].type !== 'tc') {
       const kind = 'function';
-      const innerContext = new ExecContext(this.context.snapshot());
+      const innerContext = this.context.newChild(ContextType.Function);
       args.forEach(v => innerContext.setVar(v.name, v.value));
+      if (this.context.currentVar) {
+        innerContext.setVar(this.context.currentVar.name, this.context.currentVar.type);
+      }
       const typ = f.value.length === 3 ? f.value[1] : undefined;
       const ret = typ && parseTypeAnnotation(typ);
       const inn = f.value.length === 3 ? f.value[2] : f.value[1];
       const body = new Postprocessor(innerContext).expression(inn);
-      ret && this.checkAssignment(ret, body.type);
+      ret && this.context.module.assertAssign(ret, body.type);
       const type: FunType = {t: 'f', args: argValues, ret: body.type};
       return {kind, args: argNames, type, body};
     } else {
@@ -649,7 +657,7 @@ class Postprocessor {
       const fields = IMap(args.map(a => [a.name, a.value]));
       const name = f.value[1].value;
       const con: ConType = {fields, name};
-      this.context.setCon(name, con);
+      this.context.module.setNewCon(name, con);
       const ret: ObjType = {t: 'o', con: name};
       const type: FunType = {t: 'f', args: argValues, ret};
       return {kind, args: argNames, type, name};
@@ -667,13 +675,13 @@ class Postprocessor {
     if (curried) {
       const arg = checktt(this.expression(r));
       assert(args.length >= arg.type.values.length, 'Too many arguments');
-      arg.type.values.forEach((a, i) => this.checkAssignment(args[i], a));
+      arg.type.values.forEach((a, i) => this.context.module.assertAssign(args[i], a));
       type = {t: 'f', args: args.slice(arg.type.values.length), ret};
       argExps = [{exp: arg, tupleSize: arg.type.values.length}];
     } else {
       const arg = this.expression(r);
       assert(args.length >= 1, 'Too many arguments');
-      this.checkAssignment(args[0], arg.type);
+      this.context.module.assertAssign(args[0], arg.type);
       type = {t: 'f', args: args.slice(1), ret};
       argExps = [{exp: arg}];
     }
@@ -721,8 +729,8 @@ class Postprocessor {
       const [aa, e] = a.value;
       const aaa = this.array(aa);
       const el = this.expression(e);
-      this.checkAssignment(aaa.type.subtype, el.type);
-      return {kind, type: aaa.type, elements: aaa.elements.concat(el)};
+      const subtype = this.context.module.commonSupertype(aaa.type.subtype, el.type);
+      return {kind, type: {t, subtype}, elements: aaa.elements.concat(el)};
     }
   }
 
@@ -738,7 +746,7 @@ class Postprocessor {
     const left = this.expression(l);
     const right = this.expression(r);
     const t = this.doOpTypes(op.value, left.type.t, right.type.t);
-    assert(t, `type ${left.type.t} cannot ${op} with type ${right.type.t}`);
+    assert(t, `type ${pt(left.type)} cannot ${op} with type ${pt(right.type)}`);
     const type = {t};
     return {kind, type, left, right, op};
   }
@@ -794,7 +802,7 @@ function parseFtp(ftp: Ftp): FunType {
   let args: Type[];
   if (ftp.value.length === 2) {
     ret = parseTypeAnnotation(ftp.value[1]);
-    args = ftp.value[0].flatMap(t => t.type === 'cl' ? [] : [t]).map(t => parseTypeAnnotation(t));
+    args = ftp.value[0].map(t => parseTypeAnnotation(t));
   } else {
     ret = parseTypeAnnotation(ftp.value[0]);
     args = [];
@@ -817,7 +825,7 @@ function parseTypeAnnotation(typ: Typ): Type {
 function unwrapVar(vvr: Var): Type | undefined {
   const vr = vvr.value[0];
   if (vvr.value.length === 1) {
-    const t = tt(vr.value);
+    const t = vr.vrtype.core;
     switch (t) {
       case 'i':
       case 'd':
@@ -833,7 +841,7 @@ function unwrapVar(vvr: Var): Type | undefined {
     }
   } else {
     const t = parseTypeAnnotation(vvr.value[1]);
-    checkFirstAssignment(vr.value, t);
+    checkFirstAssignment(vr.vrtype, t);
     return t;
   }
 }
