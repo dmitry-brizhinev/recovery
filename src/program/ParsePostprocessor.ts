@@ -2,7 +2,7 @@
 import {assert, assertNonNull, unreachable, throwIfNull, asserteq} from '../util/Utils';
 import {tt} from './CustomLexer';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, Cnst, Cl, NulT, Nu, MayT, AnyT} from './CustomLexer';
-import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Ifn, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Blo, Exp} from './ParserOutput.generated';
+import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp} from './ParserOutput.generated';
 import {Map as IMap} from 'immutable';
 
 type AnyExp = Exp;
@@ -381,7 +381,7 @@ class Postprocessor {
   private receiver(r: Rec | Var | Nu): Receiver {
     switch (r.type) {
       case 'var': return this.varReceiver(r);
-      case 'rec': return this.field(r);
+      case 'dot': return this.field(r);
       case 'nu': return {kind: 'discard'};
       default: return unreachable(r);
     }
@@ -446,7 +446,7 @@ class Postprocessor {
     return {cond, body};
   }
 
-  private ifn(n: Ifn): IfCase[] {
+  private ifn(n: Ifb[]): IfCase[] {
     return n.map(b => this.ifb(b));
   }
 
@@ -482,7 +482,7 @@ class Postprocessor {
     return {kind, type, body};
   }
 
-  private body(e: Blo): Body {
+  private body(e: Sta[]): Body {
     return e.map(s => this.statement(s));
   }
 
@@ -617,7 +617,7 @@ class Postprocessor {
     return {kind, type, name};
   }
 
-  private field(d: Dot | Rec): Field {
+  private field(d: Dot): Field {
     const kind = 'field';
     const obj = checkoo(this.expression(d.value[0]));
     const con = this.context.getCon(obj.type.con);
@@ -698,13 +698,13 @@ class Postprocessor {
   private tuple(e: Exm): Tuple {
     const kind = 'tuple';
     const t = 't';
-    if (e.value.length === 3) {
+    if (e.value.length === 2) {
       const tt = checktt(this.expression(e.value[0]));
       assert(tt.kind === 'tuple');
-      const v = this.expression(e.value[2]);
+      const v = this.expression(e.value[1]);
       return {kind, type: {t, values: tt.type.values.concat(v.type)}, elements: tt.elements.concat(v)};
     } else {
-      const v = this.expression(e.value[1]);
+      const v = this.expression(e.value[0]);
       return {kind, type: {t, values: [v.type]}, elements: [v]};
     }
   }
@@ -718,7 +718,7 @@ class Postprocessor {
       const el = this.expression(a.value[0]);
       return {kind, type: {t, subtype: el.type}, elements: [el]};
     } else {
-      const [aa, , e] = a.value;
+      const [aa, e] = a.value;
       const aaa = this.array(aa);
       const el = this.expression(e);
       this.checkAssignment(aaa.type.subtype, el.type);
@@ -782,8 +782,8 @@ class Postprocessor {
 
 
 function ttpValues(ttp: Ttp): Type[] {
-  if (ttp.value.length === 2) return [parseTypeAnnotation(ttp.value[1])];
-  const [l, , r] = ttp.value;
+  if (ttp.value.length === 1) return [parseTypeAnnotation(ttp.value[0])];
+  const [l, r] = ttp.value;
   const vals = ttpValues(l);
   vals.push(parseTypeAnnotation(r));
   return vals;

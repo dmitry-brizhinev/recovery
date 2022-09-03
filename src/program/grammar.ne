@@ -15,7 +15,7 @@ bls -> ife | dow | wdo | for | doo                            #bls:fu
 sta -> ass | ret | brk | cnt | exp                            #sta:fu
 sep -> mnl mws %nl mws                                        #sep:d
 # Receivers: the complement to expressions
-rec -> var | exp %dt %vr | %nu                                #rec_:fm
+rec -> var | dot | %nu                                        #rec:fu
 
 # If-statement and If-expression
 eob -> wnl blo wnl                                            #eob:fu
@@ -41,7 +41,7 @@ exc2 -> exl2 sc2      | exl2                                  #exc_:fm
 exl2 -> exl2 cl2 emo2 | emo2                                  #exl_:fm
 emo2 -> exo2 | exm2 | ars2 %ms "]"                            #emo:fu
 ars2 -> ars2 cm2 exo2 | "[" %ms exo2                          #arr:fl
-exm2 -> exm2 cm2 exo2 | cm2 exo2                              #exm_:fm
+exm2 -> exm2 cm2 exo2 | cm2 exo2                              #exm:fl
 exo2 -> exo2 op2 exa1 | exa1                                  #exo_:fm
 # One space
 exa1 -> exc1                                                  #exa1:fu
@@ -50,7 +50,7 @@ exc1 -> exl1 sc1      | exl1                                  #exc_:fm
 exl1 -> exl1 cl1 emo1 | emo1                                  #exl_:fm
 emo1 -> exo1 | exm1 | ars1 %os "]"                            #emo:fu
 ars1 -> ars1 cm1 exo1 | "[" %os exo1                          #arr:fl
-exm1 -> exm1 cm1 exo1 | cm1 exo1                              #exm_:fm
+exm1 -> exm1 cm1 exo1 | cm1 exo1                              #exm:fl
 exo1 -> exo1 op1 exa0 | exa0                                  #exo_:fm
 # No spaces
 exa0 -> exc0                                                  #exa0:fu
@@ -59,10 +59,11 @@ exc0 -> exl0 sc0      | exl0                                  #exc_:fm
 exl0 -> exl0 cl0 emo0 | emo0                                  #exl_:fm
 emo0 -> exo0 | exm0 | ars0 "]"                                #emo:fu
 ars0 -> ars0 cm0 exo0 | "[" exo0                              #arr:fl
-exm0 -> exm0 cm0 exo0 | cm0 exo0                              #exm_:fm
-exo0 -> exo0 op0 dot  | dot                                   #exo_:fm
+exm0 -> exm0 cm0 exo0 | cm0 exo0                              #exm:fl
+exo0 -> exo0 op0 dott | dott                                  #exo_:fm
 # Dot operator
-dot -> vcf | vcf %dt %vr                                      #dot_:fm
+dott -> vcf | dot                                             #dott:fu
+dot -> vcf %dt %vr                                            #dot:fl
 # Variable / constant / if: primitive expressions
 vcf -> %vr | %cnst | %nu | bls | "(" mws exp mws ")" | arre   #vcf:fu
 arre -> "[" mws "]"                                           #arr:fl
@@ -79,9 +80,9 @@ op2 -> %ms %op mws | %os %op %ms | %op %ms                    #op2:fu
 op1 -> %os %op | %op %os | %os %op %os                        #op1:fu
 op0 -> %op                                                    #op0:fu
 # Comma
-cm2 -> %ms %cm mws | %os %cm %ms | %cm %ms                    #cm2:fu
-cm1 -> %os %cm | %cm %os | %os %cm %os                        #cm1:fu
-cm0 -> %cm                                                    #cm0:fu
+cm2 -> %ms %cm mws | %os %cm %ms | %cm %ms                    #cm2:d
+cm1 -> %os %cm | %cm %os | %os %cm %os                        #cm1:d
+cm0 -> %cm                                                    #cm0:d
 # Colon / double-colon
 cl2 -> %ms %cl mws | %os %cl %ms | %cl %ms                    #cl2:fu
 cl1 -> %os %cl | %cl %os | %os %cl %os                        #cl1:fu

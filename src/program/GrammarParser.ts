@@ -67,14 +67,13 @@ class SymbolBase implements ValueObject {
 type Symbol = TokenSymbol | RuleSymbol;
 
 class TokenSymbol extends SymbolBase {
-  readonly type = 'token';
+  public readonly instruction = 't';
   constructor(value: DirtyLexerName) {
     super(value);
   }
 }
 
 class RuleSymbol extends SymbolBase {
-  readonly type = 'rule';
   constructor(value: string, readonly names: List<string>, public instruction: Instruction | Symbol) {
     super(value);
   }
@@ -203,7 +202,7 @@ function searchForLoops(filteredRules: AllRules): OrderedSet<RuleSymbol> | undef
       assert(rule.size === 1, 'Non single fu or fm', name.value);
       const repl = rule.first();
       assert(repl);
-      if (repl.type === 'token') continue;
+      if (repl instanceof TokenSymbol) continue;
       if (repl.instruction === 'ff' || repl.instruction === 'fl') continue;
       children.push(repl);
     }
@@ -220,12 +219,11 @@ function searchForLoops(filteredRules: AllRules): OrderedSet<RuleSymbol> | undef
 function collapseLoops(filteredRules: AllRules): AllRules {
   let result: OrderedSet<RuleSymbol> | undefined;
   while ((result = searchForLoops(filteredRules)) != null) {
-    //console.log('filtering', result.map(r => r.pretty()).toArray());
     const repl = result.first();
     const thisResult = result;
     assert(repl);
     const replaceR = (s: RuleSymbol) => thisResult.has(s) ? repl : s;
-    const replace = (s: Symbol) => s.type === 'rule' && thisResult.has(s) ? repl : s;
+    const replace = (s: Symbol) => s instanceof RuleSymbol && thisResult.has(s) ? repl : s;
     const mapped = mapSymbols(filteredRules, replace);
     const groups = mapped.groupBy((_rules, name) => replaceR(name));
     const flat = groups.map(rulesG => rulesG.valueSeq().flatMap(rules => rules).toOrderedSet());
@@ -239,18 +237,14 @@ function capitalise(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function fu(rule: Rule): string {
+function fu(pretty: (s: Symbol) => string, rule: Rule): string {
   assert(rule.size, 'fu on an empty rule');
   assert(rule.size === 1, 'fu on a long rule');
-  return throwIfNull(rule.get(0)).pretty();
+  return pretty(throwIfNull(rule.get(0)));
 }
 
-function fl(rule: Rule): string {
-  if (!rule.size) return '[]';
-  if (rule.size === 1) {
-    return `[${throwIfNull(rule.get(0)).pretty()}]`;
-  }
-  return `[${rule.map(r => r.pretty()).join(', ')}]`;
+function fl(pretty: (s: Symbol) => string, rule: Rule): string {
+  return `[${rule.map(pretty).join(', ')}]`;
 }
 
 function mapSymbols(allRules: AllRules, m: (s: Symbol) => Symbol): AllRules {
@@ -266,6 +260,10 @@ function filterAll(allRules: AllRules): AllRules {
   //allRules = allRules.map(rules => rules.map(rule => rule.filter(s =>
   //  s.type === 'token' || s.instruction !== 'd'
   //)));
+  allRules = allRules.map((rules, name) => {
+    if (name.instruction !== 'ff') return rules;
+    return rules.flatMap(rule => rule.filterNot(symbol => symbol.equals(name)).map(s => List([s])));
+  });
   allRules = allRules.filter((rules, name) => {
     if (rules.size === 1 && rules.first()?.size === 1) {
       if (name.instruction === 'fu' || name.instruction === 'fm') {
@@ -278,7 +276,7 @@ function filterAll(allRules: AllRules): AllRules {
     return true;
   });
   allRules = mapSymbols(allRules, s => {
-    while (s.type === 'rule' && s.instruction instanceof SymbolBase) {
+    while (s.instruction instanceof SymbolBase) {
       //assert(!p.equals(s), `p=s: ${name.value}, ${p.value}, ${s.value}`);
       s = s.instruction;
     }
@@ -289,7 +287,7 @@ function filterAll(allRules: AllRules): AllRules {
 }
 
 export function generateTypesFrom(grammar: string): string {
-  const allRules = parseGrammarInner(grammar);
+  let allRules = parseGrammarInner(grammar);
 
   const rul = allRules.keySeq().filterNot(r => r.value === 'start');
   const filteredNames = rul.filterNot(r => r.instruction === 'fl').flatMap(r => r.names);
@@ -301,45 +299,50 @@ export function generateTypesFrom(grammar: string): string {
     .map(r => ({i: (fms.has(r.value) ? 'fm' : fixInstruction(r.instruction)), n: r.names}))
     .flatMap(({i, n}) => n.map<string>(n => `${n}: '${i}'`));
 
-  const filteredRules = filterAll(allRules);
-  const collapsedRules = collapseLoops(filteredRules);
+  allRules = collapseLoops(filterAll(allRules));
 
   const lex = new Set<string>();
-  forEachSymbol(collapsedRules, symbol => {symbol instanceof TokenSymbol && lex.add(symbol.pretty());});
+  forEachSymbol(allRules, symbol => {symbol instanceof TokenSymbol && lex.add(symbol.pretty());});
   const lexx = [...lex].sort().join(', ');
   const imports = `import type {${lexx}} from "./CustomLexer";`;
   const imports2 = `import {Set as ISet} from 'immutable';`;
   const imports3 = `import type {Instruction} from "./GrammarParser";`;
 
+  const pretty = (s: Symbol) => {
+    if (s.instruction !== 'ff') return s.pretty();
+    const rules = allRules.get(s);
+    assert(rules);
+    if (rules.size !== 1 || rules.first()?.first()?.instruction === 'ff') return s.pretty();
+    const rule = rules.first();
+    assert(rule);
+    assert(rule.size === 1);
+    const symbol = rule.first();
+    assert(symbol);
+    return `${symbol.pretty()}[]`;
+  };
+  const fll = fl.bind(undefined, pretty);
+  const fuu = fu.bind(undefined, pretty);
+
   const result = [imports, imports2, imports3];
-  for (const [name, rules] of collapsedRules) {
+  for (const [name, rules] of allRules) {
     const post = name.instruction;
     assert(post !== 'd', 'post = d', name.value);
     assert(!(post instanceof SymbolBase), 'post is Symbol', name.value);
 
-    const start = `export type ${capitalise(name.value)} = `;
-
     let middle;
     if (post === 'fu' || post === 'fm' || name.value === 'start') {
       for (const r of rules) assert(r.size === 1, `fu on a long rule ${name.value} ${r.map(s => s.value).join(';')}`);
-      middle = rules.map(fu).join(' | ');
+      middle = rules.map(fuu).join(' | ');
     } else if (post === 'fl') {
-      middle = `{type: '${name.value.toLowerCase()}', value: ${rules.map(fl).join(' | ')};}`;
+      middle = `{type: '${name.value.toLowerCase()}', value: ${rules.map(fll).join(' | ')};}`;
     } else if (post === 'ff') {
-      let options = OrderedSet<Symbol>();
-      for (const rule of rules) {
-        for (const symbol of rule) {
-          if (symbol.equals(name)) continue;
-          options = options.add(symbol);
-        }
-      }
-      const opts = options.map(r => r.pretty());
-      middle = opts.size === 1 ? `${opts.join('')}[]` : `(${opts.join(' | ')})[]`;
+      if (rules.size === 1 && rules.first()?.first()?.instruction !== 'ff') continue;
+      middle = `(${rules.flatMap(rule => rule).map(pretty).join(' | ')})[]`;
     } else {
       unreachable(post);
     }
 
-    result.push(start + middle + ';');
+    result.push(`export type ${name.pretty()} = ${middle};`);
   }
 
   result.push(`export const renames = {${renames.join(', ')}} as const;`);

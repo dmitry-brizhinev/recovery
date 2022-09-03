@@ -448,17 +448,23 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
 }
 
 /*
-Maybe type
-break/continue/return
+- cleanup of GrammarParser?? + grammar Instructions that allow named properties instead of value array
+Module-scoped Con, assignment/closest shared superclass tests
+Variables have - current type, assignable type (annotation or inferred). One time check of var name compatibility.
+Maybe type <- better lexer properties for var?
+break/continue/return - proper context, (later: labels for blocks)
 generic types,
 
 owner/borrow/move (rust style semantics so you can find new/delete points)
 mutable/readonly/const
 pure (for functions)
-Lazy mode functions inside which things behave like haskell
 
 Either/Union types,
 methods + method calls,
 Abstract roots, join and split them, shared? saver and top-level data
 test assertions,
+- ????? auto generate 0/1/2 space precedence copies? And then add more operator precedence?????
+- ?????????????? parsing based on tokens instead of operators, flat expression with precedence computed later????????
+Lazy mode functions inside which things behave like haskell
+
 */

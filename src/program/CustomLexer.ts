@@ -82,7 +82,7 @@ export type ArrT = 'a';
 export type MayT = 'm';
 export type NulT = '_';
 export type LexerName = LexerOpts['type'];
-const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'br', 'ta', 'qm'] as const;
+const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'cm', 'br', 'ta', 'qm'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames_[number];
 export const FilteredLexerNames = ISet<string>(FilteredLexerNames_);
 export type DirtyLexerName = LexerName | FilteredLexerName;
@@ -132,7 +132,7 @@ export interface Dt {
   type: 'dt';
   value: '.';
 }
-export type LexerOpts = Vr | Tc | Tp | Cl | Cm | Dt | Op | Sc | Cnst | Nu;
+export type LexerOpts = Vr | Tc | Tp | Cl | Dt | Op | Sc | Cnst | Nu;
 
 
 
