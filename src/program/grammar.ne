@@ -63,7 +63,7 @@ exm0 -> exm0 cm0 exo0 | cm0 exo0                              #exm:fl
 exo0 -> exo0 op0 dott | dott                                  #exo_:fm
 # Dot operator
 dott -> vcf | dot                                             #dott:fu
-dot -> vcf %dt %vr                                            #dot:fl
+dot -> vcf %dt %vr | vcf %dt %cnst                            #dot:fl
 # Variable / constant / if: primitive expressions
 vcf -> %vr | %cnst | %nu | bls | "(" mws exp mws ")" | arre   #vcf:fu
 arre -> "[" mws "]"                                           #arr:fl

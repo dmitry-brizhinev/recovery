@@ -1,7 +1,7 @@
 
 import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type} from './ParsePostprocessor';
+import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement} from './ParsePostprocessor';
 import {pt, ContextType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
@@ -133,7 +133,7 @@ export default class RootExecutor {
   }
 }
 
-type RecVal = VrName | [Obj, VrName] | null;
+type RecVal = {v: VrName;} | {o: Obj, f: VrName;} | {a: Arr, i: number;} | {t: Tup, i: number;} | {};
 
 function valRep(v: Value): string {
   return 'value' in v && typeof (v.value) !== 'object' ? `${v.value}` : pt(v.type);
@@ -141,10 +141,17 @@ function valRep(v: Value): string {
 }
 
 function recRep(r: RecVal): string {
-  if (Array.isArray(r)) {
-    return `${valRep(r[0])}.${r[1]}`;
+  if ('o' in r) {
+    return `${valRep(r.o)}.${r.f}`;
+  } else if ('v' in r) {
+    return r.v;
+  } else if ('a' in r) {
+    return `${valRep(r.a)}.${r.i}`;
+  } else if ('t' in r) {
+    return `${valRep(r.t)}.${r.i}`;
+  } else {
+    return '_';
   }
-  return r ?? '_';
 }
 
 class Executor {
@@ -167,8 +174,8 @@ class Executor {
 
   private assignment(sta: Assignment): Value {
     const left = this.receiver(sta.receiver);
-    if (!Array.isArray(left) && left?.charAt(0) === 'f') {  // TODO this is dodgy
-      this.currentVar = left;
+    if ('v' in left && left.v.charAt(0) === 'f') {  // TODO this is dodgy
+      this.currentVar = left.v;
     }
     let right = this.expression(sta.expression);
     if (this.currentVar && isf(right)) {
@@ -182,10 +189,14 @@ class Executor {
   }
 
   private assign(left: RecVal, right: Value): void {
-    if (Array.isArray(left)) {
-      left[0].setMember(left[1], right);
-    } else if (left != null) {
-      this.context.setVar(left, right);
+    if ('o' in left) {
+      left.o.setMember(left.f, right);
+    } else if ('v' in left) {
+      this.context.setVar(left.v, right);
+    } else if ('a' in left) {
+      left.a.values[left.i] = right;
+    } else if ('t' in left) {
+      left.t.values[left.i] = right;
     }
     this.printer(`${recRep(left)} = ${valRep(right)}`);
   }
@@ -299,23 +310,37 @@ class Executor {
       case 'definition': return this.definition(r);
       case 'variable': return this.varReceiver(r);
       case 'field': return this.fieldReceiver(r);
-      case 'discard': return null;
+      case 'aelement': return this.aelementReceiver(r);
+      case 'telement': return this.telementReceiver(r);
+      case 'discard': return {};
       default: return unreachable(r);
     }
   }
 
   private definition(v: NewVariable): RecVal {
-    return v.name;
+    return {v: v.name};
   }
 
   private varReceiver(v: DefinedVariable): RecVal {
-    return v.name;
+    return {v: v.name};
   }
 
   private fieldReceiver(f: Field): RecVal {
-    const obj = this.expressionT(f.obj);
+    const o = this.expressionT(f.obj);
     const name = f.name;
-    return [obj, name];
+    return {o, f: name};
+  }
+
+  private aelementReceiver(e: ArrayElement): RecVal {
+    const a = this.expressionT(e.arr);
+    const ind = this.expressionT(e.index);
+    const i = ind.value;
+    return {a, i};
+  }
+
+  private telementReceiver(e: TupleElement): RecVal {
+    const t = this.expressionT(e.tup);
+    return {t, i: e.index};
   }
 
   private expressionT<T extends Type>(exp: NarrowedExpression<T>): NarrowedValue<T> {
@@ -333,6 +358,8 @@ class Executor {
     switch (exp.kind) {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
+      case 'aelement': return this.aelement(exp);
+      case 'telement': return this.telement(exp);
       case 'constant': return this.constant(exp);
       case 'function': return this.callable(exp);
       case 'constructor': return this.callable(exp);
@@ -352,6 +379,19 @@ class Executor {
   private field(f: Field): Value {
     const obj = this.expressionT(f.obj);
     return throwIfNull(obj.getMember(f.name), `Unknown object member ${f.name}`);
+  }
+
+  private aelement(e: ArrayElement): Value {
+    const arr = this.expressionT(e.arr);
+    const ind = this.expressionT(e.index);
+    const i = ind.value;
+    assert(i >= 0 && i < arr.values.length, `Array index ${i} out of bounds for array of length ${arr.values.length}`);
+    return arr.values[i];
+  }
+
+  private telement(e: TupleElement): Value {
+    const tup = this.expressionT(e.tup);
+    return tup.values[e.index];
   }
 
   private constant(c: Constant): Num | Str | Nul {

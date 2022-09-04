@@ -23,7 +23,7 @@ export interface Exl extends RuleOutput {type: 'exl', value: [Exp, Cl, Exp];}
 export interface Arr extends RuleOutput {type: 'arr', value: [Arr, Exp] | [Exp] | [];}
 export interface Exm extends RuleOutput {type: 'exm', value: [Exm, Exp] | [Exp];}
 export interface Exo extends RuleOutput {type: 'exo', value: [Exp, Op, Exp];}
-export interface Dot extends RuleOutput {type: 'dot', value: [Exp, Vr];}
+export interface Dot extends RuleOutput {type: 'dot', value: [Exp, Vr] | [Exp, Cnst];}
 export type Typ = Ftp | Ttp | Atp | Tc | Tp | Mtp;
 export interface Mtp extends RuleOutput {type: 'mtp', value: [Typ];}
 export interface Ttp extends RuleOutput {type: 'ttp', value: [Typ] | [Ttp, Typ];}

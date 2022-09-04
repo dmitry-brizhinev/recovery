@@ -88,6 +88,10 @@ function checkbb(val: Expression): NarrowedExpression<NumType> {
   assert(val.type.t === 'b', `${pt(val.type)} is not a boolean`);
   return val as NarrowedExpression<NumType>;
 }
+function checkii(val: Expression): NarrowedExpression<NumType> {
+  assert(val.type.t === 'i', `${pt(val.type)} is not an integer`);
+  return val as NarrowedExpression<NumType>;
+}
 function checkaa(val: Expression): NarrowedExpression<ArrType> {
   assert(val.type.t === 'a', `${pt(val.type)} is not an array`);
   return val as NarrowedExpression<ArrType>;
@@ -156,7 +160,7 @@ export interface ExpressionStatement {
   expression: Expression;
 }
 
-export type Receiver = Discard | NewVariable | DefinedVariable | Field;
+export type Receiver = Discard | NewVariable | DefinedVariable | Field | TupleElement | ArrayElement;
 
 export interface Discard {
   kind: 'discard';
@@ -184,6 +188,22 @@ export interface Field {
   returnType: Type;
   name: VrName;
   obj: NarrowedExpression<ObjType>;
+}
+
+export interface TupleElement {
+  kind: 'telement';
+  type: Type;
+  returnType: Type;
+  index: number;
+  tup: NarrowedExpression<TupType>;
+}
+
+export interface ArrayElement {
+  kind: 'aelement';
+  type: Type;
+  returnType: Type;
+  index: NarrowedExpression<NumType>;
+  arr: NarrowedExpression<ArrType>;
 }
 
 export type Block = Do | If | For | While | DoWhile;
@@ -233,7 +253,7 @@ export interface DoWhile {
 
 type ExpNarrow<T extends Type> = {type: T;};
 export type NarrowedExpression<T extends Type> = ExpNarrow<T> & Expression;
-export type Expression = DefinedVariable | Field | BlockExpression | Constant | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
+export type Expression = DefinedVariable | Field | TupleElement | ArrayElement | BlockExpression | Constant | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
 
 export interface Constant {
   kind: 'constant';
@@ -480,7 +500,7 @@ class Postprocessor {
   }
 
   private checkReceiverAssignment(left: Receiver, right: Type) {
-    if (left.kind === 'field') {
+    if (left.kind === 'field' || left.kind === 'aelement' || left.kind === 'telement' || left.kind === 'variable') {
       this.context.module.assertAssign(left.type, right);
     } else if (left.kind === 'definition') {
       if (left.type) {
@@ -488,8 +508,6 @@ class Postprocessor {
       } else {
         checkFirstAssignment(left.name, left.vrtype, right);
       }
-    } else if (left.kind === 'variable') {
-      this.context.module.assertAssign(left.type, right);
     } else if (left.kind === 'discard') {
       // Any assignment is fine
     } else {
@@ -500,7 +518,7 @@ class Postprocessor {
   private receiver(r: Rec | Var | Nu): Receiver {
     switch (r.type) {
       case 'var': return this.varReceiver(r);
-      case 'dot': return this.field(r);
+      case 'dot': return this.dot(r);
       case 'nu': return {kind: 'discard'};
       default: return unreachable(r);
     }
@@ -652,7 +670,7 @@ class Postprocessor {
       case 'cnst': return this.constant(exp);
       case 'vr': return this.variable(exp);
       case 'fnd': return this.callable(exp);
-      case 'dot': return this.field(exp);
+      case 'dot': return this.dot(exp);
       case 'exc': return this.callfun(...exp.value);
       case 'exm': return this.tuple(exp);
       case 'exl': return this.bindfun(...exp.value);
@@ -702,20 +720,36 @@ class Postprocessor {
     return {kind, type, returnType, name};
   }
 
-  private field(d: Dot): Field {
-    const kind = 'field';
-    const obj = checkoo(this.expression(d.value[0]));
-    const con = this.context.module.getRequiredCon(obj.type.con);
-    const name = d.value[1].value;
-    const type = con.fields.get(name);
-    assert(type, `Unknown object member ${name}`);
-    const returnType = obj.returnType;
-    return {kind, type, returnType, name, obj};
-
+  private dot(d: Dot): Field | TupleElement | ArrayElement {
+    const left = this.expression(d.value[0]);
+    const right = d.value[1];
+    if (left.type.t === 'o') {
+      const obj = checkoo(left);
+      assert(right.type === 'vr', `Cannot access object field with constant ${right.value}`);
+      const con = this.context.module.getRequiredCon(obj.type.con);
+      const name = right.value;
+      const type = con.fields.get(name);
+      assert(type, `Unknown object member ${name}`);
+      const returnType = obj.returnType;
+      return {kind: 'field', type, returnType, name, obj};
+    } else if (left.type.t === 'a') {
+      const arr = checkaa(left);
+      const index = checkii(this.expression(right));
+      return {kind: 'aelement', type: arr.type.subtype, returnType: arr.returnType, index, arr};
+    } else {
+      const tup = checktt(left);
+      assert(right.type === 'cnst', `Cannot index tuple with variable ${right.value}`);
+      const c = this.constant(right);
+      assert(c.type.t === 'i', `Cannot index tuple with non-integer ${c.value}`);
+      const index = Number.parseInt(c.value);
+      assert(index >= 0 && index < tup.type.values.length, `Index ${c.value} out of bounds for tuple of size ${tup.type.values.length}`);
+      const type = tup.type.values[index];
+      return {kind: 'telement', type, returnType: tup.returnType, index, tup};
+    }
   }
 
   private callable(f: Fnd): FunctionExpression | Constructor {
-    const args = f.value[0].map(vr => ({value: throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value}`), name: vr.value[0].value}));
+    const args = f.value[0].map(vr => ({value: throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`), name: vr.value[0].value}));
     const argValues = args.map(a => a.value);
     const argNames = args.map(a => a.name);
     if (f.value[1].type !== 'tc') {

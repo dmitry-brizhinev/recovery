@@ -2,7 +2,7 @@
 import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
 import type {PrimOps, VrName, VrType} from './CustomLexer';
-import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block, ArrayElement, TupleElement} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -132,6 +132,8 @@ class Compiler {
       case 'definition': return this.definition(r);
       case 'variable': return this.varReceiver(r);
       case 'field': return this.fieldReceiver(r);
+      case 'aelement': return this.aelementReceiver(r);
+      case 'telement': return this.telementReceiver(r);
       case 'discard': return null;
       default: return unreachable(r);
     }
@@ -153,6 +155,16 @@ class Compiler {
     return [v, v];
   }
 
+  private aelementReceiver(e: ArrayElement): [string, string] {
+    const v = this.aelement(e);
+    return [v, v];
+  }
+
+  private telementReceiver(e: TupleElement): [string, string] {
+    const v = this.telement(e);
+    return [v, v];
+  }
+
   private defsAnnotate(name: VrName, type: Type) {
     const a = annotationp(type);
     const aa = `:${a}`;
@@ -169,6 +181,8 @@ class Compiler {
     switch (exp.kind) {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
+      case 'aelement': return this.aelement(exp);
+      case 'telement': return this.telement(exp);
       case 'constant': return this.constant(exp);
       case 'function': return this.callable(exp);
       case 'constructor': return this.callable(exp);
@@ -185,6 +199,8 @@ class Compiler {
     switch (exp.kind) {
       case 'variable':
       case 'field':
+      case 'aelement':
+      case 'telement':
       case 'constant':
       case 'tuple':
       case 'bind':
@@ -204,6 +220,17 @@ class Compiler {
   private field(f: Field): string {
     const obj = this.expressionp(f.obj);
     return `${obj}.${f.name}`;
+  }
+
+  private aelement(e: ArrayElement): string {
+    const arr = this.expressionp(e.arr);
+    const ind = this.expression(e.index);
+    return `${arr}[${ind}]`;
+  }
+
+  private telement(e: TupleElement): string {
+    const tup = this.expressionp(e.tup);
+    return `${tup}[${e.index}]`;
   }
 
   private constant(c: Constant): string {
