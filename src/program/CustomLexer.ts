@@ -109,8 +109,8 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-export type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT;
-export type AnyT = ValueT | NulT | TopT | BotT;
+type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT;
+// export type AnyT = ValueT | NulT | TopT | BotT;
 export type NumT = 'i' | 'd' | 'b';
 export type StrT = 's' | 'c';
 export type FunT = 'f';

@@ -16,7 +16,7 @@ interface Top {
 interface Bot {
   readonly type: BotType;
 }
-const BotV: Bot = {type: {t: '-'}};
+//const BotV: Bot = {type: {t: '-'}};
 interface Num {
   readonly type: NumType;
   readonly value: number;
@@ -66,11 +66,17 @@ type NarrowedValue<T extends Type> =
   : T extends ArrType ? Arr
   : Value;
 
+abstract class ControlFlowException {}
+class ReturnException extends ControlFlowException {
+  constructor(readonly value: Value) {super();}
+}
+class BreakException extends ControlFlowException {}
+class ContinueException extends ControlFlowException {}
 class ExecContext {
   constructor(
     private readonly parent: ExecContext | undefined,
     readonly module: Module,
-    readonly type: ContextType) {}
+    readonly type: ContextType) {} // TODO: type unused by executor, only postprocessor needs it
   private readonly vars = new Map<VrName, Value>();
 
   getVar(vr: VrName): Value | undefined {
@@ -97,9 +103,9 @@ class ExecContext {
     }
   }
 
-  haveAbove(t: ContextType): boolean {
-    return this.type === t || !!this.parent?.haveAbove(t);
-  }
+  //haveAbove(t: ContextType): boolean {
+  //  return this.type === t || !!this.parent?.haveAbove(t);
+  //}
 }
 
 function iss(val: Value): Str | undefined {
@@ -184,19 +190,17 @@ class Executor {
     this.printer(`${recRep(left)} = ${valRep(right)}`);
   }
 
-  private returnstatement(_r: Return): Bot {
-    //return this.expression(r.expression); // TODO
-    return BotV;
+  private returnstatement(r: Return): Bot {
+    const result = this.expression(r.expression);
+    throw new ReturnException(result);
   }
 
   private break(_b: Break): Bot {
-    // TODO
-    return BotV;
+    throw new BreakException();
   }
 
   private continue(_c: Continue): Bot {
-    // TODO
-    return BotV;
+    throw new ContinueException();
   }
 
   private blockstatement(b: BlockStatement): Value {
@@ -229,31 +233,52 @@ class Executor {
 
   private while(e: While): Value {
     const {cond, body} = e;
-    let v: Value = NulV;
-    while (this.expressionT(cond).value) {
-      v = this.body(body, ContextType.Loop);
-    };
-    return v;
+    try {
+      let v: Value = NulV;
+      while (this.expressionT(cond).value) {
+        try {
+          v = this.body(body, ContextType.Loop);
+        } catch (e) {if (!(e instanceof ContinueException)) throw e;}
+      };
+      return v;
+    } catch (e) {
+      if (!(e instanceof BreakException)) throw e;
+      return NulV;
+    }
   }
 
   private dowhile(e: DoWhile): Value {
     const {cond, body} = e;
-    let v: Value;
-    do {
-      v = this.body(body, ContextType.Loop);
-    } while (this.expressionT(cond).value);
-    return v;
+    try {
+      let v: Value = NulV;
+      do {
+        try {
+          v = this.body(body, ContextType.Loop);
+        } catch (e) {if (!(e instanceof ContinueException)) throw e;}
+      } while (this.expressionT(cond).value);
+      return v;
+    } catch (e) {
+      if (!(e instanceof BreakException)) throw e;
+      return NulV;
+    }
   }
 
   private for(f: For): Value {
     const {name, iter, body} = f;
     const a = this.expressionT(iter);
-    let vv: Value = NulV;
-    for (const v of a.values) { // TODO Outer context where the setvar works!!
-      this.context.setVar(name, v);
-      vv = this.body(body, ContextType.Loop);
+    try {
+      let vv: Value = NulV;
+      for (const v of a.values) { // TODO Outer context where the setvar works!!
+        this.context.setVar(name, v);
+        try {
+          vv = this.body(body, ContextType.Loop);
+        } catch (e) {if (!(e instanceof ContinueException)) throw e;}
+      }
+      return vv;
+    } catch (e) {
+      if (!(e instanceof BreakException)) throw e;
+      return NulV;
     }
-    return vv;
   }
 
   private do(d: Do): Value {
@@ -299,6 +324,7 @@ class Executor {
 
   private expression(exp: Expression): Value {
     const v = this.expressionInner(exp);
+    assert(v.type.t !== '*' && v.type.t !== '-', `${exp.kind} expression produced value of type ${pt(v.type)}`);
     this.context.module.assertAssign(exp.type, v.type, `Expected ${exp.kind} expression to produce ${pt(exp.type)} but got ${pt(v.type)}`);
     return v;
   }
@@ -412,7 +438,15 @@ class Executor {
       if (fun.selfref) {
         innerContext.setVar(fun.selfref.name, fun.selfref.value);
       }
-      return new Executor(innerContext, this.printer).expression(fun.ret);
+      try {
+        return new Executor(innerContext, this.printer).expression(fun.ret);
+      } catch (e) {
+        if (!(e instanceof ControlFlowException)) throw e;
+        assert(!(e instanceof BreakException), `Can't break across a function boundary`);
+        assert(!(e instanceof ContinueException), `Can't continue across a function boundary`);
+        if (!(e instanceof ReturnException)) throw e;
+        return e.value;
+      }
     }
   }
 
@@ -442,8 +476,7 @@ function doOpValues(op: PrimOps, l: number, r: number): number {
 }
 
 /*
-Maybe type <- better lexer properties for var?
-break/continue/return - proper context
+lexer support for maybe as modifier not base type
 generic types,
 
 owner/borrow/move (rust style semantics so you can find new/delete points)

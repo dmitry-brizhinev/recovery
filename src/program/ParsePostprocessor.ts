@@ -1,6 +1,6 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, AnyT, TopT, BotT} from './CustomLexer';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, TopT, BotT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp} from './ParserOutput.generated';
 import {Map as IMap, Seq} from 'immutable';
 
@@ -96,11 +96,11 @@ function isff(val: NewVariable): val is NewVariableFun {
   return val.type?.t === 'f';
 }
 
-function iss(t: AnyT): StrT | undefined {
-  return t === 's' || t === 'c' ? t : undefined;
+function iss(type: Type): StrT | undefined {
+  return type.t === 's' || type.t === 'c' ? type.t : undefined;
 }
-function isn(t: AnyT): NumT | undefined {
-  return t === 'b' || t === 'i' || t === 'd' ? t : undefined;
+function isn(type: Type): NumT | undefined {
+  return type.t === 'b' || type.t === 'i' || type.t === 'd' ? type.t : undefined;
 }
 
 function checkFirstAssignment(name: VrName, target: VrType, source: Type) {
@@ -118,6 +118,7 @@ export type Statement = Assignment | Return | Break | Continue | BlockStatement 
 export interface Assignment {
   kind: 'assignment';
   type: Type;
+  returnType: Type;
   receiver: Receiver;
   expression: Expression;
 }
@@ -125,29 +126,33 @@ export interface Assignment {
 export interface Return {
   kind: 'return';
   type: BotType;
-  returnType: Type; // TODO TODO TODO
+  returnType: Type;
   expression: Expression;
 }
 
 export interface Break {
   kind: 'break';
   type: BotType;
+  returnType: BotType;
 }
 
 export interface Continue {
   kind: 'continue';
   type: BotType;
+  returnType: BotType;
 }
 
 export interface BlockStatement {
   kind: 'block';
   type: Type;
+  returnType: Type;
   block: Block;
 }
 
 export interface ExpressionStatement {
   kind: 'expression';
   type: Type;
+  returnType: Type;
   expression: Expression;
 }
 
@@ -169,12 +174,14 @@ type NewVariableFun = NewVariable & ExpNarrow<FunType>;
 export interface DefinedVariable {
   kind: 'variable';
   type: Type; // todo: add the concept of the 'currently assigned' type vs the general declared type that might be wider
+  returnType: BotType;
   name: VrName; // And possibly for fields as well
 }
 
 export interface Field {
   kind: 'field';
   type: Type;
+  returnType: Type;
   name: VrName;
   obj: NarrowedExpression<ObjType>;
 }
@@ -186,6 +193,7 @@ export type Body = Statement[];
 export interface Do {
   kind: 'do';
   type: Type;
+  returnType: Type;
   body: Body;
 }
 interface IfCase {
@@ -195,6 +203,7 @@ interface IfCase {
 export interface If {
   kind: 'if';
   type: Type;
+  returnType: Type;
   first: IfCase;
   elifs: IfCase[];
   last: Body | undefined;
@@ -202,6 +211,7 @@ export interface If {
 export interface For {
   kind: 'for';
   type: Type;
+  returnType: Type;
   name: VrName;
   iter: NarrowedExpression<ArrType>;
   body: Body;
@@ -209,12 +219,14 @@ export interface For {
 export interface While {
   kind: 'while';
   type: Type;
+  returnType: Type;
   cond: NarrowedExpression<NumType>;
   body: Body;
 }
 export interface DoWhile {
   kind: 'dowhile';
   type: Type;
+  returnType: Type;
   cond: NarrowedExpression<NumType>;
   body: Body;
 }
@@ -226,18 +238,21 @@ export type Expression = DefinedVariable | Field | BlockExpression | Constant | 
 export interface Constant {
   kind: 'constant';
   type: NumType | StrType | NulType;
+  returnType: BotType;
   value: string;
 }
 
 export interface BlockExpression {
   kind: 'block';
   type: Type;
+  returnType: Type;
   block: Block;
 }
 
 export interface BinaryOperation {
   kind: 'binary';
   type: Type;
+  returnType: Type;
   left: Expression;
   right: Expression;
   op: Op;
@@ -246,18 +261,21 @@ export interface BinaryOperation {
 export interface Tuple {
   kind: 'tuple';
   type: TupType;
+  returnType: Type;
   elements: Expression[];
 }
 
 export interface ArrayExpression {
   kind: 'array';
   type: ArrType;
+  returnType: Type;
   elements: Expression[];
 }
 
 export interface FunctionExpression {
   kind: 'function';
   type: FunType;
+  returnType: BotType;
   args: VrName[];
   body: Expression;
 }
@@ -265,6 +283,7 @@ export interface FunctionExpression {
 export interface Constructor {
   kind: 'constructor';
   type: FunType;
+  returnType: BotType;
   args: VrName[];
   name: string;
 }
@@ -272,6 +291,7 @@ export interface Constructor {
 export interface FunctionBind {
   kind: 'bind';
   type: Type;
+  returnType: Type;
   call: boolean;
   func: NarrowedExpression<FunType>;
   args: FunctionBindArg[];
@@ -413,6 +433,10 @@ export class RootPostprocessor {
 class Postprocessor {
   constructor(private readonly context: ExecContext) {}
 
+  private comSup(a: Type, b: Type): Type {
+    return this.context.module.commonSupertype(a, b);
+  }
+
   statement(s: Sta): Statement {
     switch (s.type) {
       case 'ass': return this.assignment(s);
@@ -442,7 +466,7 @@ class Postprocessor {
     if (receiver.kind === 'definition') {
       this.context.setVar(receiver.name, receiver.type ?? this.inferUnannotatedType(receiver.name, receiver.vrtype, expression.type));
     }
-    return {kind, type: expression.type, receiver, expression};
+    return {kind, type: expression.type, returnType: expression.returnType, receiver, expression};
   }
 
   private inferUnannotatedType(vrName: VrName, vrType: VrType, assigned: Type): Type {
@@ -491,26 +515,28 @@ class Postprocessor {
 
   private break(_r: Brk): Break {
     assert(this.context.haveAbove(ContextType.Loop), 'No loop to break out of');
-    return {kind: 'break', type: Bot};
+    return {kind: 'break', type: Bot, returnType: Bot};
   }
 
   private continue(_c: Cnt): Continue {
     assert(this.context.haveAbove(ContextType.Loop), 'No loop to continue in');
-    return {kind: 'continue', type: Bot};
+    return {kind: 'continue', type: Bot, returnType: Bot};
   }
 
   private blockstatement(sta: Bls): BlockStatement {
     const kind = 'block';
     const block = this.block(sta);
     const type = block.type;
-    return {kind, type, block};
+    const returnType = block.returnType;
+    return {kind, type, returnType, block};
   }
 
   private expstatement(exp: AnyExp): ExpressionStatement {
     const kind = 'expression';
     const expression = this.expression(exp);
     const type = expression.type;
-    return {kind, type, expression};
+    const returnType = expression.returnType;
+    return {kind, type, returnType, expression};
   }
 
   private block(b: Bls): Block {
@@ -531,10 +557,15 @@ class Postprocessor {
     const last = e.value.length === 3 ? this.body(e.value[2], ContextType.Block) : undefined;
 
     let type = this.bodytype(first.body);
-    for (const c of elifs) type = this.context.module.commonSupertype(type, this.bodytype(c.body));
-    type = this.context.module.commonSupertype(type, last ? this.bodytype(last) : Nul);
+    let returnType = this.comSup(first.cond.returnType, this.bodyreturntype(first.body));
+    for (const c of elifs) {
+      type = this.comSup(type, this.bodytype(c.body));
+      returnType = this.comSup(returnType, this.comSup(c.cond.returnType, this.bodyreturntype(c.body)));
+    }
+    type = this.comSup(type, last ? this.bodytype(last) : Nul);
+    returnType = this.comSup(returnType, last ? this.bodyreturntype(last) : Bot);
 
-    return {kind, type, first, elifs, last};
+    return {kind, type, returnType, first, elifs, last};
   }
 
   private ifb(b: Ifb): IfCase {
@@ -553,15 +584,17 @@ class Postprocessor {
     const cond = checkbb(this.expression(e.value[1]));
     const body = this.body(e.value[0], ContextType.Loop);
     const type = this.bodytype(body);
-    return {kind, cond, type, body};
+    const returnType = this.comSup(cond.returnType, this.bodyreturntype(body));
+    return {kind, cond, type, returnType, body};
   }
 
   private while(e: Wdo): While {
     const kind = 'while';
     const cond = checkbb(this.expression(e.value[0]));
     const body = this.body(e.value[1], ContextType.Loop);
-    const type = this.context.module.commonSupertype(Nul, this.bodytype(body));
-    return {kind, cond, type, body};
+    const type = this.comSup(Nul, this.bodytype(body));
+    const returnType = this.comSup(cond.returnType, this.bodyreturntype(body));
+    return {kind, cond, type, returnType, body};
   }
 
   private for(f: ForP): For {
@@ -569,15 +602,17 @@ class Postprocessor {
     const name: VrName = f.value[0].value[0].value;
     const iter = checkaa(this.expression(f.value[1]));
     const body = this.body(f.value[2], ContextType.Loop);
-    const type = this.context.module.commonSupertype(Nul, this.bodytype(body));
-    return {kind, name, iter, type, body};
+    const type = this.comSup(Nul, this.bodytype(body));
+    const returnType = this.comSup(iter.returnType, this.bodyreturntype(body));
+    return {kind, name, iter, type, returnType, body};
   }
 
   private do(d: Doo): Do {
     const kind = 'do';
     const body = this.body(d.value[0], ContextType.Block);
     const type = this.bodytype(body);
-    return {kind, type, body};
+    const returnType = this.bodyreturntype(body);
+    return {kind, type, returnType, body};
   }
 
   private body(e: Sta[], c: ContextType): Body {
@@ -589,12 +624,20 @@ class Postprocessor {
     return b.length === 0 ? Nul : b[b.length - 1].type;
   }
 
+  private bodyreturntype(b: Body): Type {
+    let t: Type = Bot;
+    for (const s of b) {
+      t = this.comSup(t, s.returnType);
+    }
+    return t;
+  }
+
   private varReceiver(v: Var): DefinedVariable | NewVariable {
     const name = v.value[0].value;
     const value = this.context.getVar(name);
     if (value) {
       const kind = 'variable'; // definition
-      return {kind, type: value, name};
+      return {kind, type: value, returnType: Bot, name};
     } else {
       const kind = 'definition';
       const type = unwrapVar(v);
@@ -646,7 +689,8 @@ class Postprocessor {
     const kind = 'constant';
     const value = c.value;
     const type = this.constantType(value);
-    return {kind, type, value};
+    const returnType = Bot;
+    return {kind, type, returnType, value};
   }
 
   private variable(v: Vr): DefinedVariable {
@@ -654,7 +698,8 @@ class Postprocessor {
     const name = v.value;
     const type = this.context.getVar(name);
     assert(type, `undefined variable ${name}`);
-    return {kind, type, name};
+    const returnType = Bot;
+    return {kind, type, returnType, name};
   }
 
   private field(d: Dot): Field {
@@ -664,7 +709,8 @@ class Postprocessor {
     const name = d.value[1].value;
     const type = con.fields.get(name);
     assert(type, `Unknown object member ${name}`);
-    return {kind, type, name, obj};
+    const returnType = obj.returnType;
+    return {kind, type, returnType, name, obj};
 
   }
 
@@ -683,9 +729,10 @@ class Postprocessor {
       const ret = typ && parseTypeAnnotation(typ);
       const inn = f.value.length === 3 ? f.value[2] : f.value[1];
       const body = new Postprocessor(innerContext).expression(inn);
-      ret && this.context.module.assertAssign(ret, body.type);
-      const type: FunType = {t: 'f', args: argValues, ret: body.type};
-      return {kind, args: argNames, type, body};
+      const bodyRet = this.comSup(body.type, body.returnType);
+      ret && this.context.module.assertAssign(ret, bodyRet);
+      const type: FunType = {t: 'f', args: argValues, ret: bodyRet};
+      return {kind, args: argNames, type, returnType: Bot, body};
     } else {
       const kind = 'constructor';
       const fields = IMap(args.map(a => [a.name, a.value]));
@@ -694,7 +741,7 @@ class Postprocessor {
       this.context.module.setNewCon(name, con);
       const ret: ObjType = {t: 'o', con: name};
       const type: FunType = {t: 'f', args: argValues, ret};
-      return {kind, args: argNames, type, name};
+      return {kind, args: argNames, type, returnType: Bot, name};
     }
   }
 
@@ -706,24 +753,27 @@ class Postprocessor {
     const {args, ret} = func.type;
     let type: FunType;
     let argExps: FunctionBindArg[];
+    let returnType = func.returnType;
     if (curried) {
       const arg = checktt(this.expression(r));
       assert(args.length >= arg.type.values.length, 'Too many arguments');
       arg.type.values.forEach((a, i) => this.context.module.assertAssign(args[i], a));
       type = {t: 'f', args: args.slice(arg.type.values.length), ret};
       argExps = [{exp: arg, tupleSize: arg.type.values.length}];
+      returnType = this.comSup(returnType, arg.returnType);
     } else {
       const arg = this.expression(r);
       assert(args.length >= 1, 'Too many arguments');
       this.context.module.assertAssign(args[0], arg.type);
       type = {t: 'f', args: args.slice(1), ret};
       argExps = [{exp: arg}];
+      returnType = this.comSup(returnType, arg.returnType);
     }
     if (func.kind === 'bind') {
       argExps = func.args.concat(argExps);
       func = func.func;
     }
-    return {kind, type, call, func, args: argExps};
+    return {kind, type, returnType, call, func, args: argExps};
   }
 
   private callfun(e: AnyExp, _sc: Sc): FunctionBind {
@@ -733,8 +783,9 @@ class Postprocessor {
     assert(func.type.args.length === 0, `Function missing ${func.type.args.length} arguments`);
     const args = func.kind === 'bind' ? func.args : [];
     const type = func.type.ret;
+    const returnType = func.returnType;
     func = func.kind === 'bind' ? func.func : func;
-    return {kind, type, call, func, args};
+    return {kind, type, returnType, call, func, args};
   }
 
   private tuple(e: Exm): Tuple {
@@ -744,10 +795,12 @@ class Postprocessor {
       const tt = checktt(this.expression(e.value[0]));
       assert(tt.kind === 'tuple');
       const v = this.expression(e.value[1]);
-      return {kind, type: {t, values: tt.type.values.concat(v.type)}, elements: tt.elements.concat(v)};
+      const returnType = this.comSup(tt.returnType, v.returnType);
+      return {kind, type: {t, values: tt.type.values.concat(v.type)}, returnType, elements: tt.elements.concat(v)};
     } else {
       const v = this.expression(e.value[0]);
-      return {kind, type: {t, values: [v.type]}, elements: [v]};
+      const returnType = v.returnType;
+      return {kind, type: {t, values: [v.type]}, returnType, elements: [v]};
     }
   }
 
@@ -755,16 +808,17 @@ class Postprocessor {
     const kind = 'array';
     const t = 'a';
     if (a.value.length === 0) {
-      return {kind, type: {t, subtype: Bot}, elements: []};
+      return {kind, type: {t, subtype: Bot}, returnType: Bot, elements: []};
     } else if (a.value.length === 1) {
       const el = this.expression(a.value[0]);
-      return {kind, type: {t, subtype: el.type}, elements: [el]};
+      return {kind, type: {t, subtype: el.type}, returnType: el.returnType, elements: [el]};
     } else {
       const [aa, e] = a.value;
       const aaa = this.array(aa);
       const el = this.expression(e);
-      const subtype = this.context.module.commonSupertype(aaa.type.subtype, el.type);
-      return {kind, type: {t, subtype}, elements: aaa.elements.concat(el)};
+      const subtype = this.comSup(aaa.type.subtype, el.type);
+      const returnType = this.comSup(aaa.returnType, el.returnType);
+      return {kind, type: {t, subtype}, returnType, elements: aaa.elements.concat(el)};
     }
   }
 
@@ -772,26 +826,28 @@ class Postprocessor {
     const kind = 'block';
     const block = this.block(b);
     const type = block.type;
-    return {kind, type, block};
+    const returnType = block.returnType;
+    return {kind, type, returnType, block};
   }
 
   private binary(l: AnyExp, op: Op, r: AnyExp): BinaryOperation {
     const kind = 'binary';
     const left = this.expression(l);
     const right = this.expression(r);
-    const t = this.doOpTypes(op.value, left.type.t, right.type.t);
-    assert(t, `type ${pt(left.type)} cannot ${op} with type ${pt(right.type)}`);
-    const type = {t};
-    return {kind, type, left, right, op};
+    const returnType = this.comSup(left.returnType, right.returnType);
+    const type = this.doOpTypes(op.value, left.type, right.type);
+    assert(type, `type ${pt(left.type)} cannot ${op} with type ${pt(right.type)}`);
+    return {kind, type, returnType, left, right, op};
   }
 
-  private doOpTypes(op: PrimOps, l: AnyT, r: AnyT): NumT | StrT | undefined {
+  private doOpTypes(op: PrimOps, l: Type, r: Type): NumType | StrType | undefined {
     if (op === '+' && iss(l) && iss(r)) {
-      return 's';
+      return {t: 's'};
     }
     let ll; let rr;
     if ((ll = isn(l)) && (rr = isn(r))) {
-      return this.doNumOpTypes(op, ll, rr);
+      const t = this.doNumOpTypes(op, ll, rr);
+      return t && {t};
     }
     return undefined;
   }

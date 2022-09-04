@@ -173,7 +173,7 @@ function highlight(line: number, text: string, highlights: Highlight[]): string 
       console.error('end:%d <= start:%d', end, start);
       end = start + 1;
     }
-    current += '\t'.repeat(start - current.length) + (h.solid ? '█' : ' ').repeat(end - start);
+    current += '\t'.repeat(start - current.length) + (!h.solid ? '█' : ' ').repeat(end - start);
   }
   return current;
 }
