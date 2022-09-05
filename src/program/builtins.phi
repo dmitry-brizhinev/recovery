@@ -6,3 +6,24 @@
                                          overload iA dB -> iA.d + dB
                                          overload dA iB -> dA + iB.d
                                          end
+
+
+# iY = [1,2,3].1
+iY = ([1,2,3]).1
+aT = [1,2,3]
+iZ = aT.2
+tT = ,1,'s',aT
+tS = ,'ss',1,tT
+
+iX = tT.0
+sX = tS.0
+
+fEt = overload tT{,i,c,[i]}->,tT.0,tT.0,tT.0
+      overload aT[i]->[aT.0,aT.0,aT.0]
+      end
+
+tTT = fEt:tT;
+iI = (fEt:tT;).0
+aTT = fEt:aT;
+iY = (fEt:aT;).0
+# tSS = fEt:tS;
