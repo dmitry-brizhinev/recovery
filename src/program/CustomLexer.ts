@@ -8,7 +8,7 @@ const ConstRegex = /^\d+(?:\.\d+)?$/;
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
-const kws = ['if', 'then', 'else', 'elif', 'endif', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'];
+const kws = ['if', 'then', 'else', 'elif', 'overload', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'];
 const brs = ['{', '}', '(', ')', '[', ']'];
 const cls = ['::', ':'];
 export const literalLookup = {kw: kws, br: brs, cl: cls};
@@ -34,6 +34,7 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   nl: {match: /(?:#.*)?\n/, lineBreaks: true},
   rt: {match: / *-> */, value: trim},
   op: primOps as any,
+  ad: ['&'],
   sc: [';'],
   dt: ['.'],
   cm: [','],
@@ -122,7 +123,7 @@ export type NulT = '_';
 export type TopT = '*';
 export type BotT = '-';
 export type LexerName = LexerOpts['type'];
-const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'rt', 'eq', 'cm', 'dt', 'br', 'ta', 'qm'] as const;
+const FilteredLexerNames_ = ['nl', 'os', 'ms', 'kw', 'ad', 'rt', 'eq', 'cm', 'dt', 'br', 'ta', 'qm'] as const;
 export type FilteredLexerName = typeof FilteredLexerNames_[number];
 export const FilteredLexerNames = ISet<string>(FilteredLexerNames_);
 export type DirtyLexerName = LexerName | FilteredLexerName;

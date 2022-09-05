@@ -21,7 +21,7 @@ rec -> var | dot | %nu                                        #rec:fu
 eob -> wnl blo wnl                                            #eob:fu
 blo -> blo sep sta | sta                                      #blo:ff
 #ifs -> ife
-ife -> "if" ifb ifn ifl "endif" | "if" ifb ifn "endif"        #ife:fl
+ife -> "if" ifb ifn ifl "end" | "if" ifb ifn "end"            #ife:fl
 ifl -> "else" eob                                             #ifl:fu
 ifn -> null | "elif" ifb ifn                                  #ifn:ff
 ifb -> ws exp ws "then" eob                                   #ifb:fl
@@ -30,13 +30,15 @@ wdo -> "while" ws exp ws "do" eob "end"                       #wdo:fl
 for -> "for" ws var ws "in" ws exp ws "do" eob "end"          #for:fl
 doo -> "do" eob "end"                                         #doo:fl
 # General expression
-exp -> exa2 | fnd                                             #exp:fu
+exp -> exa2 | fnd | cnd | ond                                 #exp:fu
 # Function definition expression
-eod -> exp                                                    #eod:fu
-fnd -> vrl %rt typ ws eod | vrl %rt eod | vrl %rt "struct" ws %tc #fnd:fl
+old -> "overload" ws fnd                                      #old:fu
+olds -> olds sep old | old                                    #olds:ff
+ond -> olds sep "end"                                         #ond:fl
+fnd -> vrl %rt typ ws exp | vrl %rt exp                       #fnd:fl
+cnd -> vrl %rt "struct" ws %tc                                #cnd:fl
 # Compound expressions with binary operators
 exa2 -> exc2                                                  #exa2:fu
-#arr2 -> ars2 %ms "]"
 exc2 -> exl2 sc2      | exl2                                  #exc_:fm
 exl2 -> exl2 cl2 emo2 | emo2                                  #exl_:fm
 emo2 -> exo2 | exm2 | ars2 %ms "]"                            #emo:fu
@@ -45,7 +47,6 @@ exm2 -> exm2 cm2 exo2 | cm2 exo2                              #exm:fl
 exo2 -> exo2 op2 exa1 | exa1                                  #exo_:fm
 # One space
 exa1 -> exc1                                                  #exa1:fu
-#arr1 -> ars1 %os "]"
 exc1 -> exl1 sc1      | exl1                                  #exc_:fm
 exl1 -> exl1 cl1 emo1 | emo1                                  #exl_:fm
 emo1 -> exo1 | exm1 | ars1 %os "]"                            #emo:fu
@@ -92,7 +93,9 @@ typ -> "{" ftp "}" | "{" ttp "}" | "[" atp "]" | %tc | %tp | mtp #typ:fu
 mtp -> typ %qm                                                #mtp:fl
 ttp -> %cm typ | ttp %cm typ                                  #ttp:fl
 atp -> typ                                                    #atp:fl
-ftp -> %rt typ | tps %rt typ                                  #ftp:fl
+ftp -> ftps                                                   #ftp:fl
+ftps -> ftps mws %ad mws ftpo | ftpo                          #ftps:ff
+ftpo -> %rt typ | tps %rt typ                                 #ftpo:fl
 tps -> typ | tps tcl typ                                      #tps:ff
 tcl -> ":"                                                    #tcl:d 
 # Variable with type annotation

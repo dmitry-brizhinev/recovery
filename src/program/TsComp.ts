@@ -23,7 +23,7 @@ function getOptions() {
     noImplicitReturns: true,
     exactOptionalPropertyTypes: true,
     noPropertyAccessFromIndexSignature: true,
-    noUncheckedIndexedAccess: true,
+    noUncheckedIndexedAccess: false,
     noFallthroughCasesInSwitch: true,
     noUnusedLocals: false,
     noUnusedParameters: false,

@@ -1,7 +1,7 @@
 
 import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionBindArg, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement} from './ParsePostprocessor';
+import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement, StringElement} from './ParsePostprocessor';
 import {pt, ContextType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
 
@@ -23,14 +23,20 @@ interface Num {
 }
 interface Str {
   readonly type: StrType;
-  readonly value: string;
+  value: string;
+}
+interface FunOver {
+  readonly args: VrName[];
+  readonly ret: Expression | string;
 }
 interface Fun {
   readonly type: FunType;
-  readonly args: VrName[];
+  readonly sigs: FunOver[];
   readonly applied: Value[];
   readonly selfref?: {name: VrName; value: Fun;} | undefined;
-  readonly ret: Expression | string;
+}
+interface SimpleFun extends Fun {
+  readonly sigs: [FunOver];
 }
 interface Tup {
   readonly type: TupType;
@@ -64,6 +70,7 @@ type NarrowedValue<T extends Type> =
   : T extends FunType ? Fun
   : T extends TupType ? Tup
   : T extends ArrType ? Arr
+  : T extends StrType ? Str
   : Value;
 
 abstract class ControlFlowException {}
@@ -133,7 +140,7 @@ export default class RootExecutor {
   }
 }
 
-type RecVal = {v: VrName;} | {o: Obj, f: VrName;} | {a: Arr, i: number;} | {t: Tup, i: number;} | {};
+type RecVal = {v: VrName;} | {o: Obj, f: VrName;} | {s: Str, i: number;} | {a: Arr, i: number;} | {t: Tup, i: number;} | {null: null;};
 
 function valRep(v: Value): string {
   return 'value' in v && typeof (v.value) !== 'object' ? `${v.value}` : pt(v.type);
@@ -145,12 +152,16 @@ function recRep(r: RecVal): string {
     return `${valRep(r.o)}.${r.f}`;
   } else if ('v' in r) {
     return r.v;
+  } else if ('s' in r) {
+    return `${valRep(r.s)}.${r.i}`;
   } else if ('a' in r) {
     return `${valRep(r.a)}.${r.i}`;
   } else if ('t' in r) {
     return `${valRep(r.t)}.${r.i}`;
-  } else {
+  } else if ('null' in r) {
     return '_';
+  } else {
+    return unreachable(r);
   }
 }
 
@@ -193,10 +204,21 @@ class Executor {
       left.o.setMember(left.f, right);
     } else if ('v' in left) {
       this.context.setVar(left.v, right);
+    } else if ('s' in left) {
+      let ss = left.s.value;
+      const c = iss(right);
+      assert(c);
+      assert(c.type.t === 'c');
+      ss = ss.slice(0, left.i) + c.value + ss.slice(left.i + 1);
+      left.s.value = ss;
     } else if ('a' in left) {
       left.a.values[left.i] = right;
     } else if ('t' in left) {
       left.t.values[left.i] = right;
+    } else if ('null' in left) {
+      // Discard
+    } else {
+      unreachable(left);
     }
     this.printer(`${recRep(left)} = ${valRep(right)}`);
   }
@@ -310,9 +332,10 @@ class Executor {
       case 'definition': return this.definition(r);
       case 'variable': return this.varReceiver(r);
       case 'field': return this.fieldReceiver(r);
+      case 'selement': return this.selementReceiver(r);
       case 'aelement': return this.aelementReceiver(r);
       case 'telement': return this.telementReceiver(r);
-      case 'discard': return {};
+      case 'discard': return {null: null};
       default: return unreachable(r);
     }
   }
@@ -329,6 +352,13 @@ class Executor {
     const o = this.expressionT(f.obj);
     const name = f.name;
     return {o, f: name};
+  }
+
+  private selementReceiver(e: StringElement): RecVal {
+    const s = this.expressionT(e.str);
+    const ind = this.expressionT(e.index);
+    const i = ind.value;
+    return {s, i};
   }
 
   private aelementReceiver(e: ArrayElement): RecVal {
@@ -358,11 +388,12 @@ class Executor {
     switch (exp.kind) {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
+      case 'selement': return this.selement(exp);
       case 'aelement': return this.aelement(exp);
       case 'telement': return this.telement(exp);
       case 'constant': return this.constant(exp);
-      case 'function': return this.callable(exp);
-      case 'constructor': return this.callable(exp);
+      case 'function': return this.functionexp(exp);
+      case 'constructor': return this.constructorexp(exp);
       case 'binary': return this.binary(exp);
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
@@ -379,6 +410,14 @@ class Executor {
   private field(f: Field): Value {
     const obj = this.expressionT(f.obj);
     return throwIfNull(obj.getMember(f.name), `Unknown object member ${f.name}`);
+  }
+
+  private selement(e: StringElement): Value {
+    const str = this.expressionT(e.str);
+    const ind = this.expressionT(e.index);
+    const i = ind.value;
+    assert(i >= 0 && i < str.value.length, `String index ${i} out of bounds for string "${str.value}" of length ${str.value.length}`);
+    return {type: {t: 'c'}, value: str.value[i]};
   }
 
   private aelement(e: ArrayElement): Value {
@@ -412,13 +451,14 @@ class Executor {
     }
   }
 
-  private callable(f: FunctionExpression | Constructor): Fun {
-    const args = f.args;
-    if (f.kind === 'function') {
-      return {type: f.type, args, applied: [], ret: f.body};
-    } else {
-      return {type: f.type, args, applied: [], ret: f.name};
-    }
+  private functionexp(f: FunctionExpression): Fun {
+    const sigs = f.sigs.map(({args, body}) => ({args, ret: body}));
+    return {type: f.type, sigs, applied: []};
+  }
+
+  private constructorexp(f: Constructor): SimpleFun {
+    const sig = f.sigs[0];
+    return {type: f.type, sigs: [{args: sig.args, ret: sig.name}], applied: []};
   }
 
   private binary(b: BinaryOperation): Value {
@@ -452,34 +492,27 @@ class Executor {
   private bindfun(f: FunctionBind): Value {
     const {func, args, call} = f;
     let ff = this.expressionT(func);
-    const as = args.flatMap(a => this.funcArg(a));
+    const as = args.map(a => this.expression(a));
     ff = {...ff, applied: ff.applied.concat(as)};
     if (!call) return ff;
 
     return this.callfun(ff);
   }
 
-  private funcArg(arg: FunctionBindArg): Value[] {
-    if (arg.tupleSize != null) {
-      return this.expressionT(arg.exp).values;
-    } else {
-      return [this.expression(arg.exp)];
-    }
-  }
-
   private callfun(fun: Fun): Value {
     const innerContext = this.context.newChild(ContextType.Function);
+    const sig = fun.sigs[0];
     for (const [i, a] of fun.applied.entries()) {
-      innerContext.setVar(fun.args[i], a);
+      innerContext.setVar(sig.args[i], a);
     }
-    if (typeof (fun.ret) === 'string') {
-      return this.makeStruct(fun.ret, innerContext);
+    if (typeof (sig.ret) === 'string') {
+      return this.makeStruct(sig.ret, innerContext);
     } else {
       if (fun.selfref) {
         innerContext.setVar(fun.selfref.name, fun.selfref.value);
       }
       try {
-        return new Executor(innerContext, this.printer).expression(fun.ret);
+        return new Executor(innerContext, this.printer).expression(sig.ret);
       } catch (e) {
         if (!(e instanceof ControlFlowException)) throw e;
         assert(!(e instanceof BreakException), `Can't break across a function boundary`);

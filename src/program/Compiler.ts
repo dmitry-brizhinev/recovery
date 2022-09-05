@@ -1,8 +1,7 @@
-
-import {Seq} from 'immutable';
 import {numToLetter, unreachable} from '../util/Utils';
+import {zip, zipWith} from '../util/Zip';
 import type {PrimOps, VrName, VrType} from './CustomLexer';
-import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, FunctionBindArg, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block, ArrayElement, TupleElement} from './ParsePostprocessor';
+import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block, ArrayElement, TupleElement, StringElement, FunSignature, FunctionOverload} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
@@ -132,6 +131,7 @@ class Compiler {
       case 'definition': return this.definition(r);
       case 'variable': return this.varReceiver(r);
       case 'field': return this.fieldReceiver(r);
+      case 'selement': return this.selementReceiver(r);
       case 'aelement': return this.aelementReceiver(r);
       case 'telement': return this.telementReceiver(r);
       case 'discard': return null;
@@ -153,6 +153,12 @@ class Compiler {
   private fieldReceiver(f: Field): [string, string] {
     const v = this.field(f);
     return [v, v];
+  }
+
+  private selementReceiver(_e: StringElement): [string, string] {
+    //const v = this.aelement(e);
+    //return [v, v];
+    throw new Error('String indexing not supported in TS compiler yet');
   }
 
   private aelementReceiver(e: ArrayElement): [string, string] {
@@ -181,11 +187,12 @@ class Compiler {
     switch (exp.kind) {
       case 'variable': return this.variable(exp);
       case 'field': return this.field(exp);
+      case 'selement': return this.selement(exp);
       case 'aelement': return this.aelement(exp);
       case 'telement': return this.telement(exp);
       case 'constant': return this.constant(exp);
-      case 'function': return this.callable(exp);
-      case 'constructor': return this.callable(exp);
+      case 'function': return this.functionexp(exp);
+      case 'constructor': return this.constructorexp(exp);
       case 'binary': return this.binary(exp);
       case 'tuple': return this.tuple(exp);
       case 'bind': return this.bindfun(exp);
@@ -199,6 +206,7 @@ class Compiler {
     switch (exp.kind) {
       case 'variable':
       case 'field':
+      case 'selement':
       case 'aelement':
       case 'telement':
       case 'constant':
@@ -222,6 +230,12 @@ class Compiler {
     return `${obj}.${f.name}`;
   }
 
+  private selement(e: StringElement): string {
+    const str = this.expressionp(e.str);
+    const ind = this.expression(e.index);
+    return `${str}[${ind}]`;
+  }
+
   private aelement(e: ArrayElement): string {
     const arr = this.expressionp(e.arr);
     const ind = this.expression(e.index);
@@ -237,17 +251,26 @@ class Compiler {
     return c.value === '_' ? 'undefined' : c.value;
   }
 
-  private callable(f: FunctionExpression | Constructor): string {
+  private overloadexp(f: FunctionOverload, t: FunSignature) {
     const argNames = f.args;
-    const argTypes = f.type.args;
-    const args = Seq(argNames).zipWith(this.defsAnnotate, Seq(argTypes)).join(', ');
-    if (f.kind === 'function') {
-      const r = this.expression(f.body);
-      return `(${args}) => (${r})`;
-    } else {
-      const rawArgs = f.args.join(', ');
-      return `(${args}) => ({${rawArgs}})`;
-    }
+    const argTypes = t.args;
+    const args = zipWith(argNames, argTypes, this.defsAnnotate).join(', ');
+    const r = this.expression(f.body);
+    return `(${args}) => (${r})`;
+  }
+
+  private functionexp(f: FunctionExpression): string {
+    const overloads = zip(f.sigs, f.type.sigs).map(ft => this.overloadexp(...ft)).toArray();
+    if (overloads.length === 1) return overloads[0];
+    return `[${overloads.join(',')}]`;
+  }
+
+  private constructorexp(f: Constructor): string {
+    const argNames = f.sigs[0].args;
+    const argTypes = f.type.sigs[0].args;
+    const args = zipWith(argNames, argTypes, this.defsAnnotate).join(', ');
+    const rawArgs = argNames.join(', ');
+    return `(${args}) => ({${rawArgs}})`;
   }
 
   private binary(b: BinaryOperation): string {
@@ -275,20 +298,11 @@ class Compiler {
   private bindfun(f: FunctionBind): string {
     const {func, args, call} = f;
     const ff = this.expressionp(func);
-    const as = args.map(a => this.funcArg(a)).join(', ');
+    const as = args.map(a => this.expression(a)).join(', ');
     if (call) {
       return `${ff}(${as})`;
     } else {
       return `${ff}.bind(undefined,${as})`;
-    }
-  }
-
-  private funcArg(arg: FunctionBindArg): string {
-    const s = arg.tupleSize;
-    if (s != null) {
-      return `...${this.expressionp(arg.exp)}`;
-    } else {
-      return this.expression(arg.exp);
     }
   }
 }
@@ -325,10 +339,17 @@ function implicitAnnotation(n: VrType): string | undefined {
   }
 }
 
-function parseFun(f: FunType): string {
+function parseFunSig(f: FunSignature): string {
   const ret = annotationp(f.ret);
   const args = f.args.map((t, i) => `${numToLetter('a', i)}:${annotationp(t)}`);
   return `(${args.join(',')}) => ${ret}`;
+}
+
+function parseFun(f: FunType): string {
+  if (f.sigs.length === 1) {
+    return parseFunSig(f.sigs[0]);
+  }
+  return `[(${f.sigs.map(parseFunSig).join('),(')})]`;
 }
 
 function annotationp(t: Type): string {

@@ -1,8 +1,9 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, TopT, BotT} from './CustomLexer';
-import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp} from './ParserOutput.generated';
-import {Map as IMap, Seq} from 'immutable';
+import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp, Cnd, Ond, Ftpo} from './ParserOutput.generated';
+import {Map as IMap} from 'immutable';
+import {zip, zipShorter} from '../util/Zip';
 
 type AnyExp = Exp;
 
@@ -24,10 +25,17 @@ export interface NumType {
 export interface StrType {
   readonly t: StrT;
 }
-export interface FunType {
-  readonly t: FunT;
+export interface FunSignature {
   readonly args: Type[];
   readonly ret: Type;
+}
+export interface FunType {
+  readonly t: FunT;
+  readonly sigs: FunSignature[];
+}
+export interface SimpleFunType extends FunType {
+  readonly t: FunT;
+  readonly sigs: [FunSignature];
 }
 export interface ConType {
   readonly name: string;
@@ -65,7 +73,7 @@ export function pt(t: Type): string {
     case 'c': return t.t;
     case 't': return `{,${t.values.map(pt).join(',')}}`;
     case 'o': return t.con;
-    case 'f': return `{${t.args.map(pt).join(':')}->${pt(t.ret)}}`;
+    case 'f': return `{${t.sigs.map(t => `${t.args.map(pt).join(':')}->${pt(t.ret)}`).join(' & ')}}`;
     case 'a': return `[${pt(t.subtype)}]`;
     case 'm': return `${pt(t.subtype)}?`;
     default: return unreachable(t, `Invalid type ${t}`);
@@ -91,6 +99,10 @@ function checkbb(val: Expression): NarrowedExpression<NumType> {
 function checkii(val: Expression): NarrowedExpression<NumType> {
   assert(val.type.t === 'i', `${pt(val.type)} is not an integer`);
   return val as NarrowedExpression<NumType>;
+}
+function checkss(val: Expression): NarrowedExpression<StrType> {
+  assert(val.type.t === 's', `${pt(val.type)} is not a string`);
+  return val as NarrowedExpression<StrType>;
 }
 function checkaa(val: Expression): NarrowedExpression<ArrType> {
   assert(val.type.t === 'a', `${pt(val.type)} is not an array`);
@@ -160,7 +172,7 @@ export interface ExpressionStatement {
   expression: Expression;
 }
 
-export type Receiver = Discard | NewVariable | DefinedVariable | Field | TupleElement | ArrayElement;
+export type Receiver = Discard | NewVariable | DefinedVariable | Field | StringElement | TupleElement | ArrayElement;
 
 export interface Discard {
   kind: 'discard';
@@ -188,6 +200,14 @@ export interface Field {
   returnType: Type;
   name: VrName;
   obj: NarrowedExpression<ObjType>;
+}
+
+export interface StringElement {
+  kind: 'selement';
+  type: StrType;
+  returnType: Type;
+  index: NarrowedExpression<NumType>;
+  str: NarrowedExpression<StrType>;
 }
 
 export interface TupleElement {
@@ -253,7 +273,7 @@ export interface DoWhile {
 
 type ExpNarrow<T extends Type> = {type: T;};
 export type NarrowedExpression<T extends Type> = ExpNarrow<T> & Expression;
-export type Expression = DefinedVariable | Field | TupleElement | ArrayElement | BlockExpression | Constant | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
+export type Expression = DefinedVariable | Field | StringElement | TupleElement | ArrayElement | BlockExpression | Constant | FunctionExpression | Constructor | BinaryOperation | Tuple | ArrayExpression | FunctionBind;
 
 export interface Constant {
   kind: 'constant';
@@ -292,20 +312,28 @@ export interface ArrayExpression {
   elements: Expression[];
 }
 
-export interface FunctionExpression {
-  kind: 'function';
-  type: FunType;
-  returnType: BotType;
+export interface FunctionOverload {
   args: VrName[];
   body: Expression;
 }
 
-export interface Constructor {
-  kind: 'constructor';
+export interface FunctionExpression {
+  kind: 'function';
   type: FunType;
   returnType: BotType;
+  sigs: FunctionOverload[];
+}
+
+export interface ConstructorOverload {
   args: VrName[];
   name: string;
+}
+
+export interface Constructor {
+  kind: 'constructor';
+  type: SimpleFunType;
+  returnType: BotType;
+  sigs: [ConstructorOverload];
 }
 
 export interface FunctionBind {
@@ -314,17 +342,7 @@ export interface FunctionBind {
   returnType: Type;
   call: boolean;
   func: NarrowedExpression<FunType>;
-  args: FunctionBindArg[];
-}
-
-export type FunctionBindArg = FunctionBindArgTup | FunctionBindArgNorm;
-interface FunctionBindArgTup {
-  exp: NarrowedExpression<TupType>;
-  tupleSize: number;
-}
-interface FunctionBindArgNorm {
-  exp: Expression;
-  tupleSize?: undefined;
+  args: Expression[];
 }
 
 export abstract class Module {
@@ -350,13 +368,15 @@ export abstract class Module {
       case 'c': return t === source.t;
       case 't':
         return t === source.t && target.values.length === source.values.length &&
-          Seq(target.values).zip(Seq(source.values)).every(([tv, sv]) => this.invariant(tv, sv));
+          zip(target.values, source.values).every(([tv, sv]) => this.invariant(tv, sv));
       case 'o':
         return t === source.t && target.con === source.con;
       case 'f':
-        return t === source.t && this.canAssign(target.ret, source.ret)
-          && target.args.length === source.args.length
-          && Seq(target.args).zip(Seq(source.args)).every(([ta, sa]) => this.canAssign(sa, ta));
+        return t === source.t && target.sigs.length === source.sigs.length &&
+          zip(target.sigs, source.sigs).every(([target, source]) =>
+            this.canAssign(target.ret, source.ret)
+            && target.args.length === source.args.length
+            && zip(target.args, source.args).every(([ta, sa]) => this.canAssign(sa, ta)));
       case 'a':
         return t === source.t && this.invariant(target.subtype, source.subtype);
       case 'm':
@@ -500,7 +520,7 @@ class Postprocessor {
   }
 
   private checkReceiverAssignment(left: Receiver, right: Type) {
-    if (left.kind === 'field' || left.kind === 'aelement' || left.kind === 'telement' || left.kind === 'variable') {
+    if (left.kind === 'field' || left.kind === 'selement' || left.kind === 'aelement' || left.kind === 'telement' || left.kind === 'variable') {
       this.context.module.assertAssign(left.type, right);
     } else if (left.kind === 'definition') {
       if (left.type) {
@@ -669,7 +689,9 @@ class Postprocessor {
       case 'nu':
       case 'cnst': return this.constant(exp);
       case 'vr': return this.variable(exp);
-      case 'fnd': return this.callable(exp);
+      case 'fnd': return this.functionexp(exp);
+      case 'cnd': return this.constructorexp(exp);
+      case 'ond': return this.overloads(exp);
       case 'dot': return this.dot(exp);
       case 'exc': return this.callfun(...exp.value);
       case 'exm': return this.tuple(exp);
@@ -720,7 +742,7 @@ class Postprocessor {
     return {kind, type, returnType, name};
   }
 
-  private dot(d: Dot): Field | TupleElement | ArrayElement {
+  private dot(d: Dot): Field | StringElement | TupleElement | ArrayElement {
     const left = this.expression(d.value[0]);
     const right = d.value[1];
     if (left.type.t === 'o') {
@@ -736,6 +758,10 @@ class Postprocessor {
       const arr = checkaa(left);
       const index = checkii(this.expression(right));
       return {kind: 'aelement', type: arr.type.subtype, returnType: arr.returnType, index, arr};
+    } else if (left.type.t === 's') {
+      const str = checkss(left);
+      const index = checkii(this.expression(right));
+      return {kind: 'selement', type: {t: 'c'}, returnType: str.returnType, index, str};
     } else {
       const tup = checktt(left);
       assert(right.type === 'cnst', `Cannot index tuple with variable ${right.value}`);
@@ -748,75 +774,109 @@ class Postprocessor {
     }
   }
 
-  private callable(f: Fnd): FunctionExpression | Constructor {
-    const args = f.value[0].map(vr => ({value: throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`), name: vr.value[0].value}));
-    const argValues = args.map(a => a.value);
-    const argNames = args.map(a => a.name);
-    if (f.value[1].type !== 'tc') {
-      const kind = 'function';
-      const innerContext = this.context.newChild(ContextType.Function);
-      args.forEach(v => innerContext.setVar(v.name, v.value));
-      if (this.context.currentVar) {
-        innerContext.setVar(this.context.currentVar.name, this.context.currentVar.type);
-      }
-      const typ = f.value.length === 3 ? f.value[1] : undefined;
-      const ret = typ && parseTypeAnnotation(typ);
-      const inn = f.value.length === 3 ? f.value[2] : f.value[1];
-      const body = new Postprocessor(innerContext).expression(inn);
-      const bodyRet = this.comSup(body.type, body.returnType);
-      ret && this.context.module.assertAssign(ret, bodyRet);
-      const type: FunType = {t: 'f', args: argValues, ret: bodyRet};
-      return {kind, args: argNames, type, returnType: Bot, body};
-    } else {
-      const kind = 'constructor';
-      const fields = IMap(args.map(a => [a.name, a.value]));
-      const name = f.value[1].value;
-      const con: ConType = {fields, name};
-      this.context.module.setNewCon(name, con);
-      const ret: ObjType = {t: 'o', con: name};
-      const type: FunType = {t: 'f', args: argValues, ret};
-      return {kind, args: argNames, type, returnType: Bot, name};
+  private argTypes(f: Fnd | Cnd): Type[] {
+    return f.value[0].map(vr => throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`));
+  }
+
+  private argNames(f: Fnd | Cnd): VrName[] {
+    return f.value[0].map(vr => vr.value[0].value);
+  }
+
+  private functionexp(f: Fnd): FunctionExpression {
+    const kind = 'function';
+    const argTypes = this.argTypes(f);
+    const argNames = this.argNames(f);
+
+    const innerContext = this.context.newChild(ContextType.Function);
+    zip(argNames, argTypes).forEach(v => innerContext.setVar(...v));
+    if (this.context.currentVar) {
+      innerContext.setVar(this.context.currentVar.name, this.context.currentVar.type);
     }
+    const typ = f.value.length === 3 ? f.value[1] : undefined;
+    const ret = typ && parseTypeAnnotation(typ);
+    const inn = f.value.length === 3 ? f.value[2] : f.value[1];
+    const body = new Postprocessor(innerContext).expression(inn);
+    const bodyRet = this.comSup(body.type, body.returnType);
+    ret && this.context.module.assertAssign(ret, bodyRet);
+    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret: bodyRet}]};
+    return {kind, sigs: [{args: argNames, body}], type, returnType: Bot};
+  }
+
+  private constructorexp(f: Cnd): Constructor {
+    const kind = 'constructor';
+    const argTypes = this.argTypes(f);
+    const argNames = this.argNames(f);
+
+    const fields = IMap(zip(argNames, argTypes));
+    const name = f.value[1].value;
+    const con: ConType = {fields, name};
+    this.context.module.setNewCon(name, con);
+    const ret: ObjType = {t: 'o', con: name};
+    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret}]};
+
+    return {kind, sigs: [{args: argNames, name}], type, returnType: Bot};
+  }
+
+  private overloads(o: Ond): FunctionExpression {
+    const kind = 'function';
+    const fs = o.value[0].map(f => this.functionexp(f));
+    assert(fs.length);
+    const sigs = fs.flatMap(f => f.sigs);
+    const tsigs = fs.flatMap(f => f.type.sigs);
+    assert(tsigs.length);
+    const type: FunType = {t: 'f', sigs: tsigs};
+    return {kind, sigs, type, returnType: Bot};
+  }
+
+  private filterSigsAndApply(f: FunType, as: Expression[]): FunSignature[] {
+    return f.sigs.filter(sig => {
+      if (sig.args.length < as.length) return false;
+      if (zipShorter(sig.args, as).some(([s, a]) => !this.context.module.canAssign(s, a.type))) return false;
+      return true;
+    }).map(({args, ret}) => ({args: args.slice(as.length), ret}));
+  }
+
+  private bindfuncn(func: NarrowedExpression<FunType>, args: Expression[]): FunctionBind & ExpNarrow<FunType> {
+    const kind = 'bind';
+    const call = false;
+
+    const sigs = this.filterSigsAndApply(func.type, args);
+    assert(sigs.length, 'Invalid arguments');
+    const type: FunType = {t: 'f', sigs};
+    const returnType = args.reduce((t, a) => this.comSup(t, a.returnType), func.returnType);
+
+    if (func.kind === 'bind') {
+      args = func.args.concat(args);
+      func = func.func;
+    }
+    return {kind, type, returnType, call, func, args};
+  }
+
+  private bindfuncc(f: NarrowedExpression<FunType>, tup: NarrowedExpression<TupType>): FunctionBind & ExpNarrow<FunType> {
+    const args: TupleElement[] = tup.type.values.map((type, index) => ({kind: 'telement', type, returnType: tup.returnType, index, tup}));
+    return this.bindfuncn(f, args);
   }
 
   private bindfun(l: AnyExp, op: Cl, r: AnyExp): FunctionBind & ExpNarrow<FunType> {
-    const kind = 'bind';
-    const call = false;
     let func = checkff(this.expression(l));
     const curried = op.value === '::';
-    const {args, ret} = func.type;
-    let type: FunType;
-    let argExps: FunctionBindArg[];
-    let returnType = func.returnType;
     if (curried) {
       const arg = checktt(this.expression(r));
-      assert(args.length >= arg.type.values.length, 'Too many arguments');
-      arg.type.values.forEach((a, i) => this.context.module.assertAssign(args[i], a));
-      type = {t: 'f', args: args.slice(arg.type.values.length), ret};
-      argExps = [{exp: arg, tupleSize: arg.type.values.length}];
-      returnType = this.comSup(returnType, arg.returnType);
+      return this.bindfuncc(func, arg);
     } else {
       const arg = this.expression(r);
-      assert(args.length >= 1, 'Too many arguments');
-      this.context.module.assertAssign(args[0], arg.type);
-      type = {t: 'f', args: args.slice(1), ret};
-      argExps = [{exp: arg}];
-      returnType = this.comSup(returnType, arg.returnType);
+      return this.bindfuncn(func, [arg]);
     }
-    if (func.kind === 'bind') {
-      argExps = func.args.concat(argExps);
-      func = func.func;
-    }
-    return {kind, type, returnType, call, func, args: argExps};
   }
 
   private callfun(e: AnyExp, _sc: Sc): FunctionBind {
     const kind = 'bind';
     const call = true;
     let func = checkff(this.expression(e));
-    assert(func.type.args.length === 0, `Function missing ${func.type.args.length} arguments`);
+    const matchingOverload = func.type.sigs.find(s => s.args.length === 0);
+    assert(matchingOverload, `Function needs more arguments`);
     const args = func.kind === 'bind' ? func.args : [];
-    const type = func.type.ret;
+    const type = matchingOverload.ret;
     const returnType = func.returnType;
     func = func.kind === 'bind' ? func.func : func;
     return {kind, type, returnType, call, func, args};
@@ -921,7 +981,7 @@ function ttpValues(ttp: Ttp): Type[] {
   return vals;
 }
 
-function parseFtp(ftp: Ftp): FunType {
+function parseFtpo(ftp: Ftpo): SimpleFunType {
   let ret;
   let args: Type[];
   if (ftp.value.length === 2) {
@@ -931,7 +991,12 @@ function parseFtp(ftp: Ftp): FunType {
     ret = parseTypeAnnotation(ftp.value[0]);
     args = [];
   }
-  return {t: 'f', args, ret};
+  return {t: 'f', sigs: [{args, ret}]};
+}
+
+function parseFtp(ftp: Ftp): FunType {
+  const sigs = ftp.value[0].flatMap(o => parseFtpo(o).sigs);
+  return {t: 'f', sigs};
 }
 
 function parseTypeAnnotation(typ: Typ): Type {

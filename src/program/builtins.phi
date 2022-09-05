@@ -1,0 +1,8 @@
+# Lowercase: φ
+# Uppercase: Φ
+
+φF {i:i->i & d:d->d & i:d->d & d:i->d} = overload iA iB -> iA + iB 
+                                         overload dA dB -> dA + dB
+                                         overload iA dB -> iA.d + dB
+                                         overload dA iB -> dA + iB.d
+                                         end
