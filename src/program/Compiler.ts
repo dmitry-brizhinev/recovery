@@ -296,13 +296,23 @@ class Compiler {
   }
 
   private bindfun(f: FunctionBind): string {
-    const {func, args, call} = f;
+    const {func, args, call, sigKept} = f;
     const ff = this.expressionp(func);
     const as = args.map(a => this.expression(a)).join(', ');
-    if (call) { // TODO overloads
-      return `${ff}(${as})`;
+    if (sigKept.length === 1) {
+      if (call) {
+        return `${ff}(${as})`;
+      } else {
+        return `${ff}.bind(undefined,${as})`;
+      }
     } else {
-      return `${ff}.bind(undefined,${as})`;
+      const sig = sigKept.map(b => b ? '1' : '0').join(',');
+      const filtered = `${ff}.filter((_f,i) => [${sig}][i])`;
+      if (call) {
+        return `${filtered}[0](${as})`;
+      } else {
+        return `${filtered}.map(f => f.bind(undefined,${as}))`;
+      }
     }
   }
 }
