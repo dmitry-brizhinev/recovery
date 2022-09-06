@@ -1,3 +1,4 @@
+import {assert} from 'console';
 import {numToLetter, unreachable} from '../util/Utils';
 import {zip, zipWith} from '../util/Zip';
 import type {PrimOps, VrName, VrType} from './CustomLexer';
@@ -297,22 +298,25 @@ class Compiler {
 
   private bindfun(f: FunctionBind): string {
     const {func, args, call, sigKept} = f;
-    const ff = this.expressionp(func);
     const as = args.map(a => this.expression(a)).join(', ');
-    if (sigKept.length === 1) {
+    let ff = this.expressionp(func);
+
+    const from = sigKept.length;
+    const to = sigKept.filter(b => b).length;
+    if (from > 1) {
+      const sig = sigKept.map(b => b ? '1' : '0').join(',');
+      ff = `${ff}.filter((_f,i) => [${sig}][i])`;
+    }
+
+    if (to === 1) {
       if (call) {
         return `${ff}(${as})`;
       } else {
         return `${ff}.bind(undefined,${as})`;
       }
     } else {
-      const sig = sigKept.map(b => b ? '1' : '0').join(',');
-      const filtered = `${ff}.filter((_f,i) => [${sig}][i])`;
-      if (call) {
-        return `${filtered}[0](${as})`;
-      } else {
-        return `${filtered}.map(f => f.bind(undefined,${as}))`;
-      }
+      assert(!call);
+      return `${ff}.map(f => f.bind(undefined,${as}))`;
     }
   }
 }
