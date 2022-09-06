@@ -299,7 +299,7 @@ class Compiler {
     const {func, args, call} = f;
     const ff = this.expressionp(func);
     const as = args.map(a => this.expression(a)).join(', ');
-    if (call) {
+    if (call) { // TODO overloads
       return `${ff}(${as})`;
     } else {
       return `${ff}.bind(undefined,${as})`;

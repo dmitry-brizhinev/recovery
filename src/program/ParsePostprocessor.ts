@@ -343,6 +343,7 @@ export interface FunctionBind {
   call: boolean;
   func: NarrowedExpression<FunType>;
   args: Expression[];
+  sigKept: boolean[];
 }
 
 export abstract class Module {
@@ -828,28 +829,45 @@ class Postprocessor {
     return {kind, sigs, type, returnType: Bot};
   }
 
-  private filterSigsAndApply(f: FunType, as: Expression[]): FunSignature[] {
-    return f.sigs.filter(sig => {
-      if (sig.args.length < as.length) return false;
-      if (zipShorter(sig.args, as).some(([s, a]) => !this.context.module.canAssign(s, a.type))) return false;
-      return true;
-    }).map(({args, ret}) => ({args: args.slice(as.length), ret}));
+  private filterSigsAndApply(f: FunType, as: Expression[]): (FunSignature | undefined)[] {
+    return f.sigs.map(({args, ret}) => {
+      if (args.length < as.length) return undefined;
+      if (zipShorter(args, as).some(([s, a]) => !this.context.module.canAssign(s, a.type))) return undefined;
+      return {args: args.slice(as.length), ret};
+    });
+  }
+
+  private combineSigKept(a: boolean[], b: boolean[]): boolean[] {
+    let bi = 0;
+    let result = []
+    for (const A of a) {
+      if (!A) {
+        result.push(A); continue;
+      }
+      result.push(b[bi]);
+      ++bi;
+    }
+    assert(bi === b.length);
+    return result;
   }
 
   private bindfuncn(func: NarrowedExpression<FunType>, args: Expression[]): FunctionBind & ExpNarrow<FunType> {
     const kind = 'bind';
     const call = false;
 
-    const sigs = this.filterSigsAndApply(func.type, args);
+    const sigsOrUn = this.filterSigsAndApply(func.type, args);
+    const sigs = sigsOrUn.flatMap(s => s ? [s] : []);
+    let sigKept = sigsOrUn.map(s => !!s);
     assert(sigs.length, 'Invalid arguments');
     const type: FunType = {t: 'f', sigs};
     const returnType = args.reduce((t, a) => this.comSup(t, a.returnType), func.returnType);
 
     if (func.kind === 'bind') {
       args = func.args.concat(args);
+      sigKept = this.combineSigKept(func.sigKept, sigKept);
       func = func.func;
     }
-    return {kind, type, returnType, call, func, args};
+    return {kind, type, returnType, call, func, args, sigKept};
   }
 
   private bindfuncc(f: NarrowedExpression<FunType>, tup: NarrowedExpression<TupType>): FunctionBind & ExpNarrow<FunType> {
@@ -858,13 +876,12 @@ class Postprocessor {
   }
 
   private bindfun(l: AnyExp, op: Cl, r: AnyExp): FunctionBind & ExpNarrow<FunType> {
-    let func = checkff(this.expression(l));
+    const func = checkff(this.expression(l));
+    const arg = this.expression(r);
     const curried = op.value === '::';
     if (curried) {
-      const arg = checktt(this.expression(r));
-      return this.bindfuncc(func, arg);
+      return this.bindfuncc(func, checktt(arg));
     } else {
-      const arg = this.expression(r);
       return this.bindfuncn(func, [arg]);
     }
   }
@@ -872,14 +889,18 @@ class Postprocessor {
   private callfun(e: AnyExp, _sc: Sc): FunctionBind {
     const kind = 'bind';
     const call = true;
-    let func = checkff(this.expression(e));
-    const matchingOverload = func.type.sigs.find(s => s.args.length === 0);
-    assert(matchingOverload, `Function needs more arguments`);
-    const args = func.kind === 'bind' ? func.args : [];
-    const type = matchingOverload.ret;
-    const returnType = func.returnType;
-    func = func.kind === 'bind' ? func.func : func;
-    return {kind, type, returnType, call, func, args};
+    let f = checkff(this.expression(e));
+    const matchingOverload = f.type.sigs.findIndex(s => s.args.length === 0);
+    assert(matchingOverload !== -1, `Function needs more arguments`);
+    const type = f.type.sigs[matchingOverload].ret;
+    const returnType = f.returnType;
+
+    let sigKept = f.type.sigs.map((_v, i) => i === matchingOverload);
+
+    const args = f.kind === 'bind' ? f.args : [];
+    sigKept = f.kind === 'bind' ? this.combineSigKept(f.sigKept, sigKept) : sigKept;
+    const func = f.kind === 'bind' ? f.func : f;
+    return {kind, type, returnType, call, func, args, sigKept};
   }
 
   private tuple(e: Exm): Tuple {

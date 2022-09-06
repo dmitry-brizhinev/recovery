@@ -4,6 +4,7 @@ import type {PrimOps, VrName} from './CustomLexer';
 import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement, StringElement} from './ParsePostprocessor';
 import {pt, ContextType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
+import {zip} from '../util/Zip';
 
 interface Nul {
   readonly type: NulType;
@@ -489,17 +490,23 @@ class Executor {
     return {type: a.type, values};
   }
 
+  private trimSigs(f: FunOver[], k: boolean[]): FunOver[] {
+    assert(f.length === k.length);
+    return zip(f, k).filter(fk => fk[1]).map(fk => fk[0]).toArray();
+  }
+
   private bindfun(f: FunctionBind): Value {
-    const {func, args, call} = f;
+    const {func, args, call, sigKept} = f;
     let ff = this.expressionT(func);
     const as = args.map(a => this.expression(a));
-    ff = {...ff, applied: ff.applied.concat(as)};
+    ff = {...ff, sigs: this.trimSigs(ff.sigs, sigKept), applied: ff.applied.concat(as)};
     if (!call) return ff;
 
     return this.callfun(ff);
   }
 
   private callfun(fun: Fun): Value {
+    assert(fun.sigs.length === 1);
     const innerContext = this.context.newChild(ContextType.Function);
     const sig = fun.sigs[0];
     for (const [i, a] of fun.applied.entries()) {
