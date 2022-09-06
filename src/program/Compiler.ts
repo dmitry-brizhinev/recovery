@@ -1,18 +1,20 @@
-import {assert} from 'console';
-import {numToLetter, unreachable} from '../util/Utils';
+import {assert, numToLetter, unreachable} from '../util/Utils';
 import {zip, zipWith} from '../util/Zip';
-import type {PrimOps, VrName, VrType} from './CustomLexer';
+import type {PrimOps, VrName} from './CustomLexer';
 import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block, ArrayElement, TupleElement, StringElement, FunSignature, FunctionOverload} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
 
 export default class RootCompiler {
   private results: string[] = ['const r: string[] = []; let _: any;'];
+  private lineStart = this.results.length + 1;
   private compiler = new Compiler();
 
-  compile(sta: Statement): string {
+  compile(sta: Statement): {ts: string, start: number} {
     const [main, extra] = this.compiler.statement(sta);
     this.results.push(main, extra);
-    return main;
+    const start = this.lineStart;
+    this.lineStart += main.length + extra.length + 2;
+    return {ts: main, start};
   }
 
   async finish(): Promise<CompilationResult> {
@@ -142,7 +144,7 @@ class Compiler {
 
   private definition(v: NewVariable): [string, string] {
     const l = v.name;
-    const left = `let ${this.maybeAnnotate(v.name, v.vrtype, v.type)}`;
+    const left = `let ${this.defsAnnotate(v.name, v.type)}`;
     return [left, l];
   }
 
@@ -175,12 +177,6 @@ class Compiler {
   private defsAnnotate(name: VrName, type: Type) {
     const a = annotationp(type);
     const aa = `:${a}`;
-    return `${name}${aa}`;
-  }
-
-  private maybeAnnotate(name: VrName, vrtype: VrType, type?: Type | undefined): string {
-    const a = type ? annotationp(type) : implicitAnnotation(vrtype);
-    const aa = a ? `:${a}` : '';
     return `${name}${aa}`;
   }
 
@@ -306,6 +302,9 @@ class Compiler {
     if (from > 1) {
       const sig = sigKept.map(b => b ? '1' : '0').join(',');
       ff = `${ff}.filter((_f,i) => [${sig}][i])`;
+      if (to === 1) {
+        ff = `${ff}[0]`;
+      }
     }
 
     if (to === 1) {
@@ -339,17 +338,6 @@ function translateOp(op: PrimOps): string {
     case '&&':
     case '||': return op;
     default: return unreachable(op);
-  }
-}
-
-function implicitAnnotation(n: VrType): string | undefined {
-  switch (n.core) {
-    case 'i': return 'number';
-    case 'd': return 'number';
-    case 'b': return 'boolean';
-    case 's': return 'string';
-    case 'c': return 'string';
-    default: return undefined;
   }
 }
 

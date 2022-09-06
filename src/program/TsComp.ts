@@ -65,7 +65,8 @@ function flatten(message: string | ts.DiagnosticMessageChain): string {
 
 function normalise(output: ts.TranspileOutput | InternalResult): CompilationResult {
   const {outputText, diagnostics} = output;
-  const errors = (diagnostics ?? []).map(({category, messageText}) => ({category, messageText: flatten(messageText)}));
+  const errors = (diagnostics ?? []).map(({category, messageText, start, length}) =>
+    ({category, messageText: flatten(messageText), loc: (start && length) ? {start, length} : undefined}));
   return {outputText, errors};
 }
 
@@ -86,6 +87,7 @@ export function errorToString({category, messageText}: CompilationError): string
 export interface CompilationError {
   category: ts.DiagnosticCategory;
   messageText: string;
+  loc: {start: number, length: number;} | undefined;
 }
 
 export interface CompilationResult {

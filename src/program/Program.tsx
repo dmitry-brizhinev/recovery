@@ -9,10 +9,10 @@ import Loading from '../util/Loading';
 import type {SwitcherData} from '../util/Switcher';
 import Switcher from '../util/Switcher';
 import Textarea from '../util/Textarea';
-import type {Callback, Func} from '../util/Utils';
-import {execute, genTypes} from './Runner';
+import {assert, unreachable, type Callback, type Func} from '../util/Utils';
+import {execute, genTypes, type RunnerResult, type RunnerResultType} from './Runner';
 import MaterialButton from '../util/MaterialButton';
-import type {TokenLocation} from './CustomLexer';
+import {Range, Seq} from 'immutable';
 
 export default function Program(): React.ReactElement {
   return <div className={styles.wrapper}>
@@ -83,38 +83,102 @@ function CurrentFile({name, onChange}: {name: CodeId, onChange: Callback<CodeId>
     {edit ? <input className={`${styles.filename} ${valid ? styles.valid : styles.invalid}`} onChange={onChangeInput} value={editText} type="text" spellCheck={false} /> : name}</>;
 }
 
-type Result = {
-  maxLines: number,
-  lines: number,
-  text: string,
-  errors: Highlight[];
-};
-
-function reduceResult({maxLines, lines, text, errors}: Result, maybeLine: string | null | [string, TokenLocation]): Result {
-  if (maybeLine == null) return {maxLines: lines, lines: 0, text: '', errors: []};
-  const m = Math.max(maxLines, lines + 1);
-  if (Array.isArray(maybeLine)) {
-    const [line, e] = maybeLine;
-    if (e.el && e.el !== e.sl) {
-      errors = errors.concat({line: e.sl, start: e.sc});
-      for (let l = e.sl + 1; l < e.el; ++l) {
-        errors = errors.concat({line: l});
-      }
-      errors = errors.concat({line: e.el, end: e.ec});
-    } else {
-      errors = errors.concat({line: e.sl, start: e.sc, end: e.ec});
-    }
-    return {maxLines: m, lines: lines + 1, text: `${text}${line}\n`, errors};
-  }
-  return {maxLines: m, lines: lines + 1, text: `${text}${maybeLine}\n`, errors};
+interface StyledLine {
+  line: string,
+  t: RunnerResultType,
 }
 
-function dummyText({maxLines, lines, text}: Result): string {
-  return text + '\n'.repeat(Math.max(maxLines, 3) - lines);
+interface Result {
+  maxLines: number,
+  text: StyledLine[],
+  phiErrors: Highlight[],
+  tsErrors: Highlight[],
+}
+
+function reduceResult({maxLines, text, phiErrors, tsErrors}: Result, maybeLine: RunnerResult | null): Result {
+  if (maybeLine == null) return {maxLines: text.length, text: [], phiErrors: [], tsErrors: []};
+
+  text = text.concat({line: maybeLine.line, t: maybeLine.t});
+
+  if (maybeLine.phiLoc) {
+    const e = maybeLine.phiLoc;
+    if (e.el && e.el !== e.sl) {
+      phiErrors = phiErrors.concat({line: e.sl, start: e.sc});
+      for (let l = e.sl + 1; l < e.el; ++l) {
+        phiErrors = phiErrors.concat({line: l});
+      }
+      phiErrors = phiErrors.concat({line: e.el, end: e.ec});
+    } else {
+      phiErrors = phiErrors.concat({line: e.sl, start: e.sc, end: e.ec});
+    }
+  }
+
+  if (maybeLine.tsLoc) {
+    const {sl, sc, ec} = maybeLine.tsLoc;
+    tsErrors = tsErrors.concat({line: sl, start: sc, end: ec});
+  }
+
+  return {maxLines: Math.max(maxLines, text.length), text, phiErrors, tsErrors};
+}
+
+interface OutputProps {
+  maxLines: number,
+  text: StyledLine[],
+  ts: boolean,
+  js: boolean,
+  tsErrors: Highlight[],
+}
+
+function getStyle(r: RunnerResultType): string {
+  switch (r) {
+    case 'stat': return styles.stat;
+    case 'js': return styles.js;
+    case 'ts': return styles.ts;
+    case 'out': return styles.out;
+    case 'err': return styles.err;
+    default: return unreachable(r);
+  }
+}
+
+function Output({maxLines, text, ts, js, tsErrors}: OutputProps) {
+  const dummyLines = Math.max(maxLines, 3) - text.length;
+  assert(dummyLines >= 0);
+  const dummies = Range(0, dummyLines).map((key) => <br key={key + text.length} />);
+  const filtered = Seq(text).filter(line => (ts || line.t !== 'ts') && (js || line.t !== 'js'));
+  let errs: Map<number, Highlight[]> | undefined;
+  if (ts && tsErrors.length) {
+    errs = new Map();
+    let tsIndex = 0;
+    for (const [key, line] of filtered.entries()) {
+      if (line.t !== 'ts') continue;
+      const es = tsErrors.filter(e => e.line === tsIndex);
+      if (es.length) errs.set(key, es);
+      ++tsIndex;
+    }
+  }
+  return <div className={styles.output}>{
+    filtered.map((line, key) => {
+      const c = getStyle(line.t);
+      const l = line.line || ' ';
+      let es;
+      if (line.t === 'ts' && errs && (es = errs.get(key)) && es.length) {
+        const s = es[0].start ?? 0;
+        const e = es[0].end ?? l.length;
+        assert(s < e);
+        return <div key={key} className={c}>
+          <span>{l.slice(0, s)}</span>
+          <span className={styles.tshigh}>{l.slice(s, e)}</span>
+          <span>{l.slice(e)}</span>
+        </div>;
+      }
+      return <div key={key} className={c}>{l}</div>;
+    })
+      .concat(dummies)
+  }</div>;
 }
 
 function ProgramCode(props: {code: string, onChange?: Callback<string> | undefined;}) {
-  const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, lines: 0, text: '', errors: []});
+  const [result, addLine] = React.useReducer(reduceResult, {maxLines: 0, text: [], phiErrors: [], tsErrors: []});
 
   const [ts, toggleTs] = useToggle(true);
   const [js, toggleJs] = useToggle(false);
@@ -122,7 +186,7 @@ function ProgramCode(props: {code: string, onChange?: Callback<string> | undefin
   React.useEffect(() => addLine(null), [props.onChange]);
 
   const runCode = React.useCallback(() => run(props.code, addLine, 'run'), [props.code, addLine]);
-  const compileCode = React.useCallback(() => run(props.code, addLine, {ts, js}), [props.code, addLine, ts, js]);
+  const compileCode = React.useCallback(() => run(props.code, addLine, 'compile'), [props.code, addLine]);
   const checkTypes = React.useCallback(() => run(props.code, addLine, 'check'), [props.code, addLine]);
   const gengenTypes = React.useCallback(() => generate(addLine), [addLine]);
 
@@ -133,7 +197,7 @@ function ProgramCode(props: {code: string, onChange?: Callback<string> | undefin
 
   return <>
     <div className={styles.text}>
-      <Highlighter value={props.code} highlights={result.errors} forwardedRef={highlighterRef} />
+      <Highlighter value={props.code} highlights={result.phiErrors} forwardedRef={highlighterRef} />
       <Textarea className={styles.text} value={props.code} onChange={props.onChange} spellCheck={false} onScrollChangeOrResize={onScroll} />
     </div>
     {props.onChange ? <div className={styles.run}>
@@ -147,7 +211,7 @@ function ProgramCode(props: {code: string, onChange?: Callback<string> | undefin
     </div> : <div className={styles.run}>
       <button className={styles.run} onClick={gengenTypes}>Gen Types</button>
     </div>}
-    <div className={styles.output}>{dummyText(result)}</div>
+    <Output {...result} ts={ts} js={js} />
   </>;
 }
 
@@ -183,14 +247,14 @@ function Highlighter(props: {value: string, highlights: Highlight[], forwardedRe
   return <textarea readOnly tabIndex={-1} ref={props.forwardedRef} value={chars} className={styles.highlighter} />;
 }
 
-async function run(code: string, addLine: Callback<string | null | [string, TokenLocation]>, mode: {ts: boolean, js: boolean;} | 'run' | 'check'): Promise<void> {
+async function run(code: string, addLine: Callback<RunnerResult | null>, mode: 'compile' | 'run' | 'check'): Promise<void> {
   addLine(null);
   for await (const r of execute(code, mode)) {
     addLine(r);
   }
 }
 
-async function generate(addLine: Callback<string | null>): Promise<void> {
+async function generate(addLine: Callback<RunnerResult | null>): Promise<void> {
   addLine(null);
   addLine(await genTypes());
 }

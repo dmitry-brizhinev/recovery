@@ -108,7 +108,7 @@ function checkaa(val: Expression): NarrowedExpression<ArrType> {
   assert(val.type.t === 'a', `${pt(val.type)} is not an array`);
   return val as NarrowedExpression<ArrType>;
 }
-function isff(val: NewVariable): val is NewVariableFun {
+function isff(val: UnassignedVariable): val is UnassignedVariableFun {
   return val.type?.t === 'f';
 }
 
@@ -172,20 +172,28 @@ export interface ExpressionStatement {
   expression: Expression;
 }
 
-export type Receiver = Discard | NewVariable | DefinedVariable | Field | StringElement | TupleElement | ArrayElement;
+type ReceiverM = Discard | DefinedVariable | Field | StringElement | TupleElement | ArrayElement;
+type ReceiverU = ReceiverM | UnassignedVariable;
+export type Receiver = ReceiverM | NewVariable;
 
 export interface Discard {
   kind: 'discard';
 }
 
-export interface NewVariable {
-  kind: 'definition';
+interface UnassignedVariable {
+  kind: 'unassigned';
   type?: Type | undefined; // TODO
   name: VrName;
   vrtype: VrType;
 }
 
-type NewVariableFun = NewVariable & ExpNarrow<FunType>;
+type UnassignedVariableFun = UnassignedVariable & ExpNarrow<FunType>;
+
+export interface NewVariable {
+  kind: 'definition';
+  type: Type;
+  name: VrName;
+}
 
 export interface DefinedVariable {
   kind: 'variable';
@@ -448,7 +456,7 @@ class ExecContext {
     return this.type === t || !!this.parent?.haveAbove(t);
   }
 
-  currentVar?: NewVariableFun | undefined;
+  currentVar?: UnassignedVariableFun | undefined;
 
   getVar(vr: VrName): Type | undefined {
     return this.vars.get(vr) || this.parent?.getVar(vr);
@@ -495,17 +503,22 @@ class Postprocessor {
 
   private assignment(sta: Ass): Assignment {
     const kind = 'assignment';
-    const receiver = this.receiver(sta.value[0]);
+    const receiverU = this.receiver(sta.value[0]);
 
-    if (receiver.kind === 'definition' && isff(receiver)) {
-      this.context.currentVar = receiver;
+    if (receiverU.kind === 'unassigned' && isff(receiverU)) {
+      this.context.currentVar = receiverU;
     }
     const expression = this.expression(sta.value[1]);
     this.context.currentVar = undefined;
 
-    this.checkReceiverAssignment(receiver, expression.type);
-    if (receiver.kind === 'definition') {
-      this.context.setVar(receiver.name, receiver.type ?? this.inferUnannotatedType(receiver.name, receiver.vrtype, expression.type));
+    this.checkReceiverAssignment(receiverU, expression.type);
+    let receiver: Receiver;
+    if (receiverU.kind === 'unassigned') {
+      const type = receiverU.type ?? this.inferUnannotatedType(receiverU.name, receiverU.vrtype, expression.type);
+      this.context.setVar(receiverU.name, type);
+      receiver = {kind: 'definition', type, name: receiverU.name};
+    } else {
+      receiver = receiverU;
     }
     return {kind, type: expression.type, returnType: expression.returnType, receiver, expression};
   }
@@ -520,10 +533,10 @@ class Postprocessor {
     }
   }
 
-  private checkReceiverAssignment(left: Receiver, right: Type) {
+  private checkReceiverAssignment(left: ReceiverU, right: Type) {
     if (left.kind === 'field' || left.kind === 'selement' || left.kind === 'aelement' || left.kind === 'telement' || left.kind === 'variable') {
       this.context.module.assertAssign(left.type, right);
-    } else if (left.kind === 'definition') {
+    } else if (left.kind === 'unassigned') {
       if (left.type) {
         this.context.module.assertAssign(left.type, right);
       } else {
@@ -536,7 +549,7 @@ class Postprocessor {
     }
   }
 
-  private receiver(r: Rec | Var | Nu): Receiver {
+  private receiver(r: Rec | Var | Nu): ReceiverU {
     switch (r.type) {
       case 'var': return this.varReceiver(r);
       case 'dot': return this.dot(r);
@@ -671,14 +684,14 @@ class Postprocessor {
     return t;
   }
 
-  private varReceiver(v: Var): DefinedVariable | NewVariable {
+  private varReceiver(v: Var): DefinedVariable | UnassignedVariable {
     const name = v.value[0].value;
     const value = this.context.getVar(name);
     if (value) {
       const kind = 'variable'; // definition
       return {kind, type: value, returnType: Bot, name};
     } else {
-      const kind = 'definition';
+      const kind = 'unassigned';
       const type = unwrapVar(v);
       const vrtype = v.value[0].vrtype;
       return {kind, type, vrtype, name};
@@ -839,7 +852,7 @@ class Postprocessor {
 
   private combineSigKept(a: boolean[], b: boolean[]): boolean[] {
     let bi = 0;
-    let result = []
+    let result = [];
     for (const A of a) {
       if (!A) {
         result.push(A); continue;
