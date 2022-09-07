@@ -27,3 +27,6 @@ iI = (fEt:tT;).0
 aTT = fEt:aT;
 iY = (fEt:aT;).0
 # tSS = fEt:tS;
+
+fGG = <T> gT T -> gT
+fGg = <T> aT [T] -> [aT.0, aT.0, aT.0]

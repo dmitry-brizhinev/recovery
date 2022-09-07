@@ -18,15 +18,9 @@ export default class RootCompiler {
   }
 
   async finish(): Promise<CompilationResult> {
-    this.results.push('r.join("\\n");export {};');
+    this.results.push('export default r.join("\\n");');
 
-    const result = await compile(this.results.join('\n'));
-
-    if (result.outputText.endsWith('export {};\n')) {
-      result.outputText = result.outputText.split('export {};')[0];
-    }
-
-    return result;
+    return await compile(this.results.join('\n'));
   }
 }
 
@@ -373,6 +367,7 @@ function annotation(t: Type): string {
     case 'o': return t.con;
     case 'f': return parseFun(t);
     case 'm': return `${annotationp(t.subtype)} | undefined`;
+    case 'g': return t.name;
     default: return unreachable(t);
   }
 }

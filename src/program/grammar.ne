@@ -35,8 +35,11 @@ exp -> exa2 | fnd | cnd | ond                                 #exp:fu
 old -> "overload" ws fnd                                      #old:fu
 olds -> olds sep old | old                                    #olds:ff
 ond -> olds sep "end"                                         #ond:fl
-fnd -> vrl %rt typ ws exp | vrl %rt exp                       #fnd:fl
-cnd -> vrl %rt "struct" ws %tc                                #cnd:fl
+fnd -> tmp vrl %rt typ ws exp | tmp vrl %rt exp               #fnd:fl
+cnd -> tmp vrl %rt "struct" ws %tc                            #cnd:fl
+# Template
+tmp -> "<" targs ">" ws | null                                #tmp:fl
+targs -> targs %cm %tg | %tg                                  #targs:ff
 # Compound expressions with binary operators
 exa2 -> exc2                                                  #exa2:fu
 exc2 -> exl2 sc2      | exl2                                  #exc_:fm
@@ -89,7 +92,8 @@ cl2 -> %ms %cl mws | %os %cl %ms | %cl %ms                    #cl2:fu
 cl1 -> %os %cl | %cl %os | %os %cl %os                        #cl1:fu
 cl0 -> %cl                                                    #cl0:fu
 # Type annotations
-typ -> "{" ftp "}" | "{" ttp "}" | "[" atp "]" | %tc | %tp | mtp #typ:fu
+typ -> typp | %tc | %tp | %tg | mtp                           #typ:fu
+typp -> "{" ftp "}" | "{" ttp "}" | "[" atp "]"               #typp:fu
 mtp -> typ %qm                                                #mtp:fl
 ttp -> %cm typ | ttp %cm typ                                  #ttp:fl
 atp -> typ                                                    #atp:fl

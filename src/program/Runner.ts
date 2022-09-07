@@ -158,10 +158,10 @@ export async function* execute(code: string, mode: 'check' | 'compile' | 'run'):
     }
     if (result.outputText) {
       yield {t: 'js', line: result.outputText};
+      yield {t: 'js', line: ' '};
       yield {t: 'stat', line: 'Executing JS\n '};
       try {
-        const rr = eval(result.outputText);
-        const rrr = typeof rr === 'string' ? rr.replaceAll('\\n', '\n') : 'success';
+        const rrr = await evalJs(result.outputText);
         for (const r of rrr.split('\n')) {
           yield {t: 'out', line: r.length > 50 ? r.slice(0, 50) + '...' : r};
         }
@@ -174,6 +174,13 @@ export async function* execute(code: string, mode: 'check' | 'compile' | 'run'):
   }
   yield {t: 'stat', line: 'Done.'};
   return;
+}
+
+async function evalJs(code: string): Promise<string> {
+  // const dataUri = 'data:text/javascript;base64,' + btoa(code);
+  let dataUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(code);
+  const module = await import(/* webpackIgnore: true */ dataUri);
+  return module.default;
 }
 
 

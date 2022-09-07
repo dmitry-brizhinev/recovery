@@ -9,7 +9,7 @@ const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
 const kws = ['if', 'then', 'else', 'elif', 'overload', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'];
-const brs = ['{', '}', '(', ')', '[', ']'];
+const brs = ['{', '}', '(', ')', '[', ']', '<', '>'];
 const cls = ['::', ':'];
 export const literalLookup = {kw: kws, br: brs, cl: cls};
 
@@ -29,7 +29,7 @@ export const literalLookup = {kw: kws, br: brs, cl: cls};
       })},
 */
 
-const vrRegex = /[idbsctofam][A-Z]\w*/;
+const vrRegex = /[idbsctofamg][A-Z]\w*/;
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   nl: {match: /(?:#.*)?\n/, lineBreaks: true},
   rt: {match: / *-> */, value: trim},
@@ -46,6 +46,7 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   os: ' ',
   br: brs,
   vr: vrRegex,
+  tg: /[A-Z]\w*T(?!\w)|T(?!\w)/,
   tc: /[A-Z]\w*/,
   cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
   nu: ['_'],
@@ -110,7 +111,7 @@ export function checkLexerName(name: string): DirtyLexerName {
   return name as DirtyLexerName;
 }
 
-type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT;
+type ValueT = NumT | StrT | FunT | TupT | ObjT | ArrT | MayT | GenT;
 // export type AnyT = ValueT | NulT | TopT | BotT;
 export type NumT = 'i' | 'd' | 'b';
 export type StrT = 's' | 'c';
@@ -119,6 +120,7 @@ export type TupT = 't';
 export type ObjT = 'o';
 export type ArrT = 'a';
 export type MayT = 'm';
+export type GenT = 'g';
 export type NulT = '_';
 export type TopT = '*';
 export type BotT = '-';
@@ -164,6 +166,10 @@ export interface Tc extends CleanToken {
   type: 'tc';
   value: string;
 }
+export interface Tg extends CleanToken {
+  type: 'tg';
+  value: string;
+}
 export interface Tp extends CleanToken {
   type: 'tp';
   value: NumT | StrT;
@@ -172,7 +178,7 @@ export interface Cl extends CleanToken {
   type: 'cl';
   value: ':' | '::';
 }
-export type LexerOpts = Vr | Tc | Tp | Cl | Op | Sc | Cnst | Nu;
+export type LexerOpts = Vr | Tc | Tg | Tp | Cl | Op | Sc | Cnst | Nu;
 
 
 

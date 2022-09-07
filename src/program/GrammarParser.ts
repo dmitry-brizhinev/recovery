@@ -33,7 +33,7 @@ function parseLine(line: string): [Line] | [] {
   const rules = ruless.split(/ +\| +/).map(rule => rule.split(/ +/).filter(t => t !== 'null').map(parseSymbol));
   assert(rules.length >= 1, g);
 
-  const post = /#(...?.?):(d|ff|fm|fl|fu)/.exec(line);
+  const post = /#([a-z0-9]+_?):(d|ff|fm|fl|fu)/.exec(line);
   assert(post, `Missing instructions comment for ${name}`);
   const rename = post[1];
   const instruction = post[2] as Instruction;

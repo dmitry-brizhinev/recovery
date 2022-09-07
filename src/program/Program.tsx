@@ -151,7 +151,8 @@ function Output({maxLines, text, ts, js, tsErrors}: OutputProps) {
     let tsIndex = 0;
     for (const [key, line] of filtered.entries()) {
       if (line.t !== 'ts') continue;
-      const es = tsErrors.filter(e => e.line === tsIndex);
+      const tsi = tsIndex;
+      const es = tsErrors.filter(e => e.line === tsi);
       if (es.length) errs.set(key, es);
       ++tsIndex;
     }

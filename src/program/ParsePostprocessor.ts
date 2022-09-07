@@ -1,11 +1,9 @@
 
 import {assert, assertNonNull, unreachable, throwIfNull} from '../util/Utils';
-import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, TopT, BotT} from './CustomLexer';
+import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, TopT, BotT, GenT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp, Cnd, Ond, Ftpo} from './ParserOutput.generated';
 import {Map as IMap} from 'immutable';
 import {zip, zipShorter} from '../util/Zip';
-
-type AnyExp = Exp;
 
 export interface NulType {
   readonly t: NulT;
@@ -58,8 +56,15 @@ export interface MayType {
   readonly t: MayT;
   readonly subtype: Type;
 }
-
-export type Type = NulType | TopType | BotType | NumType | StrType | FunType | TupType | ObjType | ArrType | MayType;
+export interface GenRestriction {
+  assignableTo: Type;
+}
+export interface GenType {
+  readonly t: GenT;
+  readonly name: string;
+  readonly restrictions: GenRestriction[];
+}
+export type Type = NulType | TopType | BotType | NumType | StrType | FunType | TupType | ObjType | ArrType | MayType | GenType;
 
 export function pt(t: Type): string {
   switch (t.t) {
@@ -76,6 +81,7 @@ export function pt(t: Type): string {
     case 'f': return `{${t.sigs.map(t => `${t.args.map(pt).join(':')}->${pt(t.ret)}`).join(' & ')}}`;
     case 'a': return `[${pt(t.subtype)}]`;
     case 'm': return `${pt(t.subtype)}?`;
+    case 'g': return t.name;
     default: return unreachable(t, `Invalid type ${t}`);
   }
 }
@@ -392,6 +398,8 @@ export abstract class Module {
         if (source.t === '_') return true;
         if (source.t === 'm') return this.canAssign(target.subtype, source.subtype);
         return this.canAssign(target.subtype, source);
+      case 'g':
+        return target.restrictions.every(({assignableTo}) => this.canAssign(assignableTo, source));
       default: unreachable(target, 'checkAssignment');
     }
   }
@@ -437,6 +445,7 @@ class ExecContext {
     readonly type: ContextType) {
   }
   private readonly vars = new Map<VrName, Type>();
+  private readonly types = new Map<string, Type>();
 
   static newModule(): ExecContext {
     return new ExecContext(undefined, new ModuleContext(), ContextType.Block);
@@ -465,6 +474,12 @@ class ExecContext {
     this.vars.set(vr, val);
   }
 
+  getType(name: string): Type | undefined {
+    return this.types.get(name) || this.parent?.getType(name);
+  }
+  setType(name: string, type: Type) {
+    this.types.set(name, type);
+  }
 }
 
 export class RootPostprocessor {
@@ -583,7 +598,7 @@ class Postprocessor {
     return {kind, type, returnType, block};
   }
 
-  private expstatement(exp: AnyExp): ExpressionStatement {
+  private expstatement(exp: Exp): ExpressionStatement {
     const kind = 'expression';
     const expression = this.expression(exp);
     const type = expression.type;
@@ -698,7 +713,7 @@ class Postprocessor {
     }
   }
 
-  private expression(exp: AnyExp): Expression {
+  private expression(exp: Exp): Expression {
     switch (exp.type) {
       case 'nu':
       case 'cnst': return this.constant(exp);
@@ -789,11 +804,18 @@ class Postprocessor {
   }
 
   private argTypes(f: Fnd | Cnd): Type[] {
-    return f.value[0].map(vr => throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`));
+    return f.value[1].map(vr => throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`));
   }
 
   private argNames(f: Fnd | Cnd): VrName[] {
-    return f.value[0].map(vr => vr.value[0].value);
+    return f.value[1].map(vr => vr.value[0].value);
+  }
+
+  private fncTemplates(f: Fnd | Cnd): GenType[] {
+    const tmp = f.value[0].value;
+    const tmps = tmp.length ? tmp[0] : [];
+    const templates: GenType[] = tmps.map(tc => ({t: 'g', name: tc.value, restrictions: []}));
+    return templates;
   }
 
   private functionexp(f: Fnd): FunctionExpression {
@@ -801,14 +823,17 @@ class Postprocessor {
     const argTypes = this.argTypes(f);
     const argNames = this.argNames(f);
 
+    const templates = this.fncTemplates(f);
+
     const innerContext = this.context.newChild(ContextType.Function);
     zip(argNames, argTypes).forEach(v => innerContext.setVar(...v));
+    templates.forEach(g => innerContext.setType(g.name, g));
     if (this.context.currentVar) {
       innerContext.setVar(this.context.currentVar.name, this.context.currentVar.type);
     }
-    const typ = f.value.length === 3 ? f.value[1] : undefined;
+    const typ = f.value.length === 4 ? f.value[2] : undefined;
     const ret = typ && parseTypeAnnotation(typ);
-    const inn = f.value.length === 3 ? f.value[2] : f.value[1];
+    const inn = f.value.length === 4 ? f.value[3] : f.value[2];
     const body = new Postprocessor(innerContext).expression(inn);
     const bodyRet = this.comSup(body.type, body.returnType);
     ret && this.context.module.assertAssign(ret, bodyRet);
@@ -821,8 +846,10 @@ class Postprocessor {
     const argTypes = this.argTypes(f);
     const argNames = this.argNames(f);
 
+    // const templates = this.fncTemplates(f);
+
     const fields = IMap(zip(argNames, argTypes));
-    const name = f.value[1].value;
+    const name = f.value[2].value;
     const con: ConType = {fields, name};
     this.context.module.setNewCon(name, con);
     const ret: ObjType = {t: 'o', con: name};
@@ -888,7 +915,7 @@ class Postprocessor {
     return this.bindfuncn(f, args);
   }
 
-  private bindfun(l: AnyExp, op: Cl, r: AnyExp): FunctionBind & ExpNarrow<FunType> {
+  private bindfun(l: Exp, op: Cl, r: Exp): FunctionBind & ExpNarrow<FunType> {
     const func = checkff(this.expression(l));
     const arg = this.expression(r);
     const curried = op.value === '::';
@@ -899,7 +926,7 @@ class Postprocessor {
     }
   }
 
-  private callfun(e: AnyExp, _sc: Sc): FunctionBind {
+  private callfun(e: Exp, _sc: Sc): FunctionBind {
     const kind = 'bind';
     const call = true;
     let f = checkff(this.expression(e));
@@ -958,7 +985,7 @@ class Postprocessor {
     return {kind, type, returnType, block};
   }
 
-  private binary(l: AnyExp, op: Op, r: AnyExp): BinaryOperation {
+  private binary(l: Exp, op: Op, r: Exp): BinaryOperation {
     const kind = 'binary';
     const left = this.expression(l);
     const right = this.expression(r);
@@ -1037,6 +1064,7 @@ function parseTypeAnnotation(typ: Typ): Type {
   switch (typ.type) {
     case 'tp': return {t: typ.value};
     case 'tc': return {t: 'o', con: typ.value};
+    case 'tg': return {t: 'g', name: typ.value, restrictions: []};
     case 'atp': return {t: 'a', subtype: parseTypeAnnotation(typ.value[0])};
     case 'ttp': return {t: 't', values: ttpValues(typ)};
     case 'ftp': return parseFtp(typ);
@@ -1059,7 +1087,8 @@ function unwrapVar(vvr: Var): Type | undefined {
       case 'o':
       case 'f':
       case 'a':
-      case 'm': return undefined;
+      case 'm':
+      case 'g': return undefined;
       default: return unreachable(t, `Invalid type ${t}`);
     }
   } else {
