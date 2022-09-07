@@ -29,7 +29,7 @@ export const literalLookup = {kw: kws, br: brs, cl: cls};
       })},
 */
 
-const vrRegex = /[idbsctofamg][A-Z]\w*/;
+const vrRegex = /[idbsctofamgφ][A-Z]\w*/;
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   nl: {match: /(?:#.*)?\n/, lineBreaks: true},
   rt: {match: / *-> */, value: trim},
