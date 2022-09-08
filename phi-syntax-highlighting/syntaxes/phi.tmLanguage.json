@@ -1,0 +1,90 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Phi",
+	"patterns": [
+		{
+			"name": "comment.line.number-sign.phi",
+			"match": "#.*"
+		},
+		{
+			"name": "keyword.operator.phi",
+			"match": "->|::|\\+|\\*|/|//|%|==|!=|<<|>>|<=|>=|&&|\\|\\|"
+		},
+		{
+			"name": "keyword.operator.phi",
+			"match": "-|;|\\.|,|:"
+		},
+		{
+			"name": "keyword.operator.phi",
+			"match": "&|\\?"
+		},
+		{
+			"name": "keyword.operator.phi",
+			"match": "="
+		},
+		{
+			"name": "keyword.control.phi",
+			"match": "{|}|\\(|\\)|\\[|\\]|<|>"
+		},
+		{
+			"name": "keyword.control.phi",
+			"match": "if|then|else|elif|overload|struct|do|end|return|while|for|in|break|continue"
+		},
+		{
+			"name": "variable.name.phi",
+			"match": "[idbsctofamgφ][A-Z]\\w*"
+		},
+		{
+			"name": "entity.name.type.phi",
+			"match": "[A-Z]\\w*"
+		},
+		{
+			"name": "constant.language.null.phi",
+			"match": "_"
+		},
+		{
+			"name": "constant.numeric.phi",
+			"match": "\\d+(?:\\.\\d+)?"
+		},
+		{
+			"name": "constant.language.boolean.phi",
+			"match": "true|false"
+		},
+		{
+			"name": "constant.character.phi",
+			"match": "'.'"
+		},
+		{
+			"name": "string.quoted.single.phi",
+			"match": "'[^\\n']+'"
+		},
+		{
+			"name": "string.quoted.double.phi",
+			"match": "\"[^\\n\"]+\""
+		},
+		{
+			"name": "entity.name.type.phi",
+			"match": "[idbsc]"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [ {
+					"name": "keyword.control.phi",
+					"match": "\\b(if|while|for|return)\\b"
+				} ]
+		},
+		"strings": {
+			"name": "string.quoted.double.phi",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.phi",
+					"match": "\\\\."
+				}
+			]
+		}
+	},
+	"scopeName": "source.phi"
+}

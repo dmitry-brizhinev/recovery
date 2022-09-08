@@ -1,0 +1,25 @@
+{
+  "name": "phi-syntax-highlighting",
+  "displayName": "Phi Syntax Highlighting",
+  "description": "Provides syntax highlighting for the experimental new language Phi",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.71.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [ {
+        "id": "phi",
+        "aliases": [ "Phi", "phi" ],
+        "extensions": [ ".phi" ],
+        "configuration": "./language-configuration.json"
+      } ],
+    "grammars": [ {
+        "language": "phi",
+        "scopeName": "source.phi",
+        "path": "./syntaxes/phi.tmLanguage.json"
+      } ]
+  }
+}
