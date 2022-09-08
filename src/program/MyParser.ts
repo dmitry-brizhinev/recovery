@@ -1,5 +1,8 @@
-import type {Atom, AtomType} from "./CustomLexer";
 import {Stack} from 'immutable';
+import type {CleanToken} from './CustomLexer';
+
+type AtomType = 'vr' | 'cnst' | 'op' | 'nl';
+type Atom = CleanToken;
 
 type GrammarOption = readonly (AtomType | Grammar | 'self')[];
 type Grammar = readonly [string, readonly GrammarOption[]];

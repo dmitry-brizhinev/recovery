@@ -8,9 +8,11 @@ import {errorToString} from './TsComp';
 import {RootPostprocessor, type Statement} from './ParsePostprocessor';
 // import Saver, {SaverStatusString} from '../helpers/Saver';
 
-async function getParser(mine?: boolean): Promise<Parser> {
-  if (mine) {
-    throw new Error(myParser(myLexer('')));
+async function getParser(myL?: boolean, myP?: boolean): Promise<Parser> {
+  if (myL) {
+    return NearleyParser.start(myLexer());
+  } else if (myP) {
+    throw new Error(myParser([]));
   }
   return NearleyParser.start(mooLexer());
 }
@@ -72,7 +74,7 @@ export async function* execute(code: string, mode: 'check' | 'compile' | 'run'):
   yield {t: 'stat', line: word[mmm].star};
   let parser;
   try {
-    parser = await getParser();
+    parser = await getParser(true);
   } catch (e) {
     yield {t: 'err', line: myErrorString('parse', 'grammar', e)};
     return;

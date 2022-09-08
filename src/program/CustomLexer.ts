@@ -2,9 +2,6 @@ import * as moo from 'moo';
 import {assert} from '../util/Utils';
 import {Set as ISet} from 'immutable';
 
-const OpRegex = /^[-+*/%=]$/;
-const ConstRegex = /^\d+(?:\.\d+)?$/;
-
 const trim = (s: string) => s.trim();
 const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
@@ -14,20 +11,143 @@ const cls = ['::', ':'];
 export const literalLookup = {kw: kws, br: brs, cl: cls};
 
 /*
+  moo.compile({
+    IDEN: {match: /[a-zA-Z]+/, type: moo.keywords({
+      KW: ['while', 'if', 'else', 'moo', 'cows'],
+    })},
+    SPACE: {match: /\s+/, lineBreaks: true},
+  })
 
-    moo.compile({
-      IDEN: {match: /[a-zA-Z]+/, type: moo.keywords({
-        KW: ['while', 'if', 'else', 'moo', 'cows'],
-      })},
-      SPACE: {match: /\s+/, lineBreaks: true},
-    })
-
-      name: {match: /[a-zA-Z]+/, type: moo.keywords({
-        'kw-class': 'class',
-        'kw-def': 'def',
-        'kw-if': 'if',
-      })},
+    name: {match: /[a-zA-Z]+/, type: moo.keywords({
+      'kw-class': 'class',
+      'kw-def': 'def',
+      'kw-if': 'if',
+    })},
 */
+//word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
+//times:  /\*/,
+
+type ConvertedRule = {match: RegExp | string, transform?: typeof trim | undefined};
+type ConvertedToken = {type: DirtyLexerName, rules: ConvertedRule[]};
+type ConvertedSpec = ConvertedToken[];
+function convertRule(r: string | RegExp | moo.Rule | moo.ErrorRule | moo.FallbackRule): ConvertedRule {
+  if (typeof r === 'string') return {match: r};
+  if (r instanceof RegExp) return {match: r};
+  if ('match' in r) {
+    const m = r.match;
+    if (m && !Array.isArray(m)) {
+      return {match: m, transform: r.value};
+    }
+  }
+  throw new Error('Unhappy lexer rule ' + JSON.stringify(r));
+}
+function convertRules(v: moo.Rules[string]): ConvertedRule[] {
+  if (Array.isArray(v)) {
+    return v.map(convertRule);
+  } else {
+    return [convertRule(v)];
+  }
+}
+function convertSpec(spec: typeof lexerSpec): ConvertedSpec {
+  return Object.entries(spec).map(([k, v]) => ({type: checkLexerName(k), rules: convertRules(v)}));
+}
+
+interface MyLexerState {
+  /** The number of bytes from the start of the buffer where the match starts. */
+  offset: number;
+  /** The column where the match begins, starting from 1. */
+  col: number;
+  /** The line number of the beginning of the match, starting from 1. */
+  line: number;
+}
+class MyLexer implements nearley.Lexer {
+  static initialState(): MyLexerState {
+    return {offset: 0, line: 1, col: 1};
+  }
+
+  private state: MyLexerState = MyLexer.initialState();
+  private data: string = '';
+  constructor(private readonly spec: ConvertedSpec) {}
+
+  /**
+   * When you reach the end of Moo's internal buffer, next() will return undefined.
+   * You can always reset() it and feed it more data when that happens.
+   *
+   * Returns e.g. {type, value, line, col, …}. Only the value attribute is required.
+   */
+  next(): LexedToken | undefined {
+    const start = this.state.offset;
+    const trimmed = this.data.slice(start);
+    if (!trimmed) return undefined;
+
+    for (const {type, rules} of this.spec) {
+      for (const {match, transform} of rules) {
+        let end = 0;
+        if (typeof match === 'string') {
+          if (!trimmed.startsWith(match)) continue;
+          end = start + match.length;
+        } else {
+          const sticky = new RegExp(match, 'y');
+          if (!sticky.test(trimmed)) continue;
+          end = start + sticky.lastIndex;
+        }
+        const text = this.data.slice(start, end);
+        const value = transform?.(text) ?? text;
+        this.state.offset = end;
+        const lineBreaks = text.match(/\n/g)?.length ?? 0;
+        const line = this.state.line;
+        const col = this.state.col;
+        if (lineBreaks) {
+          const lastLine = text.lastIndexOf('\n') + 1;
+          this.state.line = end - lastLine;
+          this.state.col += lineBreaks;
+        } else {
+          this.state.line += end - start;
+        }
+        return {
+          type,
+          value,
+          text,
+          offset: start,
+          /** The column where the match begins, starting from 1. */
+          col,
+          /** The line number of the beginning of the match, starting from 1. */
+          line,
+          /** The number of line breaks found in the match. */
+          lineBreaks,
+        };
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Empty the internal buffer of the lexer, and set the line, column, and offset counts back to their initial value.
+   *
+   * Sets the internal buffer to data, and restores line/col/state info taken from save().
+   */
+  reset(data: string, state?: MyLexerState): void {
+    this.data = data;
+    this.state = state ?? MyLexer.initialState();
+  }
+
+  /**
+  * Returns an object describing the current line/col etc. This allows us
+  * to preserve this information between feed() calls, and also to support Parser#rewind().
+  * The exact structure is lexer-specific; nearley doesn't care what's in it.
+  */
+  save(): MyLexerState {
+    return this.state;
+  }
+
+  /**
+ * Returns a string with an error message describing the line/col of the offending token.
+ * You might like to include a preview of the line in question.
+ */
+  formatError(token: LexedToken, message?: string): string {
+    return 'error: ' + message + ' TOKEN: ' + JSON.stringify(token);
+  }
+}
 
 const vrRegex = /[idbsctofamgφ][A-Z]\w*/;
 const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
@@ -51,11 +171,9 @@ const lexerSpec: {[key in DirtyLexerName]: moo.Rules[string]} = {
   cnst: /\d+(?:\.\d+)?|true|false|'[^\n']+'|"[^\n"]+"/,
   nu: ['_'],
   tp: /[idbsc]/,
-  //word: { match: /[a-z]+/, type: moo.keywords({ times: "x" }) },
-  // {Abb = f:i:b:a;} {r:i:a;->Bob}
-  //times:  /\*/,    fX {f:i:b:a;->f:b}
 };
 export function mooLexer() {return moo.compile(lexerSpec);}
+export function myLexer() {return new MyLexer(convertSpec(lexerSpec));}
 
 function assertCleanLexerName(name: string): asserts name is LexerName {
   assert(!FilteredLexerNames.has(checkLexerName(name)), `Dirty lexer name ${name}`);
@@ -65,9 +183,13 @@ export interface LexedToken {
   type: DirtyLexerName;
   value: string;
   text: string;
+  /** The number of bytes from the start of the buffer where the match starts. */
   offset: number;
+  /** The column where the match begins, starting from 1. */
   col: number;
+  /** The line number of the beginning of the match, starting from 1. */
   line: number;
+  /** The number of line breaks found in the match. (Always zero if this rule has lineBreaks: false.) */
   lineBreaks: number;
 };
 export interface TokenLocation {
@@ -178,44 +300,3 @@ export interface Cl extends CleanToken {
   value: ':' | '::';
 }
 export type LexerOpts = Vr | Tc | Tg | Tp | Cl | Op | Sc | Cnst | Nu;
-
-
-
-
-interface Err {
-  type: 'err';
-  value: string;
-}
-interface Line {
-  type: 'nl';
-  value: '';
-}
-
-export type Atom = Vr | Op | Cnst | Err | Line;
-export type AtomType = Atom['type'];
-
-function a<T extends Atom>(type: T['type'], value: T['value']): any {
-  return {type, value};
-}
-
-export function myLexer(code: string): Atom[] {
-  return code.replaceAll(/\n\n+/g, '\n\n').split('\n').flatMap(parseLine);
-}
-function parseLine(line: string): Atom[] {
-  if (line === '') return [a<Line>('nl', line)];
-
-  const result = line.split(/\s+/).filter(a => a).map(parseAtom);
-  result.push(a<Line>('nl', ''));
-  return result;
-}
-function parseAtom(atom: string): Atom {
-  if (OpRegex.test(atom)) {
-    return atom === '=' ? a<Op>('op', atom as any) : a<Op>('op', atom as any);
-  } else if (vrRegex.test(atom)) {
-    return a<Vr>('vr', atom as any);
-  } else if (ConstRegex.test(atom)) {
-    return a<Cnst>('cnst', atom);
-  } else {
-    return a<Err>('err', atom);
-  }
-}
