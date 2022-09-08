@@ -38,7 +38,7 @@ ond -> olds sep "end"                                         #ond:fl
 fnd -> tmp vrl %rt typ ws exp | tmp vrl %rt exp               #fnd:fl
 cnd -> tmp vrl %rt "struct" ws %tc                            #cnd:fl
 # Template
-tmp -> "<" targs ">" ws | null                                #tmp:fl
+tmp -> "<" targs ">" ws | null                               #tmp:fl
 targs -> targs %cm %tg | %tg                                  #targs:ff
 # Compound expressions with binary operators
 exa2 -> exc2                                                  #exa2:fu
@@ -99,9 +99,9 @@ ttp -> %cm typ | ttp %cm typ                                  #ttp:fl
 atp -> typ                                                    #atp:fl
 ftp -> ftps                                                   #ftp:fl
 ftps -> ftps mws %ad mws ftpo | ftpo                          #ftps:ff
-ftpo -> %rt typ | tps %rt typ                                 #ftpo:fl
+ftpo -> tmp %rt typ | tmp tps %rt typ                         #ftpo:fl
 tps -> typ | tps tcl typ                                      #tps:ff
-tcl -> ":"                                                    #tcl:d 
+tcl -> ":"                                                    #tcl:d
 # Variable with type annotation
 var -> %vr | %vr mws typ                                      #var:fl
 # Variable list

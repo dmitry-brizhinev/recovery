@@ -26,6 +26,7 @@ export interface StrType {
 export interface FunSignature {
   readonly args: Type[];
   readonly ret: Type;
+  readonly gens: GenType[];
 }
 export interface FunType {
   readonly t: FunT;
@@ -811,23 +812,18 @@ class Postprocessor {
     return f.value[1].map(vr => vr.value[0].value);
   }
 
-  private fncTemplates(f: Fnd | Cnd): GenType[] {
-    const tmp = f.value[0].value;
-    const tmps = tmp.length ? tmp[0] : [];
-    const templates: GenType[] = tmps.map(tc => ({t: 'g', name: tc.value, restrictions: []}));
-    return templates;
-  }
+
 
   private functionexp(f: Fnd): FunctionExpression {
     const kind = 'function';
     const argTypes = this.argTypes(f);
     const argNames = this.argNames(f);
 
-    const templates = this.fncTemplates(f);
+    const gens = fncTemplates(f);
 
     const innerContext = this.context.newChild(ContextType.Function);
     zip(argNames, argTypes).forEach(v => innerContext.setVar(...v));
-    templates.forEach(g => innerContext.setType(g.name, g));
+    gens.forEach(g => innerContext.setType(g.name, g));
     if (this.context.currentVar) {
       innerContext.setVar(this.context.currentVar.name, this.context.currentVar.type);
     }
@@ -837,7 +833,7 @@ class Postprocessor {
     const body = new Postprocessor(innerContext).expression(inn);
     const bodyRet = this.comSup(body.type, body.returnType);
     ret && this.context.module.assertAssign(ret, bodyRet);
-    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret: bodyRet}]};
+    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret: bodyRet, gens}]};
     return {kind, sigs: [{args: argNames, body}], type, returnType: Bot};
   }
 
@@ -846,14 +842,14 @@ class Postprocessor {
     const argTypes = this.argTypes(f);
     const argNames = this.argNames(f);
 
-    // const templates = this.fncTemplates(f);
+    const gens = fncTemplates(f);
 
     const fields = IMap(zip(argNames, argTypes));
     const name = f.value[2].value;
     const con: ConType = {fields, name};
     this.context.module.setNewCon(name, con);
     const ret: ObjType = {t: 'o', con: name};
-    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret}]};
+    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret, gens}]};
 
     return {kind, sigs: [{args: argNames, name}], type, returnType: Bot};
   }
@@ -870,10 +866,10 @@ class Postprocessor {
   }
 
   private filterSigsAndApply(f: FunType, as: Expression[]): (FunSignature | undefined)[] {
-    return f.sigs.map(({args, ret}) => {
+    return f.sigs.map(({args, ret, gens}) => {
       if (args.length < as.length) return undefined;
       if (zipShorter(args, as).some(([s, a]) => !this.context.module.canAssign(s, a.type))) return undefined;
-      return {args: args.slice(as.length), ret};
+      return {args: args.slice(as.length), ret, gens};
     });
   }
 
@@ -1045,14 +1041,15 @@ function ttpValues(ttp: Ttp): Type[] {
 function parseFtpo(ftp: Ftpo): SimpleFunType {
   let ret;
   let args: Type[];
-  if (ftp.value.length === 2) {
-    ret = parseTypeAnnotation(ftp.value[1]);
-    args = ftp.value[0].map(t => parseTypeAnnotation(t));
+  const gens = fncTemplates(ftp);
+  if (ftp.value.length === 3) {
+    ret = parseTypeAnnotation(ftp.value[2]);
+    args = ftp.value[1].map(t => parseTypeAnnotation(t));
   } else {
-    ret = parseTypeAnnotation(ftp.value[0]);
+    ret = parseTypeAnnotation(ftp.value[1]);
     args = [];
   }
-  return {t: 'f', sigs: [{args, ret}]};
+  return {t: 'f', sigs: [{args, ret, gens}]};
 }
 
 function parseFtp(ftp: Ftp): FunType {
@@ -1096,4 +1093,11 @@ function unwrapVar(vvr: Var): Type | undefined {
     checkValidTypeAnnotation(vr.value, vr.vrtype, t);
     return t;
   }
+}
+
+function fncTemplates(f: Fnd | Cnd | Ftpo): GenType[] {
+  const tmp = f.value[0].value;
+  const tmps = tmp.length ? tmp[0] : [];
+  const templates: GenType[] = tmps.map(tc => ({t: 'g', name: tc.value, restrictions: []}));
+  return templates;
 }

@@ -33,7 +33,7 @@ export interface Mtp extends RuleOutput {type: 'mtp', value: [Typ];}
 export interface Ttp extends RuleOutput {type: 'ttp', value: [Typ] | [Ttp, Typ];}
 export interface Atp extends RuleOutput {type: 'atp', value: [Typ];}
 export interface Ftp extends RuleOutput {type: 'ftp', value: [Ftpo[]];}
-export interface Ftpo extends RuleOutput {type: 'ftpo', value: [Typ] | [Typ[], Typ];}
+export interface Ftpo extends RuleOutput {type: 'ftpo', value: [Tmp, Typ] | [Tmp, Typ[], Typ];}
 export interface Var extends RuleOutput {type: 'var', value: [Vr] | [Vr, Typ];}
 
 export const renames = {ass: 'ass', ret: 'ret', brk: 'brk', cnt: 'cnt', ife: 'ife', ifb: 'ifb', dow: 'dow', wdo: 'wdo', for: 'for', doo: 'doo', ond: 'ond', fnd: 'fnd', cnd: 'cnd', tmp: 'tmp', exc2: 'exc', exc1: 'exc', exc0: 'exc', exl2: 'exl', exl1: 'exl', exl0: 'exl', ars2: 'arr', ars1: 'arr', ars0: 'arr', arre: 'arr', exm2: 'exm', exm1: 'exm', exm0: 'exm', exo2: 'exo', exo1: 'exo', exo0: 'exo', dot: 'dot', mtp: 'mtp', ttp: 'ttp', atp: 'atp', ftp: 'ftp', ftpo: 'ftpo', var: 'var'} as const;

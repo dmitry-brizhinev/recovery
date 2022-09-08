@@ -69,7 +69,7 @@ type Symbol = TokenSymbol | RuleSymbol;
 class TokenSymbol extends SymbolBase {
   public readonly instruction = 't';
   constructor(value: DirtyLexerName) {
-    super(value);
+    super(checkLexerName(value));
   }
 }
 

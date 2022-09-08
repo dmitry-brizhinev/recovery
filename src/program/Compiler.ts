@@ -245,9 +245,10 @@ class Compiler {
   private overloadexp(f: FunctionOverload, t: FunSignature) {
     const argNames = f.args;
     const argTypes = t.args;
+    const gens = parseGens(t);
     const args = zipWith(argNames, argTypes, this.defsAnnotate).join(', ');
     const r = this.expression(f.body);
-    return `(${args}) => (${r})`;
+    return `${gens}(${args}) => (${r})`;
   }
 
   private functionexp(f: FunctionExpression): string {
@@ -335,10 +336,16 @@ function translateOp(op: PrimOps): string {
   }
 }
 
+function parseGens(f: FunSignature): string {
+  const gens = f.gens.map(g => g.name).join(',');
+  return gens && `<${gens}>`;
+}
+
 function parseFunSig(f: FunSignature): string {
   const ret = annotationp(f.ret);
   const args = f.args.map((t, i) => `${numToLetter('a', i)}:${annotationp(t)}`);
-  return `(${args.join(',')}) => ${ret}`;
+  const gens = parseGens(f);
+  return `${gens}(${args.join(',')}) => ${ret}`;
 }
 
 function parseFun(f: FunType): string {
