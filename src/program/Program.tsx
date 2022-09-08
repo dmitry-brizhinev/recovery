@@ -183,12 +183,13 @@ function ProgramCode(props: {code: string, onChange?: Callback<string> | undefin
 
   const [ts, toggleTs] = useToggle(true);
   const [js, toggleJs] = useToggle(false);
+  const [myLex, toggleMyLex] = useToggle(true);
 
   React.useEffect(() => addLine(null), [props.onChange]);
 
-  const runCode = React.useCallback(() => run(props.code, addLine, 'run'), [props.code, addLine]);
-  const compileCode = React.useCallback(() => run(props.code, addLine, 'compile'), [props.code, addLine]);
-  const checkTypes = React.useCallback(() => run(props.code, addLine, 'check'), [props.code, addLine]);
+  const runCode = React.useCallback(() => run(props.code, addLine, 'run', myLex), [props.code, addLine, myLex]);
+  const compileCode = React.useCallback(() => run(props.code, addLine, 'compile', myLex), [props.code, addLine, myLex]);
+  const checkTypes = React.useCallback(() => run(props.code, addLine, 'check', myLex), [props.code, addLine, myLex]);
   const gengenTypes = React.useCallback(() => generate(addLine), [addLine]);
 
   const highlighterRef = React.useRef<HTMLTextAreaElement>(null);
@@ -205,9 +206,11 @@ function ProgramCode(props: {code: string, onChange?: Callback<string> | undefin
       <button className={styles.run} onClick={checkTypes}>Check</button>
       <button className={styles.run} onClick={runCode}>Run</button>
       <button className={styles.run} onClick={compileCode}>Compile</button>
-      Show TS
+      MyL
+      <input type="checkbox" className={styles.run} checked={myLex} onChange={toggleMyLex} />
+      TS
       <input type="checkbox" className={styles.run} checked={ts} onChange={toggleTs} />
-      Show JS
+      JS
       <input type="checkbox" className={styles.run} checked={js} onChange={toggleJs} />
     </div> : <div className={styles.run}>
       <button className={styles.run} onClick={gengenTypes}>Gen Types</button>
@@ -248,9 +251,9 @@ function Highlighter(props: {value: string, highlights: Highlight[], forwardedRe
   return <textarea readOnly tabIndex={-1} ref={props.forwardedRef} value={chars} className={styles.highlighter} />;
 }
 
-async function run(code: string, addLine: Callback<RunnerResult | null>, mode: 'compile' | 'run' | 'check'): Promise<void> {
+async function run(code: string, addLine: Callback<RunnerResult | null>, mode: 'compile' | 'run' | 'check', myLex: boolean): Promise<void> {
   addLine(null);
-  for await (const r of execute(code, mode)) {
+  for await (const r of execute(code, mode, myLex)) {
     addLine(r);
   }
 }

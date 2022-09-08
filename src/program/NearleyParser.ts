@@ -1,4 +1,4 @@
-import type {LexedToken, TokenLocation} from "./CustomLexer";
+import type {LexedToken, Lexer, TokenLocation} from "./CustomLexer";
 import {cleanLexedToken, getLoc as getLexLoc} from "./CustomLexer";
 import * as nearley from 'nearley';
 import {assert, unreachable} from "../util/Utils";
@@ -98,8 +98,9 @@ function getPostprocessor(name: DirtyParserName) {
 // const compiled: {v?: nearley.CompiledRules;} = {};
 
 export interface Parser {
-  parseLine: (line: string) => Promise<Start>;
-  finish: () => Promise<void>;
+  parseLine(line: string): Promise<Start>;
+  finish(): Promise<void>;
+  errorLoc(): TokenLocation | undefined;
 }
 
 export async function generateTypes() {
@@ -107,12 +108,19 @@ export async function generateTypes() {
 }
 
 export class NearleyParser implements Parser {
-  private constructor(private readonly parser: nearley.Parser) {}
+  private constructor(
+    private readonly parser: nearley.Parser,
+    private readonly lexer: Lexer,
+  ) {}
   private statements: number = 0;
 
-  static async start(lexer: nearley.Lexer): Promise<NearleyParser> {
+  static async start(lexer: Lexer): Promise<NearleyParser> {
     const grammar = nearley.Grammar.fromCompiled(compileGrammar(await fetchGrammar(), getPostprocessor));
-    return new NearleyParser(new nearley.Parser(grammar, {lexer}));
+    return new NearleyParser(new nearley.Parser(grammar, {lexer}), lexer);
+  }
+
+  errorLoc(): TokenLocation | undefined {
+    return this.lexer.errorToken && getLexLoc(this.lexer.errorToken);
   }
 
   async parseLine(line: string): Promise<Start> {

@@ -3,7 +3,7 @@ import {assert} from '../util/Utils';
 import {Set as ISet} from 'immutable';
 
 const trim = (s: string) => s.trim();
-const primOps = ['-', '+', '*', '/', '//', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
+const primOps = ['-', '+', '*', '//', '/', '%', '==', '!=', '<<', '>>', '<=', '>=', '&&', '||'] as const;
 export type PrimOps = typeof primOps[number];
 const kws = ['if', 'then', 'else', 'elif', 'overload', 'struct', 'do', 'end', 'return', 'while', 'for', 'in', 'break', 'continue'];
 const brs = ['{', '}', '(', ')', '[', ']', '<', '>'];
@@ -52,21 +52,26 @@ function convertSpec(spec: typeof lexerSpec): ConvertedSpec {
   return Object.entries(spec).map(([k, v]) => ({type: checkLexerName(k), rules: convertRules(v)}));
 }
 
+export interface Lexer extends nearley.Lexer {
+  readonly errorToken?: LexedToken | undefined;
+}
+
 interface MyLexerState {
-  /** The number of bytes from the start of the buffer where the match starts. */
-  offset: number;
   /** The column where the match begins, starting from 1. */
   col: number;
   /** The line number of the beginning of the match, starting from 1. */
   line: number;
 }
-class MyLexer implements nearley.Lexer {
+class MyLexer implements Lexer {
   static initialState(): MyLexerState {
-    return {offset: 0, line: 1, col: 1};
+    return {line: 1, col: 1};
   }
 
   private state: MyLexerState = MyLexer.initialState();
+  /** The number of bytes from the start of the buffer where the match starts. */
+  private offset: number = 0;
   private data: string = '';
+  public errorToken?: LexedToken | undefined;
   constructor(private readonly spec: ConvertedSpec) {}
 
   /**
@@ -76,8 +81,11 @@ class MyLexer implements nearley.Lexer {
    * Returns e.g. {type, value, line, col, …}. Only the value attribute is required.
    */
   next(): LexedToken | undefined {
-    const start = this.state.offset;
-    const trimmed = this.data.slice(start);
+    const line = this.state.line;
+    const col = this.state.col;
+    const offset = this.offset;
+    const trimmed = this.data.slice(offset);
+    // console.log(this.data.replaceAll('\n', '\\n'), trimmed.replaceAll('\n', '\\n'));
     if (!trimmed) return undefined;
 
     for (const {type, rules} of this.spec) {
@@ -85,30 +93,30 @@ class MyLexer implements nearley.Lexer {
         let end = 0;
         if (typeof match === 'string') {
           if (!trimmed.startsWith(match)) continue;
-          end = start + match.length;
+          end = offset + match.length;
         } else {
           const sticky = new RegExp(match, 'y');
           if (!sticky.test(trimmed)) continue;
-          end = start + sticky.lastIndex;
+          end = offset + sticky.lastIndex;
         }
-        const text = this.data.slice(start, end);
+        const text = this.data.slice(offset, end);
         const value = transform?.(text) ?? text;
-        this.state.offset = end;
         const lineBreaks = text.match(/\n/g)?.length ?? 0;
-        const line = this.state.line;
-        const col = this.state.col;
+
         if (lineBreaks) {
-          const lastLine = text.lastIndexOf('\n') + 1;
-          this.state.line = end - lastLine;
-          this.state.col += lineBreaks;
+          const lastLine = text.lastIndexOf('\n');
+          this.state.col = text.length - lastLine;
+          this.state.line += lineBreaks;
         } else {
-          this.state.line += end - start;
+          this.state.col += text.length;
         }
+        this.offset = end;
+        //console.log(`'${text.replaceAll('\n', '\\n')}'`, 'col', col, this.state.col);
         return {
           type,
           value,
           text,
-          offset: start,
+          offset,
           /** The column where the match begins, starting from 1. */
           col,
           /** The line number of the beginning of the match, starting from 1. */
@@ -118,7 +126,16 @@ class MyLexer implements nearley.Lexer {
         };
       }
     }
-    return undefined;
+    const error: LexedToken = {
+      type: 'nl',
+      value: trimmed.trimEnd(),
+      text: trimmed.trimEnd(),
+      offset,
+      col,
+      line,
+      lineBreaks: 0,
+    };
+    throw new Error(this.formatError(error, 'invalid syntax'))
   }
 
   /**
@@ -128,25 +145,39 @@ class MyLexer implements nearley.Lexer {
    */
   reset(data: string, state?: MyLexerState): void {
     this.data = data;
+    this.offset = 0;
     this.state = state ?? MyLexer.initialState();
   }
 
   /**
-  * Returns an object describing the current line/col etc. This allows us
-  * to preserve this information between feed() calls, and also to support Parser#rewind().
-  * The exact structure is lexer-specific; nearley doesn't care what's in it.
-  */
+   * Returns an object describing the current line/col etc. This allows us
+   * to preserve this information between feed() calls, and also to support Parser#rewind().
+   * The exact structure is lexer-specific; nearley doesn't care what's in it.
+   */
   save(): MyLexerState {
     return this.state;
   }
 
   /**
- * Returns a string with an error message describing the line/col of the offending token.
- * You might like to include a preview of the line in question.
- */
+   * Returns a string with an error message describing the line/col of the offending token.
+   * You might like to include a preview of the line in question.
+   */
   formatError(token: LexedToken, message?: string): string {
-    return 'error: ' + message + ' TOKEN: ' + JSON.stringify(token);
+    this.errorToken = token;
+    return `${message} at line ${token.line} col ${token.col}:
+
+  ${this.data.trimEnd()}
+  ${' '.repeat(token.offset)}^`;
   }
+}
+
+export function parseLexerError(e: Error): TokenLocation | undefined {
+  const match = /^(?:Syntax error|invalid syntax) at line (\d+) col (\d+):\n\n  (.+)\n  +\^/.exec(e.message);
+  if (!match || !match[1] || !match[2] || !match[3]) return undefined;
+  const line = Number.parseInt(match[1]);
+  const col = Number.parseInt(match[2]);
+  const ll = match[3];
+  return {sl: line - 1, sc: col - 1, ec: ll.length};
 }
 
 const vrRegex = /[idbsctofamgφ][A-Z]\w*/;

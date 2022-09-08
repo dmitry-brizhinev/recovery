@@ -1,4 +1,4 @@
-import {myLexer, mooLexer, type TokenLocation} from './CustomLexer';
+import {myLexer, mooLexer, type TokenLocation, parseLexerError} from './CustomLexer';
 import {myParser} from './MyParser';
 import {generateTypes, NearleyParser, type Parser} from './NearleyParser';
 import {delay, errorString} from '../util/Utils';
@@ -69,12 +69,12 @@ export async function genTypes(): Promise<RunnerResult> {
   }
 }
 
-export async function* execute(code: string, mode: 'check' | 'compile' | 'run'): AsyncGenerator<RunnerResult, void, void> {
+export async function* execute(code: string, mode: 'check' | 'compile' | 'run', myLex: boolean): AsyncGenerator<RunnerResult, void, void> {
   const mmm = (typeof mode === 'string' ? mode : 'compile');
   yield {t: 'stat', line: word[mmm].star};
   let parser;
   try {
-    parser = await getParser(true);
+    parser = await getParser(myLex);
   } catch (e) {
     yield {t: 'err', line: myErrorString('parse', 'grammar', e)};
     return;
@@ -91,7 +91,8 @@ export async function* execute(code: string, mode: 'check' | 'compile' | 'run'):
       statements = await parser.parseLine(line + '\n');
     } catch (e: unknown) {
       // e.offset will have the index of the bad token, but that's not super helpful
-      yield {t: 'err', line: myErrorString('parse', line, e), phiLoc: lineLoc};
+      const errLoc = e instanceof Error && parseLexerError(e);
+      yield {t: 'err', line: myErrorString('parse', line, e), phiLoc: parser.errorLoc() || errLoc || lineLoc};
       return;
     }
     for (const sta of statements) {
