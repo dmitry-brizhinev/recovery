@@ -1,4 +1,4 @@
-import {assert, numToLetter, unreachable} from '../util/Utils';
+import {asserteq, numToLetter, unreachable} from '../util/Utils';
 import {zip, zipWith} from '../util/Zip';
 import type {PrimOps, VrName} from './CustomLexer';
 import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block, ArrayElement, TupleElement, StringElement, FunSignature, FunctionOverload} from './ParsePostprocessor';
@@ -254,7 +254,8 @@ class Compiler {
   private functionexp(f: FunctionExpression): string {
     const overloads = zip(f.sigs, f.type.sigs).map(ft => this.overloadexp(...ft)).toArray();
     if (overloads.length === 1) return overloads[0];
-    return `[${overloads.join(',')}]`;
+    // const c = new class{a:any[]=[];b(...x:unknown[]){this.a.push(...x);return this;}}();
+    return `new class{f=[${overloads.join(',')}];a:any[]=[];b(...x:unknown[]){this.a.push(...x);return this;}c(i:number,...x:any[]){this.b(...x);return this.f[i](...this.a);}}()`;
   }
 
   private constructorexp(f: Constructor): string {
@@ -288,29 +289,24 @@ class Compiler {
   }
 
   private bindfun(f: FunctionBind): string {
-    const {func, args, call, sigKept} = f;
+    const {func, args, callSig} = f;
     const as = args.map(a => this.expression(a)).join(', ');
     let ff = this.expressionp(func);
 
-    const from = sigKept.length;
-    const to = sigKept.filter(b => b).length;
+    const from = func.type.sigKept.length;
     if (from > 1) {
-      const sig = sigKept.map(b => b ? '1' : '0').join(',');
-      ff = `${ff}.filter((_f,i) => [${sig}][i])`;
-      if (to === 1) {
-        ff = `${ff}[0]`;
+      if (callSig != null) {
+        return `${ff}.c(${callSig}, ${as})`;
+      } else {
+        return `${ff}.b(${as})`;
       }
-    }
-
-    if (to === 1) {
-      if (call) {
+    } else {
+      if (callSig != null) {
+        asserteq(callSig, 0);
         return `${ff}(${as})`;
       } else {
         return `${ff}.bind(undefined,${as})`;
       }
-    } else {
-      assert(!call);
-      return `${ff}.map(f => f.bind(undefined,${as}))`;
     }
   }
 }

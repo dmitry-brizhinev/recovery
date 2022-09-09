@@ -31,10 +31,12 @@ export interface FunSignature {
 export interface FunType {
   readonly t: FunT;
   readonly sigs: FunSignature[];
+  readonly sigKept: boolean[];
 }
 export interface SimpleFunType extends FunType {
   readonly t: FunT;
   readonly sigs: [FunSignature];
+  readonly sigKept: [true];
 }
 export interface ConType {
   readonly name: string;
@@ -355,10 +357,9 @@ export interface FunctionBind {
   kind: 'bind';
   type: Type;
   returnType: Type;
-  call: boolean;
+  callSig?: number | undefined;
   func: NarrowedExpression<FunType>;
   args: Expression[];
-  sigKept: boolean[];
 }
 
 export abstract class Module {
@@ -833,7 +834,7 @@ class Postprocessor {
     const body = new Postprocessor(innerContext).expression(inn);
     const bodyRet = this.comSup(body.type, body.returnType);
     ret && this.context.module.assertAssign(ret, bodyRet);
-    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret: bodyRet, gens}]};
+    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret: bodyRet, gens}], sigKept: [true]};
     return {kind, sigs: [{args: argNames, body}], type, returnType: Bot};
   }
 
@@ -849,7 +850,7 @@ class Postprocessor {
     const con: ConType = {fields, name};
     this.context.module.setNewCon(name, con);
     const ret: ObjType = {t: 'o', con: name};
-    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret, gens}]};
+    const type: SimpleFunType = {t: 'f', sigs: [{args: argTypes, ret, gens}], sigKept: [true]};
 
     return {kind, sigs: [{args: argNames, name}], type, returnType: Bot};
   }
@@ -861,7 +862,7 @@ class Postprocessor {
     const sigs = fs.flatMap(f => f.sigs);
     const tsigs = fs.flatMap(f => f.type.sigs);
     assert(tsigs.length);
-    const type: FunType = {t: 'f', sigs: tsigs};
+    const type: FunType = {t: 'f', sigs: tsigs, sigKept: tsigs.map(() => true)};
     return {kind, sigs, type, returnType: Bot};
   }
 
@@ -889,21 +890,19 @@ class Postprocessor {
 
   private bindfuncn(func: NarrowedExpression<FunType>, args: Expression[]): FunctionBind & ExpNarrow<FunType> {
     const kind = 'bind';
-    const call = false;
 
     const sigsOrUn = this.filterSigsAndApply(func.type, args);
     const sigs = sigsOrUn.flatMap(s => s ? [s] : []);
     let sigKept = sigsOrUn.map(s => !!s);
     assert(sigs.length, 'Invalid arguments');
-    const type: FunType = {t: 'f', sigs};
+    const type: FunType = {t: 'f', sigs, sigKept: this.combineSigKept(func.type.sigKept, sigKept)};
     const returnType = args.reduce((t, a) => this.comSup(t, a.returnType), func.returnType);
 
     if (func.kind === 'bind') {
       args = func.args.concat(args);
-      sigKept = this.combineSigKept(func.sigKept, sigKept);
       func = func.func;
     }
-    return {kind, type, returnType, call, func, args, sigKept};
+    return {kind, type, returnType, func, args};
   }
 
   private bindfuncc(f: NarrowedExpression<FunType>, tup: NarrowedExpression<TupType>): FunctionBind & ExpNarrow<FunType> {
@@ -924,19 +923,17 @@ class Postprocessor {
 
   private callfun(e: Exp, _sc: Sc): FunctionBind {
     const kind = 'bind';
-    const call = true;
     let f = checkff(this.expression(e));
     const matchingOverload = f.type.sigs.findIndex(s => s.args.length === 0);
     assert(matchingOverload !== -1, `Function needs more arguments`);
     const type = f.type.sigs[matchingOverload].ret;
     const returnType = f.returnType;
 
-    let sigKept = f.type.sigs.map((_v, i) => i === matchingOverload);
+    const callSig = f.type.sigKept.flatMap((b, i) => b ? [i] : [])[matchingOverload];
 
     const args = f.kind === 'bind' ? f.args : [];
-    sigKept = f.kind === 'bind' ? this.combineSigKept(f.sigKept, sigKept) : sigKept;
     const func = f.kind === 'bind' ? f.func : f;
-    return {kind, type, returnType, call, func, args, sigKept};
+    return {kind, type, returnType, callSig, func, args};
   }
 
   private tuple(e: Exm): Tuple {
@@ -1049,12 +1046,12 @@ function parseFtpo(ftp: Ftpo): SimpleFunType {
     ret = parseTypeAnnotation(ftp.value[1]);
     args = [];
   }
-  return {t: 'f', sigs: [{args, ret, gens}]};
+  return {t: 'f', sigs: [{args, ret, gens}], sigKept: [true]};
 }
 
 function parseFtp(ftp: Ftp): FunType {
   const sigs = ftp.value[0].flatMap(o => parseFtpo(o).sigs);
-  return {t: 'f', sigs};
+  return {t: 'f', sigs, sigKept: sigs.map(() => true)};
 }
 
 function parseTypeAnnotation(typ: Typ): Type {

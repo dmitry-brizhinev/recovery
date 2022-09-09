@@ -1,10 +1,9 @@
 
-import {assert, throwIfNull, unreachable, type Callback} from '../util/Utils';
+import {assert, asserteq, throwIfNull, unreachable, type Callback} from '../util/Utils';
 import type {PrimOps, VrName} from './CustomLexer';
-import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement, StringElement} from './ParsePostprocessor';
+import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement, StringElement, SimpleFunType} from './ParsePostprocessor';
 import {pt, ContextType} from './ParsePostprocessor';
 import {Map as IMap} from 'immutable';
-import {zip} from '../util/Zip';
 
 interface Nul {
   readonly type: NulType;
@@ -37,6 +36,7 @@ interface Fun {
   readonly selfref?: {name: VrName; value: Fun;} | undefined;
 }
 interface SimpleFun extends Fun {
+  readonly type: SimpleFunType;
   readonly sigs: [FunOver];
 }
 interface Tup {
@@ -490,25 +490,37 @@ class Executor {
     return {type: a.type, values};
   }
 
-  private trimSigs(f: FunOver[], k: boolean[]): FunOver[] {
-    assert(f.length === k.length);
-    return zip(f, k).filter(fk => fk[1]).map(fk => fk[0]).toArray();
+  private trimSigs(f: FunType, tt: Type, callSig: number | undefined, as: Value[]): FunType {
+    let sigKept: boolean[];
+    if (callSig != null) {
+      sigKept = f.sigKept.map((_b, i) => callSig === i);
+    } else {
+      assert(tt.t === 'f', 'Bind without call should produce func');
+      sigKept = tt.sigKept;
+    }
+    asserteq(sigKept.length, f.sigKept.length);
+    const filt = sigKept.filter((_b, i) => f.sigKept[i]);
+    asserteq(filt.length, f.sigs.length);
+    const sigs = f.sigs.filter((_s, i) => filt[i]).map(({args, ret, gens}) => ({args: args.slice(as.length), ret, gens}));
+
+    return {t: f.t, sigs, sigKept};
   }
 
   private bindfun(f: FunctionBind): Value {
-    const {func, args, call, sigKept} = f;
-    let ff = this.expressionT(func);
+    const {func, args, type, callSig} = f;
+    const ff = this.expressionT(func);
     const as = args.map(a => this.expression(a));
-    ff = {...ff, sigs: this.trimSigs(ff.sigs, sigKept), applied: ff.applied.concat(as)};
-    if (!call) return ff;
+    const newType = this.trimSigs(ff.type, type, callSig, as)
+    const fff = {...ff, type: newType, applied: ff.applied.concat(as)};
 
-    return this.callfun(ff);
+    if (callSig == null) return fff;
+
+    return this.callfun(fff, callSig);
   }
 
-  private callfun(fun: Fun): Value {
-    assert(fun.sigs.length === 1);
+  private callfun(fun: Fun, callSig: number): Value {
     const innerContext = this.context.newChild(ContextType.Function);
-    const sig = fun.sigs[0];
+    const sig = fun.sigs[callSig];
     for (const [i, a] of fun.applied.entries()) {
       innerContext.setVar(sig.args[i], a);
     }
