@@ -402,22 +402,25 @@ class CalcGenType {
   private assTos: NonGenType[];
   private assFroms: NonGenType[] = [];
   constructor(g: GenType) {
+    //console.log('made calc', g.name);
     this.assTos = g.assignableTo.toArray();
   }
   toGen(name: string): GenType {
     return {t: 'g', name, assignableTo: List(this.assTos)};
   }
   pretty(name: string): string {
-    return `${name}{${this.assTos.map(pt).join('&')}}`;
+    return pt(this.toGen(name));
   }
   assTo(target: NonGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
     const result = this.assTos.some(tt => canAssignInner(target, tt)); // TODO could be maybe type that covers combo???
     if (result) return result;
     this.modified = true;
+    //console.log('added constrant', pt(target));
     this.assTos.push(target);
     return true;
   }
   assFrom(source: NonGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
+    //console.log('added assignment', pt(source));
     this.assFroms.push(source);
     return this.assTos.every(tt => canAssignInner(tt, source)); // TODO could be maybe type that covers combo???
     //if (result) return result;
@@ -427,9 +430,11 @@ class CalcGenType {
   }
   static genGen(ttt: CalcGenType, sss: CalcGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
     const result = ttt.assTos.filter(tt => !sss.assTos.some(t => canAssignInner(tt, t)));
+    //console.log('added assignments from G', sss.assTos.map(pt).join());
     ttt.assFroms.push(...sss.assTos);
     if (!result.length) return true;
     sss.modified = true;
+    //console.log('added constraints from G', result.map(pt).join());
     sss.assTos.push(...result);
     return true;
   }
@@ -985,46 +990,65 @@ class Postprocessor {
 
   private updateGenerics(ret: Type, gens: {get(name: string): GenType | undefined}): Type {
     return transformType(ret, type => {
-      let newType: Type | undefined;
-      return type.t === 'g' && (newType = gens.get(type.name)) ? newType : type;
+      if (type.t !== 'g') return type;
+      const newType = gens.get(type.name);
+      if (newType) return newType;
+      const assignableTo = type.assignableTo.map<NonGenType>(tt => {
+        const mapped = this.updateGenerics(tt, gens);
+        if (mapped.t === 'g' || mapped.t === '*' || mapped.t === '-') return tt;
+        return mapped;
+      });
+      return {...type, assignableTo};
     });
   }
 
   private applyToSig({args, ret, gens}: FunSignature, as: Type[]): FunSignature | string {
     if (args.length < as.length) return `Too many arguments`;
-    for (const [exp__, act__] of zipShorter(args, as)) {
-      let expected = exp__;
-      const actual = act__;
-      const [can, mods] = this.context.module.canAssignGen(expected, actual);
-      if (!can) {
-        return `Cannot assign ${pt(actual)} to argument expecting ${pt(expected)}`;
-      } else for (const [name, gg] of mods) {
+    for (const [expected, actual] of zipShorter(args, as)) {
+      let [can, mods] = this.context.module.canAssignGen(expected, actual);
+      if (!can) return `Cannot assign ${pt(actual)} to argument expecting ${pt(expected)}`;
+
+      for (const [name, gg] of mods) {
         const g = gens.get(name);
         if (!g && !gg.wasModified()) continue;
-        if (!g) {
-          return `Cannot assign ${pt(actual)} to ${pt(expected)} as generic ${name} needs to be ${gg.pretty(name)}`;
-        }
+        if (!g) return `Cannot assign ${pt(actual)} to ${pt(expected)} as generic ${name} needs to be ${gg.pretty(name)}`;
         asserteq(g.name, name);
-        const assFrom = gg.assignedFrom();
-        if (!gg.wasModified()) {
-          if (!assFrom.length) continue;
-          const sup = assFrom.reduce<Type>((a, b) => this.comSup(a, b), Bot);
-          if (sup.t === 'g' || sup.t === '*' || sup.t === '-') continue;
-          assert(gg.assTo(sup, (t, s) => this.context.module.canAssign(t, s)));
-          if (!gg.wasModified()) continue;
 
-          const maybeExpected = this.updateGenerics(expected, {get: n => n === name ? gg.toGen(name) : undefined});
-          if (!this.context.module.canAssign(maybeExpected, actual)) continue;
-          expected = maybeExpected;
+        if (gg.wasModified()) {
+          //const ggGen = gg.toGen(name);
+          //expected = this.updateGenerics(expected, {get: n => n === name ? ggGen : undefined});
+          //if (!this.context.module.canAssign(expected, actual)) {
+          //  return `Cannot assign ${pt(actual)} to ${pt(expected)} when generic ${pt(g)} has added restrictions ${pt(ggGen)}`;
+          //}
           gens = gens.set(g.name, gg.toGen(name));
-          continue;
         }
+      }
 
-        expected = this.updateGenerics(expected, {get: n => n === name ? gg.toGen(name) : undefined});
-        if (!this.context.module.canAssign(expected, actual)) {
-          return `Cannot assign ${pt(actual)} to ${pt(expected)} when generic ${pt(g)} has added restrictions ${gg.pretty(name)}`;
-        }
+      let newExpected = this.updateGenerics(expected, gens);
+
+      [can, mods] = this.context.module.canAssignGen(newExpected, actual);
+      if (!can) return `Cannot assign ${pt(actual)} to ${pt(newExpected)} after adding generic constraints`;
+
+      for (const [name, gg] of mods) {
+        const g = gens.get(name);
+        if (!g && !gg.wasModified()) continue;
+        if (!g) return `Cannot assign ${pt(actual)} to ${pt(newExpected)} after adding generic constraints as generic ${name} needs to be ${gg.pretty(name)}`;
+        if (gg.wasModified()) return `Cannot assign ${pt(actual)} to ${pt(newExpected)} after adding generic constraints as ${pt(g)} needs even more restrictions ${gg.pretty(name)}`;
+
+        const assFrom = gg.assignedFrom();
+        if (!assFrom.length) continue;
+
+        const sup = assFrom.reduce<Type>((a, b) => this.comSup(a, b), Bot);
+        if (sup.t === 'g' || sup.t === '*' || sup.t === '-') continue;
+        assert(gg.assTo(sup, (t, s) => this.context.module.canAssign(t, s)));
+        if (!gg.wasModified()) continue;
+
+        const maybeExpected = this.updateGenerics(newExpected, {get: n => n === name ? gg.toGen(name) : undefined});
+        if (!this.context.module.canAssign(maybeExpected, actual)) continue;
+
+        newExpected = maybeExpected;
         gens = gens.set(g.name, gg.toGen(name));
+        continue;
       }
     }
     ret = this.updateGenerics(ret, gens);

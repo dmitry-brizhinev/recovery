@@ -253,6 +253,7 @@ function Highlighter(props: {value: string, highlights: Highlight[], forwardedRe
 
 async function run(code: string, addLine: Callback<RunnerResult | null>, mode: 'compile' | 'run' | 'check', myLex: boolean): Promise<void> {
   addLine(null);
+  console.clear();
   for await (const r of execute(code, mode, myLex)) {
     addLine(r);
   }
