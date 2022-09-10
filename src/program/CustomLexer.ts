@@ -172,7 +172,7 @@ class MyLexer implements Lexer {
 }
 
 export function parseLexerError(e: Error): TokenLocation | undefined {
-  const match = /^(?:Syntax error|invalid syntax) at line (\d+) col (\d+):\n\n  (.+)\n  +\^/.exec(e.message);
+  const match = /^(?:Syntax error|invalid syntax) at line (\d+) col (\d+):\n\n[ ] (.+)\n[ ] +\^/.exec(e.message);
   if (!match || !match[1] || !match[2] || !match[3]) return undefined;
   const line = Number.parseInt(match[1]);
   const col = Number.parseInt(match[2]);

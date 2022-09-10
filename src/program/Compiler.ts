@@ -333,7 +333,7 @@ function translateOp(op: PrimOps): string {
 }
 
 function parseGens(f: FunSignature): string {
-  const gens = f.gens.map(g => g.name).join(',');
+  const gens = f.gens.keySeq().join(',');
   return gens && `<${gens}>`;
 }
 
