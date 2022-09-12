@@ -20,9 +20,14 @@ const Bot: BotType = {t: '-'};
 export interface NumType {
   readonly t: NumT;
 }
+const Int: NumType = {t: 'i'};
+const Dub: NumType = {t: 'd'};
+const Bol: NumType = {t: 'b'};
 export interface StrType {
   readonly t: StrT;
 }
+const Cha: StrType = {t: 'c'};
+const Str: StrType = {t: 's'};
 export interface FunSignature {
   readonly args: Type[];
   readonly ret: Type;
@@ -862,19 +867,19 @@ class Postprocessor {
 
   private constantType(value: string): NumType | StrType | NulType {
     if (value === 'true') {
-      return {t: 'b'};
+      return Bol;
     } else if (value === 'false') {
-      return {t: 'b'};
+      return Bol;
     } else if (value.startsWith('"')) {
-      return {t: 's'};
+      return Str;
     } else if (value.startsWith("'")) {
-      return {t: value.length === 3 ? 'c' : 's'};
+      return value.length === 3 ? Cha : Str;
     } else if (value.includes('.')) {
-      return {t: 'd'};
+      return Dub;
     } else if (value === '_') {
       return Nul;
     } else {
-      return {t: 'i'};
+      return Int;
     }
   }
 
@@ -914,7 +919,7 @@ class Postprocessor {
     } else if (left.type.t === 's') {
       const str = checkss(left);
       const index = checkii(this.expression(right));
-      return {kind: 'selement', type: {t: 'c'}, returnType: str.returnType, index, str};
+      return {kind: 'selement', type: Cha, returnType: str.returnType, index, str};
     } else {
       const tup = checktt(left);
       assert(right.type === 'cnst', `Cannot index tuple with variable ${right.value}`);
@@ -1172,7 +1177,7 @@ class Postprocessor {
 
   private doOpTypes(op: PrimOps, l: Type, r: Type): NumType | StrType | undefined {
     if (op === '+' && iss(l) && iss(r)) {
-      return {t: 's'};
+      return Str;
     }
     let ll; let rr;
     if ((ll = isn(l)) && (rr = isn(r))) {
