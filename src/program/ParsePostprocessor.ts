@@ -2,8 +2,8 @@
 import {assert, assertNonNull, unreachable, throwIfNull, asserteq} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, TopT, BotT, GenT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp, Cnd, Ond, Ftpo} from './ParserOutput.generated';
-import {Map as IMap, List, Seq} from 'immutable';
-import {zip, zipShorter} from '../util/Zip';
+import {Map as IMap, List, Seq, Set as ISet} from 'immutable';
+import {zip, zipL, zipShorter} from '../util/Zip';
 
 export interface NulType {
   readonly t: NulT;
@@ -29,7 +29,7 @@ export interface StrType {
 const Cha: StrType = {t: 'c'};
 const Str: StrType = {t: 's'};
 export interface FunSignature {
-  readonly args: Type[];
+  readonly args: List<Type>;
   readonly ret: Type;
   readonly gens: IMap<string, GenType>;
 }
@@ -49,7 +49,7 @@ export interface ConType {
 }
 export interface TupType {
   readonly t: TupT;
-  readonly values: Type[];
+  readonly values: List<Type>;
 }
 export interface ObjType {
   readonly t: ObjT;
@@ -59,7 +59,6 @@ export interface ArrType {
   readonly t: ArrT;
   readonly subtype: Type;
 }
-
 export interface MayType {
   readonly t: MayT;
   readonly subtype: Type;
@@ -68,6 +67,7 @@ export interface GenType {
   readonly t: GenT;
   readonly name: string;
   readonly assignableTo: List<NonGenType>;
+  readonly assignableFrom: List<NonGenType>;
 }
 export type Type = NonGenType | TopType | BotType | GenType;
 export type NonGenType = NulType | NumType | StrType | FunType | TupType | ObjType | ArrType | MayType;
@@ -86,7 +86,7 @@ export function pt(t: Type): string {
     case 'f': return `{${t.sigs.map(t => `${t.args.map(pt).join(':')}->${pt(t.ret)}`).join(' & ')}}`;
     case 'a': return `[${pt(t.subtype)}]`;
     case 'm': return `${pt(t.subtype)}?`;
-    case 'g': return `${t.name}{${t.assignableTo.toSeq().map(pt).join('&')}}`;
+    case 'g': return `${t.name}{${t.assignableFrom.toSeq().map(pt).join('&')}/${t.assignableTo.toSeq().map(pt).join('&')}}`;
     default: return unreachable(t, `Invalid type ${t}`);
   }
 }
@@ -332,7 +332,7 @@ export interface ArrayExpression {
 }
 
 export interface FunctionOverload {
-  args: VrName[];
+  args: List<VrName>;
   body: Expression;
 }
 
@@ -344,7 +344,7 @@ export interface FunctionExpression {
 }
 
 export interface ConstructorOverload {
-  args: VrName[];
+  args: List<VrName>;
   name: string;
 }
 
@@ -362,6 +362,13 @@ export interface FunctionBind {
   callSig?: number | undefined;
   func: NarrowedExpression<FunType>;
   args: Expression[];
+}
+
+function checkNonGenType(type: Type): NonGenType {
+  if (type.t === '*' || type.t === '-' || type.t === 'g') {
+    throw new Error(`Invalid transformer output ${pt(type)} for gen restriction`);
+  }
+  return type;
 }
 
 function transformType(type: Type, transformer: (node: Type) => Type): Type {
@@ -393,7 +400,9 @@ function transformType(type: Type, transformer: (node: Type) => Type): Type {
       });
       return transformer({...type, sigs});
     case 'g':
-      return transformer(type); // Not transforming restrictions
+      const assignableTo = type.assignableTo.map(node => checkNonGenType(transformType(node, transformer)));
+      const assignableFrom = type.assignableFrom.map(node => checkNonGenType(transformType(node, transformer)));
+      return transformer({...type, assignableTo, assignableFrom});
     default: unreachable(type, 'transformType');
   }
 }
@@ -404,42 +413,43 @@ function transformType(type: Type, transformer: (node: Type) => Type): Type {
 
 class CalcGenType {
   private modified = false;
-  private assTos: NonGenType[];
-  private assFroms: NonGenType[] = [];
-  constructor(g: GenType) {
-    //console.log('made calc', g.name);
+  private readonly assTos: NonGenType[];
+  private readonly assFroms: NonGenType[];
+  constructor(g: GenType, private readonly canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean) {
     this.assTos = g.assignableTo.toArray();
+    this.assFroms = g.assignableFrom.toArray();
   }
   toGen(name: string): GenType {
-    return {t: 'g', name, assignableTo: List(this.assTos)};
+    return {t: 'g', name, assignableTo: List(this.assTos), assignableFrom: List(this.assFroms)};
   }
   pretty(name: string): string {
     return pt(this.toGen(name));
   }
-  assTo(target: NonGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
-    const result = this.assTos.some(tt => canAssignInner(target, tt)); // TODO could be maybe type that covers combo???
+  assToImmutable(target: NonGenType) {
+    return this.assTos.some(tt => this.canAssignInner(target, tt)); // TODO could be maybe type that covers combo???
+  }
+  assTo(target: NonGenType): boolean {
+    const result = this.assToImmutable(target);
     if (result) return result;
     this.modified = true;
-    //console.log('added constrant', pt(target));
     this.assTos.push(target);
     return true;
   }
-  assFrom(source: NonGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
-    //console.log('added assignment', pt(source));
+  assFromImmutable(source: NonGenType): boolean {
+    return this.assFroms.some(tt => this.canAssignInner(tt, source)); // TODO could be maybe type that covers combo???
+  }
+  assFrom(source: NonGenType): boolean {
+    const result = this.assFromImmutable(source);
+    if (result) return result;
+    this.modified = true;
     this.assFroms.push(source);
-    return this.assTos.every(tt => canAssignInner(tt, source)); // TODO could be maybe type that covers combo???
-    //if (result) return result;
-    //this.modified = true;
-    //this.assFroms.push(source);
-    //return true;
+    return true;
   }
   static genGen(ttt: CalcGenType, sss: CalcGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
     const result = ttt.assTos.filter(tt => !sss.assTos.some(t => canAssignInner(tt, t)));
-    //console.log('added assignments from G', sss.assTos.map(pt).join());
     ttt.assFroms.push(...sss.assTos);
     if (!result.length) return true;
     sss.modified = true;
-    //console.log('added constraints from G', result.map(pt).join());
     sss.assTos.push(...result);
     return true;
   }
@@ -461,7 +471,7 @@ class CanAssignCalculator {
     return sss;
   }
 
-  canAssign(target: Type, source: Type): boolean {
+  canAssign(tgens: ISet<string>, target: Type, source: Type, sgens: ISet<string>): boolean {
     if (source.t === '-') return true;
     if (target.t === '*') return true;
     if (target.t === '-') return false;
@@ -469,10 +479,10 @@ class CanAssignCalculator {
 
     if (source.t !== 'g') {
       if (target.t !== 'g') {
-        return this.canAssignInner(target, source);
+        return this.canAssignInner(tgens, target, source, sgens);
       } else {
         const ttt = this.register(target);
-        return ttt.assFrom(source, this.canAssignInner);
+        return ttt.assFrom(source);
       }
     }
     const sss = this.register(source);
@@ -480,14 +490,14 @@ class CanAssignCalculator {
       const ttt = this.register(target);
       return CalcGenType.genGen(ttt, sss, this.canAssignInner);
     } else {
-      return sss.assTo(target, this.canAssignInner);
+      return sss.assTo(target);
     }
   }
 
-  private invariant(target: Type, source: Type): boolean {
-    return this.canAssign(target, source) && this.canAssign(source, target);
+  private invariant(tgens: ISet<string>, target: Type, source: Type, sgens: ISet<string>): boolean {
+    return this.canAssign(tgens, target, source, sgens) && this.canAssign(sgens, source, target, tgens);
   }
-  private canAssignInner: (target: NonGenType, source: NonGenType) => boolean = (target, source) => {
+  private canAssignInner: (tgens: ISet<string>, target: NonGenType, source: NonGenType, sgens: ISet<string>) => boolean = (tgens, target, source, sgens) => {
     const t = target.t;
     switch (t) {
       case '_':
@@ -497,22 +507,22 @@ class CanAssignCalculator {
       case 's':
       case 'c': return t === source.t;
       case 't':
-        return t === source.t && target.values.length === source.values.length &&
-          zip(target.values, source.values).every(([tv, sv]) => this.invariant(tv, sv));
+        return t === source.t && target.values.size === source.values.size &&
+          zipL(target.values, source.values).every(([tv, sv]) => this.invariant(tgens, tv, sv, sgens));
       case 'o':
         return t === source.t && target.con === source.con;
       case 'f':
         return t === source.t && target.sigs.length === source.sigs.length &&
           zip(target.sigs, source.sigs).every(([target, source]) =>
-            this.canAssign(target.ret, source.ret)
-            && target.args.length === source.args.length
-            && zip(target.args, source.args).every(([ta, sa]) => this.canAssign(sa, ta)));
+            this.canAssign(tgens, target.ret, source.ret, sgens)
+            && target.args.size === source.args.size
+            && zipL(target.args, source.args).every(([ta, sa]) => this.canAssign(sgens, sa, ta, tgens)));
       case 'a':
-        return t === source.t && this.invariant(target.subtype, source.subtype);
+        return t === source.t && this.invariant(tgens, target.subtype, source.subtype, sgens);
       case 'm':
         if (source.t === '_') return true;
-        if (source.t === 'm') return this.canAssign(target.subtype, source.subtype);
-        return this.canAssign(target.subtype, source);
+        if (source.t === 'm') return this.canAssign(tgens, target.subtype, source.subtype, sgens);
+        return this.canAssign(tgens, target.subtype, source, sgens);
       default: unreachable(target, 'checkAssignment');
     }
   }
@@ -526,11 +536,11 @@ export abstract class Module {
   }
   canAssign(target: Type, source: Type): boolean {
     const calc = new CanAssignCalculator();
-    return calc.canAssign(target, source) && !calc.anyModified();
+    return calc.canAssign(ISet(), target, source, ISet()) && !calc.anyModified();
   }
-  canAssignGen(target: Type, source: Type): [boolean, Seq.Indexed<[string, CalcGenType]>] {
+  canAssignGen(tgens: ISet<string> | null, target: Type, source: Type, sgens: ISet<string> | null): [boolean, Seq.Indexed<[string, CalcGenType]>] {
     const calc = new CanAssignCalculator();
-    return [calc.canAssign(target, source), calc.getGens()];
+    return [calc.canAssign(tgens ?? ISet(), target, source, sgens ?? ISet()), calc.getGens()];
   }
   commonSupertype(a: Type, b: Type): Type {
     if (b.t === Bot.t) return a;
@@ -926,18 +936,18 @@ class Postprocessor {
       const c = this.constant(right);
       assert(c.type.t === 'i', `Cannot index tuple with non-integer ${c.value}`);
       const index = Number.parseInt(c.value);
-      assert(index >= 0 && index < tup.type.values.length, `Index ${c.value} out of bounds for tuple of size ${tup.type.values.length}`);
-      const type = tup.type.values[index];
+      const type = tup.type.values.get(index);
+      assert(type, `Index ${c.value} out of bounds for tuple of size ${tup.type.values.size}`);
       return {kind: 'telement', type, returnType: tup.returnType, index, tup};
     }
   }
 
-  private argTypes(f: Fnd | Cnd): Type[] {
-    return f.value[1].map(vr => throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`));
+  private argTypes(f: Fnd | Cnd): List<Type> {
+    return List(f.value[1].map(vr => throwIfNull(unwrapVar(vr), `Need a type annotation on ${vr.value[0].value}`)));
   }
 
-  private argNames(f: Fnd | Cnd): VrName[] {
-    return f.value[1].map(vr => vr.value[0].value);
+  private argNames(f: Fnd | Cnd): List<VrName> {
+    return List(f.value[1].map(vr => vr.value[0].value));
   }
 
 
@@ -950,7 +960,7 @@ class Postprocessor {
     const gens = fncTemplates(f);
 
     const innerContext = this.context.newChild(ContextType.Function);
-    zip(argNames, argTypes).forEach(v => innerContext.setVar(...v));
+    zipL(argNames, argTypes).forEach(v => innerContext.setVar(...v));
     gens.forEach((g, name) => innerContext.setType(name, g));
     if (this.context.currentVar) {
       innerContext.setVar(this.context.currentVar.name, this.context.currentVar.type);
@@ -972,7 +982,7 @@ class Postprocessor {
 
     const gens = fncTemplates(f);
 
-    const fields = IMap(zip(argNames, argTypes));
+    const fields = IMap(zipL(argNames, argTypes));
     const name = f.value[2].value;
     const con: ConType = {fields, name};
     this.context.module.setNewCon(name, con);
@@ -996,21 +1006,14 @@ class Postprocessor {
   private updateGenerics(ret: Type, gens: {get(name: string): GenType | undefined}): Type {
     return transformType(ret, type => {
       if (type.t !== 'g') return type;
-      const newType = gens.get(type.name);
-      if (newType) return newType;
-      const assignableTo = type.assignableTo.map<NonGenType>(tt => {
-        const mapped = this.updateGenerics(tt, gens);
-        if (mapped.t === 'g' || mapped.t === '*' || mapped.t === '-') return tt;
-        return mapped;
-      });
-      return {...type, assignableTo};
+      return gens.get(type.name) ?? type;
     });
   }
 
   private applyToSig({args, ret, gens}: FunSignature, as: Type[]): FunSignature | string {
-    if (args.length < as.length) return `Too many arguments`;
+    if (args.size < as.length) return `Too many arguments`;
     for (const [expected, actual] of zipShorter(args, as)) {
-      let [can, mods] = this.context.module.canAssignGen(expected, actual);
+      let [can, mods] = this.context.module.canAssignGen(ISet.fromKeys(gens), expected, actual, null);
       if (!can) return `Cannot assign ${pt(actual)} to argument expecting ${pt(expected)}`;
 
       for (const [name, gg] of mods) {
@@ -1093,8 +1096,8 @@ class Postprocessor {
   }
 
   private bindfuncc(f: NarrowedExpression<FunType>, tup: NarrowedExpression<TupType>): FunctionBind & ExpNarrow<FunType> {
-    const args: TupleElement[] = tup.type.values.map((type, index) => ({kind: 'telement', type, returnType: tup.returnType, index, tup}));
-    return this.bindfuncn(f, args);
+    const args: List<TupleElement> = tup.type.values.map((type, index) => ({kind: 'telement', type, returnType: tup.returnType, index, tup}));
+    return this.bindfuncn(f, args.toArray());
   }
 
   private bindfun(l: Exp, op: Cl, r: Exp): FunctionBind & ExpNarrow<FunType> {
@@ -1111,7 +1114,7 @@ class Postprocessor {
   private callfun(e: Exp, _sc: Sc): FunctionBind {
     const kind = 'bind';
     let f = checkff(this.expression(e));
-    const matchingOverload = f.type.sigs.findIndex(s => s.args.length === 0);
+    const matchingOverload = f.type.sigs.findIndex(s => s.args.size === 0);
     assert(matchingOverload !== -1, `Function needs more arguments`);
     const type = f.type.sigs[matchingOverload].ret;
     const returnType = f.returnType;
@@ -1131,11 +1134,11 @@ class Postprocessor {
       assert(tt.kind === 'tuple');
       const v = this.expression(e.value[1]);
       const returnType = this.comSup(tt.returnType, v.returnType);
-      return {kind, type: {t, values: tt.type.values.concat(v.type)}, returnType, elements: tt.elements.concat(v)};
+      return {kind, type: {t, values: tt.type.values.push(v.type)}, returnType, elements: tt.elements.concat(v)};
     } else {
       const v = this.expression(e.value[0]);
       const returnType = v.returnType;
-      return {kind, type: {t, values: [v.type]}, returnType, elements: [v]};
+      return {kind, type: {t, values: List.of(v.type)}, returnType, elements: [v]};
     }
   }
 
@@ -1214,24 +1217,23 @@ class Postprocessor {
 }
 
 
-function ttpValues(ttp: Ttp): Type[] {
-  if (ttp.value.length === 1) return [parseTypeAnnotation(ttp.value[0])];
+function ttpValues(ttp: Ttp): List<Type> {
+  if (ttp.value.length === 1) return List.of(parseTypeAnnotation(ttp.value[0]));
   const [l, r] = ttp.value;
   const vals = ttpValues(l);
-  vals.push(parseTypeAnnotation(r));
-  return vals;
+  return vals.push(parseTypeAnnotation(r));
 }
 
 function parseFtpo(ftp: Ftpo): SimpleFunType {
   let ret;
-  let args: Type[];
+  let args: List<Type>;
   const gens = fncTemplates(ftp);
   if (ftp.value.length === 3) {
     ret = parseTypeAnnotation(ftp.value[2]);
-    args = ftp.value[1].map(t => parseTypeAnnotation(t));
+    args = List(ftp.value[1].map(t => parseTypeAnnotation(t)));
   } else {
     ret = parseTypeAnnotation(ftp.value[1]);
-    args = [];
+    args = List();
   }
   return {t: 'f', sigs: [{args, ret, gens}], sigKept: [true]};
 }
@@ -1245,7 +1247,7 @@ function parseTypeAnnotation(typ: Typ): Type {
   switch (typ.type) {
     case 'tp': return {t: typ.value};
     case 'tc': return {t: 'o', con: typ.value};
-    case 'tg': return {t: 'g', name: typ.value, assignableTo: List()};
+    case 'tg': return {t: 'g', name: typ.value, assignableTo: List(), assignableFrom: List()};
     case 'atp': return {t: 'a', subtype: parseTypeAnnotation(typ.value[0])};
     case 'ttp': return {t: 't', values: ttpValues(typ)};
     case 'ftp': return parseFtp(typ);
@@ -1282,5 +1284,5 @@ function unwrapVar(vvr: Var): Type | undefined {
 function fncTemplates(f: Fnd | Cnd | Ftpo): IMap<string, GenType> {
   const tmp = f.value[0].value;
   const tmps = tmp.length ? tmp[0] : [];
-  return IMap(tmps.map(tc => [tc.value, {t: 'g', name: tc.value, assignableTo: List()}]));
+  return IMap(tmps.map(tc => [tc.value, {t: 'g', name: tc.value, assignableTo: List(), assignableFrom: List()}]));
 }

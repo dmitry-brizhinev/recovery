@@ -1,5 +1,5 @@
 import {asserteq, numToLetter, unreachable} from '../util/Utils';
-import {zip, zipWith} from '../util/Zip';
+import {zip, zipWithL} from '../util/Zip';
 import type {PrimOps, VrName} from './CustomLexer';
 import type {Type, BinaryOperation, Constant, Constructor, Body, DefinedVariable, Expression, Field, FunctionBind, FunctionExpression, If, NewVariable, Receiver, Statement, Tuple, FunType, ArrayExpression, Assignment, Return, Do, DoWhile, While, For, Break, Continue, BlockStatement, Block, ArrayElement, TupleElement, StringElement, FunSignature, FunctionOverload} from './ParsePostprocessor';
 import {compile, type CompilationResult} from './TsComp';
@@ -246,7 +246,7 @@ class Compiler {
     const argNames = f.args;
     const argTypes = t.args;
     const gens = parseGens(t);
-    const args = zipWith(argNames, argTypes, this.defsAnnotate).join(', ');
+    const args = zipWithL(argNames, argTypes, this.defsAnnotate).join(', ');
     const r = this.expression(f.body);
     return `${gens}(${args}) => (${r})`;
   }
@@ -261,7 +261,7 @@ class Compiler {
   private constructorexp(f: Constructor): string {
     const argNames = f.sigs[0].args;
     const argTypes = f.type.sigs[0].args;
-    const args = zipWith(argNames, argTypes, this.defsAnnotate).join(', ');
+    const args = zipWithL(argNames, argTypes, this.defsAnnotate).join(', ');
     const rawArgs = argNames.join(', ');
     return `(${args}) => ({${rawArgs}})`;
   }

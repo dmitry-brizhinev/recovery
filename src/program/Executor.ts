@@ -3,7 +3,8 @@ import {assert, asserteq, throwIfNull, unreachable, type Callback} from '../util
 import type {PrimOps, VrName} from './CustomLexer';
 import type {Module, ArrayExpression, ArrType, Assignment, BinaryOperation, Block, BlockStatement, Break, Constant, Constructor, Continue, DefinedVariable, Do, DoWhile, Expression, Field, For, FunctionBind, FunctionExpression, FunType, If, NarrowedExpression, NewVariable, NumType, ObjType, Receiver, Return, Statement, Tuple, TupType, While, Body, NulType, TopType, BotType, StrType, MayType, Type, ArrayElement, TupleElement, StringElement, SimpleFunType} from './ParsePostprocessor';
 import {pt, ContextType} from './ParsePostprocessor';
-import {Map as IMap} from 'immutable';
+import {List, Map as IMap} from 'immutable';
+import {zipL} from '../util/Zip';
 
 interface Nul {
   readonly type: NulType;
@@ -26,13 +27,13 @@ interface Str {
   value: string;
 }
 interface FunOver {
-  readonly args: VrName[];
+  readonly args: List<VrName>;
   readonly ret: Expression | string;
 }
 interface Fun {
   readonly type: FunType;
   readonly sigs: FunOver[];
-  readonly applied: Value[];
+  readonly applied: List<Value>;
   readonly selfref?: {name: VrName; value: Fun;} | undefined;
 }
 interface SimpleFun extends Fun {
@@ -454,12 +455,12 @@ class Executor {
 
   private functionexp(f: FunctionExpression): Fun {
     const sigs = f.sigs.map(({args, body}) => ({args, ret: body}));
-    return {type: f.type, sigs, applied: []};
+    return {type: f.type, sigs, applied: List()};
   }
 
   private constructorexp(f: Constructor): SimpleFun {
     const sig = f.sigs[0];
-    return {type: f.type, sigs: [{args: sig.args, ret: sig.name}], applied: []};
+    return {type: f.type, sigs: [{args: sig.args, ret: sig.name}], applied: List()};
   }
 
   private binary(b: BinaryOperation): Value {
@@ -521,8 +522,8 @@ class Executor {
   private callfun(fun: Fun, callSig: number): Value {
     const innerContext = this.context.newChild(ContextType.Function);
     const sig = fun.sigs[callSig];
-    for (const [i, a] of fun.applied.entries()) {
-      innerContext.setVar(sig.args[i], a);
+    for (const [n, a] of zipL(sig.args, fun.applied)) {
+      innerContext.setVar(n, a);
     }
     if (typeof (sig.ret) === 'string') {
       return this.makeStruct(sig.ret, innerContext);

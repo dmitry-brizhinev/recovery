@@ -162,9 +162,9 @@ function parseGrammarInner(grammar: string): AllRules {
     }
   }
 
-  const startRule = List([ruleNames.get(first)]);
+  const startRule = List.of(ruleNames.get(first));
 
-  let result = OrderedMap<RuleSymbol, Rules>([[new RuleSymbol('start', List(['start']), 'fl'), OrderedSet<Rule>([startRule])]]);
+  let result = OrderedMap<RuleSymbol, Rules>([[new RuleSymbol('start', List.of('start'), 'fl'), OrderedSet<Rule>([startRule])]]);
   for (const line of lines) {
     const name = ruleNames.get(line.name);
     if (name.instruction === 'd') {
@@ -272,7 +272,7 @@ function filterAll(allRules: AllRules): AllRules {
   //)));
   allRules = allRules.map((rules, name) => {
     if (name.instruction !== 'ff') return rules;
-    return rules.flatMap(rule => rule.filterNot(symbol => symbol.equals(name)).map(s => List([s])));
+    return rules.flatMap(rule => rule.filterNot(symbol => symbol.equals(name)).map(s => List.of(s)));
   });
   allRules = allRules.filter((rules, name) => {
     if (rules.size === 1 && single(rules).size === 1) {
