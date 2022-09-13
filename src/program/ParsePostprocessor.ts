@@ -1,5 +1,5 @@
 
-import {assert, assertNonNull, unreachable, throwIfNull, asserteq} from '../util/Utils';
+import {assert, assertNonNull, unreachable, throwIfNull, asserteq, nonnull, nonstring} from '../util/Utils';
 import type {Op, Sc, NumT, StrT, Vr, FunT, TupT, ObjT, ArrT, PrimOps, VrName, VrType, Cnst, Cl, NulT, Nu, MayT, TopT, BotT, GenT} from './CustomLexer';
 import type {Dot, Fnd, Ass, Rec, Var, Typ, Ttp, Ftp, Ife, Exm, Arr, Ret, Sta, Dow, Wdo, For as ForP, Doo, Brk, Cnt, Bls, Ifb, Exp, Cnd, Ond, Ftpo} from './ParserOutput.generated';
 import {Map as IMap, List, Seq, Set as ISet} from 'immutable';
@@ -412,60 +412,73 @@ function transformType(type: Type, transformer: (node: Type) => Type): Type {
 //}
 
 class CalcGenType {
-  private modified = false;
   private readonly assTos: NonGenType[];
   private readonly assFroms: NonGenType[];
-  constructor(g: GenType, private readonly canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean) {
+  readonly immutable: boolean;
+  constructor(g: GenType, private readonly mgens: ISet<string>, private readonly canAssignInner: (tgens: ISet<string>, target: NonGenType, source: NonGenType, sgens: ISet<string>) => boolean) {
+    this.immutable = !mgens.has(g.name);
+    if (this.immutable) {
+      this.assTo = this.assToImmutable;
+      this.assFrom = this.assFromImmutable;
+    }
     this.assTos = g.assignableTo.toArray();
     this.assFroms = g.assignableFrom.toArray();
   }
   toGen(name: string): GenType {
+    // TODO check validity here instead of infer(), and make it a hard fail?
     return {t: 'g', name, assignableTo: List(this.assTos), assignableFrom: List(this.assFroms)};
   }
   pretty(name: string): string {
     return pt(this.toGen(name));
   }
-  assToImmutable(target: NonGenType) {
-    return this.assTos.some(tt => this.canAssignInner(target, tt)); // TODO could be maybe type that covers combo???
+  assToImmutable(target: NonGenType, ogens: ISet<string>): boolean {
+    return this.assTos.some(tt => this.canAssignInner(ogens, target, tt, this.mgens)); // TODO could be maybe type that covers combo???
   }
-  assTo(target: NonGenType): boolean {
-    const result = this.assToImmutable(target);
+  assTo(target: NonGenType, ogens: ISet<string>): boolean {
+    const result = this.assToImmutable(target, ogens);
     if (result) return result;
-    this.modified = true;
     this.assTos.push(target);
     return true;
   }
-  assFromImmutable(source: NonGenType): boolean {
-    return this.assFroms.some(tt => this.canAssignInner(tt, source)); // TODO could be maybe type that covers combo???
+  assFromImmutable(source: NonGenType, ogens: ISet<string>): boolean {
+    return this.assFroms.some(tt => this.canAssignInner(this.mgens, tt, source, ogens)); // TODO could be maybe type that covers combo???
   }
-  assFrom(source: NonGenType): boolean {
-    const result = this.assFromImmutable(source);
+  assFrom(source: NonGenType, ogens: ISet<string>): boolean {
+    const result = this.assFromImmutable(source, ogens);
     if (result) return result;
-    this.modified = true;
     this.assFroms.push(source);
     return true;
   }
-  static genGen(ttt: CalcGenType, sss: CalcGenType, canAssignInner: (targ: NonGenType, sorc: NonGenType) => boolean): boolean {
-    const result = ttt.assTos.filter(tt => !sss.assTos.some(t => canAssignInner(tt, t)));
-    ttt.assFroms.push(...sss.assTos);
-    if (!result.length) return true;
-    sss.modified = true;
-    sss.assTos.push(...result);
-    return true;
+  static genGen(ttt: CalcGenType, sss: CalcGenType): boolean {
+    asserteq(ttt.canAssignInner, sss.canAssignInner);
+    return ttt.assTos.every(tt => sss.assTo(tt, ttt.mgens)) &&
+      sss.assFroms.every(ss => ttt.assFrom(ss, sss.mgens));
   }
-  wasModified() {return this.modified;}
-  assignedFrom() {return this.assFroms;}
+  infer(comSup: (a: Type, b: Type) => Type): NonGenType | undefined {
+    if (!this.assFroms.length) {
+      if (this.assTos.length !== 1) return undefined;
+      return this.assTos[0];
+    }
+    if (!this.assTos.every(tt => this.assFroms.every(ss => this.canAssignInner(ISet(), tt, ss, ISet())))) {
+      return undefined;
+    }
+    const sup = this.assFroms.reduce<Type>(comSup, Bot);
+    if (sup.t === 'g' || sup.t === '*' || sup.t === '-') return undefined;
+    assert(this.assFromImmutable(sup, ISet()), `sup ${pt(sup)} not assignable to ${this.pretty('?')}`);
+    assert(this.assTos.every(tt => this.canAssignInner(ISet(), tt, sup, ISet())), `sup ${pt(sup)} not compatible with ${this.pretty('?')}`);
+    return sup;
+  }
 }
 
 class CanAssignCalculator {
   private readonly genOut = new Map<string, CalcGenType>();
-  anyModified() {return Seq(this.genOut.values()).some(sss => sss.wasModified());}
-  getGens() {return Seq(this.genOut.entries());}
+  private readonly invariantInnerBound = this.invariantInner.bind(this);
+  getGens() {return Seq.Keyed(this.genOut.entries()).filterNot(g => g.immutable).toMap();}
 
-  private register(g: GenType): CalcGenType {
+  private register(g: GenType, mgens: ISet<string>): CalcGenType {
     let sss = this.genOut.get(g.name);
     if (!sss) {
-      sss = new CalcGenType(g);
+      sss = new CalcGenType(g, mgens, this.invariantInnerBound);
       this.genOut.set(g.name, sss);
     }
     return sss;
@@ -481,23 +494,31 @@ class CanAssignCalculator {
       if (target.t !== 'g') {
         return this.canAssignInner(tgens, target, source, sgens);
       } else {
-        const ttt = this.register(target);
-        return ttt.assFrom(source);
+        const ttt = this.register(target, tgens);
+        return ttt.assFrom(source, sgens);
       }
     }
-    const sss = this.register(source);
+    const sss = this.register(source, sgens);
     if (target.t === 'g') {
-      const ttt = this.register(target);
-      return CalcGenType.genGen(ttt, sss, this.canAssignInner);
+      const ttt = this.register(target, tgens);
+      return CalcGenType.genGen(ttt, sss);
     } else {
-      return sss.assTo(target);
+      return sss.assTo(target, tgens);
     }
   }
 
   private invariant(tgens: ISet<string>, target: Type, source: Type, sgens: ISet<string>): boolean {
+    if (source.t === '-' && target.t === '-') return true;
+    if (source.t === '*' && target.t === '*') return true;
+    if (source.t === '-' || target.t === '-') return false;
+    if (source.t === '*' || target.t === '*') return false;
+
+    if (source.t !== 'g' && target.t !== 'g') {
+      return this.invariantInner(tgens, target, source, sgens);
+    }
     return this.canAssign(tgens, target, source, sgens) && this.canAssign(sgens, source, target, tgens);
   }
-  private canAssignInner: (tgens: ISet<string>, target: NonGenType, source: NonGenType, sgens: ISet<string>) => boolean = (tgens, target, source, sgens) => {
+  private invariantInner(tgens: ISet<string>, target: NonGenType, source: NonGenType, sgens: ISet<string>): boolean {
     const t = target.t;
     switch (t) {
       case '_':
@@ -509,6 +530,35 @@ class CanAssignCalculator {
       case 't':
         return t === source.t && target.values.size === source.values.size &&
           zipL(target.values, source.values).every(([tv, sv]) => this.invariant(tgens, tv, sv, sgens));
+      case 'a':
+        return t === source.t && this.invariant(tgens, target.subtype, source.subtype, sgens);
+      case 'o':
+        return t === source.t && target.con === source.con;
+      case 'f':
+        return t === source.t && target.sigs.length === source.sigs.length &&
+          zip(target.sigs, source.sigs).every(([target, source]) =>
+            this.invariant(tgens, target.ret, source.ret, sgens)
+            && target.args.size === source.args.size
+            && zipL(target.args, source.args).every(([ta, sa]) => this.invariant(sgens, sa, ta, tgens)));
+      case 'm':
+        return t === source.t && this.invariant(tgens, target.subtype, source.subtype, sgens);
+      default: unreachable(target, 'checkAssignment');
+    }
+  }
+  private canAssignInner(tgens: ISet<string>, target: NonGenType, source: NonGenType, sgens: ISet<string>): boolean {
+    const t = target.t;
+    switch (t) {
+      case '_':
+      case 'i':
+      case 'd':
+      case 'b':
+      case 's':
+      case 'c': return t === source.t;
+      case 't':
+        return t === source.t && target.values.size === source.values.size &&
+          zipL(target.values, source.values).every(([tv, sv]) => this.invariant(tgens, tv, sv, sgens));
+      case 'a':
+        return t === source.t && this.invariant(tgens, target.subtype, source.subtype, sgens);
       case 'o':
         return t === source.t && target.con === source.con;
       case 'f':
@@ -517,8 +567,6 @@ class CanAssignCalculator {
             this.canAssign(tgens, target.ret, source.ret, sgens)
             && target.args.size === source.args.size
             && zipL(target.args, source.args).every(([ta, sa]) => this.canAssign(sgens, sa, ta, tgens)));
-      case 'a':
-        return t === source.t && this.invariant(tgens, target.subtype, source.subtype, sgens);
       case 'm':
         if (source.t === '_') return true;
         if (source.t === 'm') return this.canAssign(tgens, target.subtype, source.subtype, sgens);
@@ -536,11 +584,11 @@ export abstract class Module {
   }
   canAssign(target: Type, source: Type): boolean {
     const calc = new CanAssignCalculator();
-    return calc.canAssign(ISet(), target, source, ISet()) && !calc.anyModified();
+    return calc.canAssign(ISet(), target, source, ISet());
   }
-  canAssignGen(tgens: ISet<string> | null, target: Type, source: Type, sgens: ISet<string> | null): [boolean, Seq.Indexed<[string, CalcGenType]>] {
+  canAssignGen(tgens: ISet<string> | null, ts: Seq.Indexed<[Type, Type]>, sgens: ISet<string> | null): IMap<string, CalcGenType> | undefined {
     const calc = new CanAssignCalculator();
-    return [calc.canAssign(tgens ?? ISet(), target, source, sgens ?? ISet()), calc.getGens()];
+    return ts.every(([target, source]) => calc.canAssign(tgens ?? ISet(), target, source, sgens ?? ISet())) ? calc.getGens() : undefined;
   }
   commonSupertype(a: Type, b: Type): Type {
     if (b.t === Bot.t) return a;
@@ -1003,70 +1051,64 @@ class Postprocessor {
     return {kind, sigs, type, returnType: Bot};
   }
 
-  private updateGenerics(ret: Type, gens: {get(name: string): GenType | undefined}): Type {
+  private printAssignment(expected: List<Type>, actual: Type[]): string {
+    return zipShorter(expected, actual).map(ea => ea.map(pt).join(' <-- ')).join(' , ');
+  }
+
+  private checkArgumentAssign(expected: List<Type>, actual: Type[], message: string): string {
+    assert(actual.length <= expected.size);
+    if (zipShorter(expected, actual).every(([e, a]) => this.context.module.canAssign(e, a))) {
+      return '';
+    }
+    return `Cannot assign ${this.printAssignment(expected, actual)} ${message}`;
+  }
+
+  private updateGenerics(ret: Type, gens: IMap<string, GenType> | IMap<string, NonGenType>): Type {
     return transformType(ret, type => {
       if (type.t !== 'g') return type;
       return gens.get(type.name) ?? type;
     });
   }
 
-  private applyToSig({args, ret, gens}: FunSignature, as: Type[]): FunSignature | string {
-    if (args.size < as.length) return `Too many arguments`;
-    for (const [expected, actual] of zipShorter(args, as)) {
-      let [can, mods] = this.context.module.canAssignGen(ISet.fromKeys(gens), expected, actual, null);
-      if (!can) return `Cannot assign ${pt(actual)} to argument expecting ${pt(expected)}`;
-
-      for (const [name, gg] of mods) {
-        const g = gens.get(name);
-        if (!g && !gg.wasModified()) continue;
-        if (!g) return `Cannot assign ${pt(actual)} to ${pt(expected)} as generic ${name} needs to be ${gg.pretty(name)}`;
-        asserteq(g.name, name);
-
-        if (gg.wasModified()) {
-          //const ggGen = gg.toGen(name);
-          //expected = this.updateGenerics(expected, {get: n => n === name ? ggGen : undefined});
-          //if (!this.context.module.canAssign(expected, actual)) {
-          //  return `Cannot assign ${pt(actual)} to ${pt(expected)} when generic ${pt(g)} has added restrictions ${pt(ggGen)}`;
-          //}
-          gens = gens.set(g.name, gg.toGen(name));
-        }
-      }
-
-      let newExpected = this.updateGenerics(expected, gens);
-
-      [can, mods] = this.context.module.canAssignGen(newExpected, actual);
-      if (!can) return `Cannot assign ${pt(actual)} to ${pt(newExpected)} after adding generic constraints`;
-
-      for (const [name, gg] of mods) {
-        const g = gens.get(name);
-        if (!g && !gg.wasModified()) continue;
-        if (!g) return `Cannot assign ${pt(actual)} to ${pt(newExpected)} after adding generic constraints as generic ${name} needs to be ${gg.pretty(name)}`;
-        if (gg.wasModified()) return `Cannot assign ${pt(actual)} to ${pt(newExpected)} after adding generic constraints as ${pt(g)} needs even more restrictions ${gg.pretty(name)}`;
-
-        const assFrom = gg.assignedFrom();
-        if (!assFrom.length) continue;
-
-        const sup = assFrom.reduce<Type>((a, b) => this.comSup(a, b), Bot);
-        if (sup.t === 'g' || sup.t === '*' || sup.t === '-') continue;
-        assert(gg.assTo(sup, (t, s) => this.context.module.canAssign(t, s)));
-        if (!gg.wasModified()) continue;
-
-        const maybeExpected = this.updateGenerics(newExpected, {get: n => n === name ? gg.toGen(name) : undefined});
-        if (!this.context.module.canAssign(maybeExpected, actual)) continue;
-
-        newExpected = maybeExpected;
-        gens = gens.set(g.name, gg.toGen(name));
-        continue;
-      }
+  private applyToSig({args, ret, gens}: FunSignature, actuals: Type[]): FunSignature | string {
+    if (args.size < actuals.length) return `Too many arguments`;
+    const mods = this.context.module.canAssignGen(ISet.fromKeys(gens), zipShorter(args, actuals), null);
+    if (!mods) {
+      return `Cannot assign ${this.printAssignment(args, actuals)}`;
     }
+    const log = !gens.isEmpty();
+    if (log) console.log('gens1', gens.map(pt).toJSON());
+    if (log) console.log('mods', mods.map((gg, n) => gg.pretty(n)).toJSON());
+    for (const [name, gg] of mods) {
+      assert(gens.has(name), `Unknown modified generic ${gg.pretty(name)}`);
+    }
+    gens = gens.merge(mods.map((gg, n) => gg.toGen(n)));
+    if (log) console.log('gens2', gens.toSeq().map(pt).toJSON());
+
+    args = args.map(a => this.updateGenerics(a, gens));
     ret = this.updateGenerics(ret, gens);
-    return {args: args.slice(as.length), ret, gens};
+    let m: string;
+    if (m = this.checkArgumentAssign(args, actuals, 'after adding generic constraints')) {
+      return m;
+    }
+
+    const inferred = mods.map(gg => gg.infer(this.comSup.bind(this))).filter(nonnull).toMap();
+
+    args = args.map(a => this.updateGenerics(a, inferred));
+    ret = this.updateGenerics(ret, inferred);
+    if (m = this.checkArgumentAssign(args, actuals, 'after inferring concrete generic types')) {
+      return m;
+    }
+
+    gens = gens.removeAll(inferred.keys());
+
+    return {args: args.slice(actuals.length), ret, gens};
   }
 
   private bindFuncType(type: FunType, args: Type[]): FunType {
     const sigsOrUn = type.sigs.map(s => this.applyToSig(s, args));
-    const sigs = sigsOrUn.flatMap(s => typeof s === 'string' ? [] : [s]);
-    const sigKept = sigsOrUn.map(s => typeof s !== 'string');
+    const sigs = sigsOrUn.filter(nonstring);
+    const sigKept = sigsOrUn.map(nonstring);
     if (!sigs.length) {
       if (sigsOrUn.length === 1) {
         assert(sigs.length, 'Invalid arguments to function: ' + sigsOrUn[0].toString());

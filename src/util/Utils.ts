@@ -43,6 +43,14 @@ export function assert(x: unknown, message?: string, extraData?: unknown): asser
   throw new Error(m);
 }
 
+export function nonnull<T>(x: T | null | undefined): x is T {
+  return x != null;
+}
+
+export function nonstring<T>(x: T | string): x is T {
+  return typeof x !== 'string';
+}
+
 export function assertNonNull(x: unknown, message?: string): asserts x is {} {
   assert(x != null, message);
 }

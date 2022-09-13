@@ -1,7 +1,7 @@
 import type {LexedToken, Lexer, TokenLocation} from "./CustomLexer";
 import {cleanLexedToken, getLoc as getLexLoc} from "./CustomLexer";
 import * as nearley from 'nearley';
-import {assert, unreachable} from "../util/Utils";
+import {assert, nonnull, unreachable} from "../util/Utils";
 import {compileGrammar} from "./NearleyGrammar";
 import {generateTypesFrom} from './GrammarParser';
 import {FilteredParserNames, RenamedParserNames, FinalParserNames, instructions, renames, type FinalParserName, type RenamedParserName, type DirtyParserName, type Start, type WLoc, type Outputs} from './ParserOutput.generated';
@@ -60,9 +60,9 @@ function getLoc(vs: Inputs[]): TokenLocation | null {
   return result;
 }
 
-function postprocessFilter(v: Inputs): Outputs[] {
-  if ('d' in v) return [];
-  if (Array.isArray(v)) return [v];
+function postprocessFilter(v: Inputs): Outputs | undefined {
+  if ('d' in v) return undefined;
+  if (Array.isArray(v)) return v;
   if ('text' in v) {
     assert(!Array.isArray(v.value));
     return cleanLexedToken(v);
@@ -70,17 +70,17 @@ function postprocessFilter(v: Inputs): Outputs[] {
   if (isCleanParserName(v.type)) {
     assert(Array.isArray(v.value));
     assert(!FilteredParserNames.has(v.type));
-    return [v];
+    return v;
   } else {
     assert(!Array.isArray(v.value));
-    return [v];
+    return v;
   }
 }
 
 function postprocess(name: DirtyParserName, data: Inputs[]): RemovedVal | Outputs {
   const i = instructions[name];
   const loc = getLoc(data); // TODO could attach loc to ff/fu/fm cases
-  const d = data.flatMap(postprocessFilter);
+  const d = data.map(postprocessFilter).filter(nonnull);
   switch (i) {
     case 'd': assert(FilteredParserNames.has(name)); return {d: 'd', loc};
     case 'fu': assert(FilteredParserNames.has(name)); assert(d.length === 1, `${name} had ${d.length} children`); return d[0];

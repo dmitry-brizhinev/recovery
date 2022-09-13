@@ -1,5 +1,5 @@
 import {checkLexerName, literalLookup, FilteredLexerNames, type DirtyLexerName} from "./CustomLexer";
-import {assert, throwIfNull, unreachable} from "../util/Utils";
+import {assert, nonnull, throwIfNull, unreachable} from "../util/Utils";
 import {OrderedMap, OrderedSet, Set as ISet, List, type ValueObject, hash, Collection} from 'immutable';
 
 export type ParsedSymbol = {rule: string;} | {token: DirtyLexerName;} | {literal: string;};
@@ -24,9 +24,9 @@ interface Line {
   instruction: Instruction;
 }
 
-function parseLine(line: string): [Line] | [] {
+function parseLine(line: string): Line | undefined {
   const g = line.split(/[#@]/)[0].trim();
-  if (g.length === 0) return [];
+  if (g.length === 0) return undefined;
   const gs = g.split(/ +-> +/);
   assert(gs.length === 2, g);
   const [name, ruless] = gs;
@@ -40,11 +40,11 @@ function parseLine(line: string): [Line] | [] {
   assert(name.slice(0, 2) === rename.slice(0, 2), `Wrong instructions name ${rename} for ${name}`);
   if (instruction === 'fm') assert(rename.endsWith('_'), `${rename}:fm needs to end with underscore`);
 
-  return [{name, rules, rename, instruction}];
+  return {name, rules, rename, instruction};
 }
 
 export function splitGrammar(grammar: string): Line[] {
-  return grammar.trim().split('\n').flatMap(parseLine);
+  return grammar.trim().split('\n').map(parseLine).filter(nonnull);
 }
 
 class SymbolBase implements ValueObject {
@@ -105,11 +105,11 @@ class RuleNames {
   }
 }
 
-function filterSymbol(ruleNames: RuleNames, t: ParsedSymbol): [Symbol] | [] {
+function filterSymbol(ruleNames: RuleNames, t: ParsedSymbol): Symbol | undefined {
   if ('rule' in t) {
     const symbol = ruleNames.get(t.rule);
-    if (symbol.instruction === 'd') return [];
-    return [symbol];
+    if (symbol.instruction === 'd') return undefined;
+    return symbol;
   }
   let token: DirtyLexerName | undefined;
   if ('token' in t) {
@@ -120,8 +120,8 @@ function filterSymbol(ruleNames: RuleNames, t: ParsedSymbol): [Symbol] | [] {
     }
     assert(token, `Unknown lexer literal ${t.literal}`);
   }
-  if (FilteredLexerNames.has(token)) return [];
-  return [new TokenSymbol(token)];
+  if (FilteredLexerNames.has(token)) return undefined;
+  return new TokenSymbol(token);
 }
 
 function parseGrammarInner(grammar: string): AllRules {
@@ -175,7 +175,7 @@ function parseGrammarInner(grammar: string): AllRules {
     const parsedRules = [];
     const fmMainRules = [];
     for (const rule of line.rules) {
-      const symbols = List(rule.flatMap(filterSymbol.bind(null, ruleNames)));
+      const symbols = List(rule.map(filterSymbol.bind(null, ruleNames)).filter(nonnull));
       if (name.instruction === 'fm' && symbols.size !== 1) {
         fmMainRules.push(symbols);
       } else {

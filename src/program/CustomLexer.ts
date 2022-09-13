@@ -245,16 +245,16 @@ export function getLoc(t: LexedToken): TokenLocation {
     return {sl, sc, ec: sc + t.text.length};
   }
 }
-export function cleanLexedToken(v: LexedToken): [CleanToken | Vr] | [] {
-  if (FilteredLexerNames.has(v.type)) return [];
+export function cleanLexedToken(v: LexedToken): CleanToken | Vr | undefined {
+  if (FilteredLexerNames.has(v.type)) return undefined;
   assertCleanLexerName(v.type);
   const {type, value} = v;
   const loc = getLoc(v);
   const clean: CleanToken = {type, value, loc};
   if (type === 'vr') {
-    return [tt(clean)];
+    return tt(clean);
   } else {
-    return [clean];
+    return clean;
   }
 }
 
