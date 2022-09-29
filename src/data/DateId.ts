@@ -1,19 +1,24 @@
 import {assert, type Day, pad2} from "../util/Utils";
 import {castToTypedef, type StrongTypedef} from "../util/StrongTypedef";
 
-type CEJ = 'C' | 'E' | 'J';
-type RawDateId<T extends CEJ> = `${T}${string}`;
+interface DateIdMap {
+  'C': DateId<'C'>;
+  'E': DateId<'E'>;
+  'J': DateId<'J'>;
+}
+
+type RawDateId<T extends keyof DateIdMap> = `${T}${string}`;
 declare const dateid: unique symbol;
-export type DateId<T extends CEJ> = StrongTypedef<RawDateId<T>, typeof dateid>;
-type AnyDateId = DateId<'C'> | DateId<'E'> | DateId<'J'>;
+export type DateId<T extends keyof DateIdMap> = StrongTypedef<RawDateId<T>, typeof dateid>;
+type AnyDateId = DateIdMap[keyof DateIdMap];
 
 const DateIdRegex = /^[CEJ](20\d\d)-([01]\d)-([0123]\d)$/;
 
-export function checkDateId<T extends CEJ>(id: string, cej: T): DateId<typeof cej> | null {
+export function checkDateId<T extends keyof DateIdMap>(id: string, cej: T): DateIdMap[T] | null {
   if (!DateIdRegex.test(id)) return null;
   if (!id.startsWith(cej)) return null;
 
-  const did = castToTypedef<typeof dateid, RawDateId<typeof cej>>(`${cej}${id.slice(1)}`);
+  const did = castToTypedef<typeof dateid, RawDateId<T>>(`${cej}${id.slice(1)}`);
 
   const {month, day} = idToDay(did);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
@@ -21,7 +26,7 @@ export function checkDateId<T extends CEJ>(id: string, cej: T): DateId<typeof ce
   return did;
 }
 
-export function dateToId<T extends CEJ>(date: Date, cej: T): DateId<typeof cej> {
+export function dateToId<T extends keyof DateIdMap>(date: Date, cej: T): DateIdMap[T] {
   const year = date.getFullYear();
   const month = pad2(date.getMonth() + 1);
   const day = pad2(date.getDate());
@@ -30,7 +35,7 @@ export function dateToId<T extends CEJ>(date: Date, cej: T): DateId<typeof cej> 
   return id;
 }
 
-export function incrementId<T extends CEJ>(id: DateId<T>, incrementDays: number): DateId<T> {
+export function incrementId<T extends keyof DateIdMap>(id: DateId<T>, incrementDays: number): DateIdMap[T] {
   const date = idToDate(id);
   date.setDate(date.getDate() + incrementDays);
   return dateToId<T>(date, id.charAt(0) as T);
